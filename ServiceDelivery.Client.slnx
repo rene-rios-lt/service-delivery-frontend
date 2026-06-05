@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ServiceDelivery.Client.Maui/ServiceDelivery.Client.Maui.csproj" />
+    <Project Path="src/ServiceDelivery.Client.Shared/ServiceDelivery.Client.Shared.csproj" />
+    <Project Path="src/ServiceDelivery.Client.Web/ServiceDelivery.Client.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ServiceDelivery.Client.Tests/ServiceDelivery.Client.Tests.csproj" />
+  </Folder>
+</Solution>

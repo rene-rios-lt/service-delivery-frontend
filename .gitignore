@@ -1,0 +1,31 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.log
+
+# NuGet
+*.nupkg
+packages/
+project.lock.json
+
+# Environment
+.env
+.env.local
+appsettings.Local.json
+
+# MAUI
+*.ipa
+*.apk
+*.aab
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
