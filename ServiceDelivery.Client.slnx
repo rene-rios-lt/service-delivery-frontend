@@ -1,7 +1,9 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/ServiceDelivery.Client.Maui/ServiceDelivery.Client.Maui.csproj" />
-    <Project Path="src/ServiceDelivery.Client.Shared/ServiceDelivery.Client.Shared.csproj" />
+    <Project Path="src/ServiceDelivery.Client.Core/ServiceDelivery.Client.Core.csproj" />
+    <Project Path="src/ServiceDelivery.Client.Desktop/ServiceDelivery.Client.Desktop.csproj" />
+    <Project Path="src/ServiceDelivery.Client.Mobile/ServiceDelivery.Client.Mobile.csproj" />
+    <Project Path="src/ServiceDelivery.Client.UI/ServiceDelivery.Client.UI.csproj" />
     <Project Path="src/ServiceDelivery.Client.Web/ServiceDelivery.Client.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
