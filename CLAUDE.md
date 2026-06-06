@@ -6,6 +6,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is the frontend repository for the Service Delivery system. It uses .NET MAUI Blazor Hybrid and Blazor WASM to share a single Razor UI codebase across Desktop, Mobile, and Web from distinct host projects.
 
+## System Context
+
+This frontend serves three personas for a fleet dispatch system — "Uber for service reps." The user's **role** (from their JWT) determines which view they see. The **platform** (Desktop, Web, Mobile) determines the layout. Any persona can use any platform.
+
+| Role | Primary Platform | View |
+|------|-----------------|------|
+| Dispatcher | Desktop | Fleet command center — live map, request queue, redirect controls |
+| ServiceRep | Mobile | Vehicle selection, job offers (accept/decline), active job, mark complete |
+| Requester | Web / Mobile | Submit request, Uber-like rep tracking, redirect notifications |
+
+The backend communicates over REST and SignalR. Vehicle positions update every 3 seconds. Google Maps is used for all map views.
+
+## Required Reading Before Implementing
+
+Read these docs before building any view or component. They are the authoritative specification for what each persona sees and how each flow works.
+
+- [`docs/persona-views.md`](docs/persona-views.md) — exact screen-by-screen spec for all 3 personas across all states
+- [`docs/ux-flows.md`](docs/ux-flows.md) — all 5 end-to-end flows written from each persona's perspective
+
+For the backend contract (API endpoints, SignalR hub events, and data shapes), refer to `docs/api-design.md` in the backend repo.
+
 ## Commands
 
 ```bash
