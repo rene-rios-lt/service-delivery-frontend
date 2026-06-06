@@ -55,6 +55,72 @@ Core  ←  UI  ←  Desktop   (macOS, Windows)
 | Mobile  | iOS, Android | iOS 15.0+, Android API 24+ |
 | Web     | Browser (WASM) | — |
 
+## Test-Driven Development
+
+TDD is mandatory in this repo. No production code is written without a failing test first.
+
+### The Cycle
+
+```
+Red   → Write a failing test that describes the behaviour you want
+Green → Write the minimum production code to make it pass
+Refactor → Clean up without breaking the tests
+```
+
+Never write production code speculatively. If there is no failing test, there is no code to write.
+
+### Test Projects and What They Cover
+
+| Project | What to test | Tools |
+|---------|-------------|-------|
+| `Client.Tests` | Component behaviour, view model logic, service interface contracts | xUnit, bUnit |
+
+All tests live in `tests/ServiceDelivery.Client.Tests`. Host projects (Desktop, Mobile, Web) are bootstrapping only — they contain no logic and require no tests.
+
+### Test Naming
+
+Use the `Given_When_Then` convention:
+
+```csharp
+// Good
+public void GivenACounter_WhenIncrementIsCalled_ThenCountIncreasesBy1()
+
+// Also acceptable for simpler cases
+public void Counter_AfterOneClick_CountIsOne()
+```
+
+### Test Structure — Arrange / Act / Assert
+
+Every test must have clearly separated sections:
+
+```csharp
+[Fact]
+public void GivenACounter_WhenButtonIsClicked_ThenDisplayUpdates()
+{
+    // Arrange
+    var cut = Render<Counter>();
+
+    // Act
+    cut.Find("button").Click();
+
+    // Assert
+    cut.Find("p[role=status]").MarkupMatches("<p role=\"status\">Current count: 1</p>");
+}
+```
+
+### Layer-Specific TDD Rules
+
+- **Core (ViewModels)** — Write the view model test first. View models are pure C# — no bUnit needed, just xUnit.
+- **Core (Interfaces)** — Interfaces are contracts. Write a test against the interface before implementing it in a host's `Services/` folder.
+- **UI (Components)** — Write the bUnit component test before writing the Razor markup. The test defines what the component should render and how it should respond to interaction. Use `Render<T>()` from `BunitContext`.
+- **Services** — Mock service interfaces in component tests. Never let a component test reach a real HTTP client or native API.
+
+### What Not to Test
+
+- MAUI bootstrapping (`MauiProgram.cs`, `App.xaml.cs`) — framework wiring, not your logic
+- Razor layout structure (`MainLayout.razor`) unless it contains conditional logic
+- Static markup with no state or interaction
+
 ## SOLID Principles
 
 All additions and modifications to this repo must follow these principles. They are mapped directly to the project structure so there is no ambiguity about where code belongs.
