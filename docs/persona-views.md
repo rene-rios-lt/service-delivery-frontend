@@ -33,7 +33,8 @@ The dispatcher manages the fleet and handles service requests from a command cen
 - Requests sorted by tier (Gold first), then by time waiting
 
 ### Assignment Controls
-- **Assign** button on each pending request — confirms the suggested match and sends the job offer
+Job offers are sent automatically by the backend when a request comes in — no dispatcher action is required for normal assignment. The dispatcher observes the fleet in real time.
+
 - **Redirect** button appears on En Route reps serving lower-tier requests when a higher-tier request is pending
   - Redirect button is disabled (grayed out) when rep is Within 15 Miles or On Site
   - Redirect button is disabled during a rep's 5-minute cooldown, unless the incoming request is Gold tier
