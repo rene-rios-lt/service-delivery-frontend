@@ -100,14 +100,12 @@ All tests live in `tests/ServiceDelivery.Client.Tests`. Host projects (Desktop, 
 
 ### Test Naming
 
-Use the `Given_When_Then` convention:
+Use the `Given_When_Then` convention for all test method names:
 
 ```csharp
-// Good
 public void GivenACounter_WhenIncrementIsCalled_ThenCountIncreasesBy1()
-
-// Also acceptable for simpler cases
-public void Counter_AfterOneClick_CountIsOne()
+public void GivenADispatcherView_WhenFleetMapLoads_ThenVehicleMarkersAreVisible()
+public void GivenAJobOffer_WhenCountdownExpires_ThenOfferStateIsExpired()
 ```
 
 ### Test Structure — Arrange / Act / Assert
@@ -157,6 +155,10 @@ Each Razor component should do one thing. If a component fetches data **and** re
 ### O — Open/Closed
 - Add new features by creating new files under `UI/Features/<FeatureName>/` — never by modifying existing unrelated feature folders.
 - Extend service behavior by adding new implementations in host `Services/` folders, not by modifying existing interfaces in Core.
+
+### L — Liskov Substitution
+- Every service implementation in a host's `Services/` folder must fully honour the contract defined in the `Core/Interfaces/` interface it implements — no silent no-ops, no partial implementations, no methods that throw `NotImplementedException`.
+- If a platform cannot support a capability, model that explicitly (return a typed `Unsupported` result or a null-object) rather than silently breaking the contract.
 
 ### I — Interface Segregation
 - Define small, focused interfaces in `Core/Interfaces/` — one interface per logical capability (e.g. `IAuthService`, `ITicketService`).
