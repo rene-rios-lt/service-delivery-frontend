@@ -29,3 +29,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Agent audit files (ephemeral — never committed)
+.stories/
