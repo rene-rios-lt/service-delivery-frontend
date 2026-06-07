@@ -25,6 +25,16 @@ Core  ←  UI  ←  Desktop   (macOS, Windows)
 
 All UI lives in `UI`. Host projects (`Desktop`, `Mobile`, `Web`) are thin bootstrappers — they contain no UI logic.
 
+## Implementing Stories
+
+Stories are implemented using the Master agent in the central repo. Invoke it with a frontend story ID:
+
+```
+/master FE-001
+```
+
+The agent runs the full TDD pipeline (evaluate → plan → implement → review → PR) with two human checkpoints. See [service-delivery-central](https://github.com/rene-rios-lt/service-delivery-central) for the full agent system documentation.
+
 ## Getting Started
 
 See the [service-delivery-central](https://github.com/rene-rios-lt/service-delivery-central) repo for scripts to run the full system locally.
