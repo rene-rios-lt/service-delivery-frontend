@@ -35,7 +35,7 @@ Stories for this repo (`FE-001` through `FE-019`) are implemented using the Mast
 /master FE-007
 ```
 
-The agent creates a feature branch, runs the full TDD pipeline (evaluate → plan → implement → AI review → PR), and pauses at two human checkpoints. Never implement a story by writing code directly without the agent — TDD discipline and SOLID checks are enforced through that pipeline.
+The agent creates a feature branch, runs the full TDD pipeline (evaluate → plan → implement → AI review → review → PR), and pauses at two human checkpoints. Never implement a story by writing code directly without the agent — TDD discipline and SOLID checks are enforced through that pipeline.
 
 ### Audit Files (`.stories/`)
 
