@@ -27,6 +27,20 @@ Read these docs before building any view or component. They are the authoritativ
 
 For the backend contract (API endpoints, SignalR hub events, and data shapes), refer to `docs/api-design.md` in the backend repo.
 
+## Implementing Stories
+
+Stories for this repo (`FE-001` through `FE-019`) are implemented using the Master agent in `service-delivery-central`. Invoke it with the story ID:
+
+```
+/master FE-007
+```
+
+The agent creates a feature branch, runs the full TDD pipeline (evaluate → plan → implement → AI review → PR), and pauses at two human checkpoints. Never implement a story by writing code directly without the agent — TDD discipline and SOLID checks are enforced through that pipeline.
+
+### Audit Files (`.stories/`)
+
+During story execution the agent writes ephemeral working files to `.stories/<STORY-ID>/` in this repo. These files are gitignored and deleted at the start of each new run — they are session-scoped working memory for the pipeline, not source files. Do not create or commit anything under `.stories/`.
+
 ## Commands
 
 ```bash
