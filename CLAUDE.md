@@ -18,6 +18,19 @@ This frontend serves three personas for a fleet dispatch system — "Uber for se
 
 The backend communicates over REST and SignalR. Vehicle positions update every 3 seconds. Google Maps is used for all map views.
 
+## UI Framework
+
+**MudBlazor** is the component library for all Razor components (see ADR-0007 in `service-delivery-central`).
+
+- Add the `MudBlazor` NuGet package to `ServiceDelivery.Client.UI` and `ServiceDelivery.Client.Web`
+- Register MudBlazor services in `MauiProgram.cs` (Desktop/Mobile) and `Program.cs` (Web)
+- Use MudBlazor primitives (`MudCard`, `MudChip`, `MudBadge`, `MudDataGrid`, etc.) in preference to plain HTML elements
+- Define a `MudTheme` that maps domain colours to theme tokens:
+  - **Rep-state markers:** Green = Available, Blue = En Route, Yellow = Within 15 Miles, Red = On Site, Grey = Offline
+  - **Tier badges:** Bronze, Silver, Gold
+- Express all styling through MudBlazor theme tokens and component parameters first; add raw CSS only when no component parameter covers the need
+- Never introduce a second component library alongside MudBlazor
+
 ## Required Reading Before Implementing
 
 Read these docs before building any view or component. They are the authoritative specification for what each persona sees and how each flow works.
