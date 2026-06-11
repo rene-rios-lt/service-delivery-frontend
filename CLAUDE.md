@@ -8,13 +8,13 @@ This is the frontend repository for the Service Delivery system. It uses .NET MA
 
 ## System Context
 
-This frontend serves three personas for a fleet dispatch system — "Uber for service reps." The user's **role** (from their JWT) determines which view they see. The **platform** (Desktop, Web, Mobile) determines the layout. Any persona can use any platform.
+This frontend serves three personas for a fleet dispatch system — "Uber for service reps." The user's **role** (from their JWT) determines which view they see. The **platform** (Desktop, Web, Mobile) determines the layout. **Each persona is supported only on a subset of platforms** — see the Supported Platforms column below.
 
-| Role | Primary Platform | View |
-|------|-----------------|------|
-| Dispatcher | Desktop | Fleet command center — live map, request queue, redirect controls |
+| Role | Supported Platforms | View |
+|------|--------------------|------|
+| Dispatcher | Desktop, Web | Fleet command center — live map, request queue, redirect controls |
 | ServiceRep | Mobile | Vehicle selection, job offers (accept/decline), active job, mark complete |
-| Requester | Web / Mobile | Submit request, Uber-like rep tracking, redirect notifications |
+| Requester | Desktop, Web, Mobile | Submit request, Uber-like rep tracking, redirect notifications |
 
 The backend communicates over REST and SignalR. Vehicle positions update every 3 seconds. Google Maps is used for all map views.
 
