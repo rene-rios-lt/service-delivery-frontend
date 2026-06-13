@@ -13,7 +13,7 @@ This frontend serves three personas for a fleet dispatch system — "Uber for se
 | Role | Supported Platforms | View |
 |------|--------------------|------|
 | Dispatcher | Desktop, Web | Fleet command center — live map, request queue, redirect controls |
-| ServiceRep | Mobile | Vehicle selection, job offers (accept/decline), active job, mark complete |
+| ServiceRep | Mobile | Take over an idle vehicle (pick from dropdown, supersede the simulator), job offers (accept/decline), active job, mark complete |
 | Requester | Desktop, Web, Mobile | Submit request, Uber-like rep tracking, redirect notifications |
 
 The backend communicates over REST and SignalR. Vehicle positions update every 3 seconds. Google Maps is used for all map views.
@@ -42,7 +42,7 @@ For the backend contract (API endpoints, SignalR hub events, and data shapes), r
 
 ## Implementing Stories
 
-Stories for this repo (`FE-001` through `FE-019`) are implemented using the Master agent in `service-delivery-central`. Invoke it with the story ID:
+Stories for this repo (`FE-001` through `FE-023`) are implemented using the Master agent in `service-delivery-central`. Invoke it with the story ID:
 
 ```
 /master FE-007

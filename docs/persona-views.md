@@ -53,14 +53,17 @@ Job offers are sent automatically by the backend when a request comes in — no 
 
 ## Service Rep View
 
-### Vehicle Selection Screen
+### Take over an idle vehicle
 Shown immediately after login, before the rep is active in the fleet.
-- List of available (unclaimed) vehicles, each showing its vehicle ID and equipment capabilities (list of DTC codes it can handle)
-- Rep selects one — vehicle is locked to them for the day
-- Once selected, rep state transitions to Available and they appear on the dispatcher's map
+- Dropdown (or list) of **idle vehicles only** — vehicles not en route to a job and not on a job. Vehicles currently working a job do not appear.
+- Each entry shows its vehicle ID and equipment capabilities (list of DTC codes it can handle)
+- Selecting one performs the **takeover**: the vehicle is claimed for this rep, **superseding whatever the simulator had assigned** to it
+- Only an idle rep (no active job) may take over, and only an idle vehicle may be selected
+- After takeover the rep state transitions to Available, they appear on the dispatcher's map, and the screen moves to the idle/waiting view ready for dispatch
+- From this point the simulator drives the truck's position on the map, but the human makes every decision
 
 ### Job Offer Screen
-Shown when a job offer arrives (pushed via SignalR).
+Shown when a job offer arrives (pushed via SignalR). The **human** decides whether to take the job — the simulator never auto-accepts.
 - 60-second countdown timer (visible, prominent)
 - Requester name
 - Tier badge (Bronze / Silver / Gold)
@@ -68,28 +71,28 @@ Shown when a job offer arrives (pushed via SignalR).
 - Distance to requester (miles)
 - ETA (minutes)
 - Google Map with a pin at the requester's location
-- **Accept** and **Decline** buttons
+- **Accept** and **Decline** buttons — the human taps one; on Accept the simulator begins navigating the truck to the requester
 
 If the countdown expires with no action, the offer is marked Expired and the screen returns to idle.
 
 ### Active Job Screen (En Route / Within 15 Miles)
-Shown after accepting a job offer.
-- Google Map with rep's current position and requester's location pinned
+Shown after the human accepts a job offer. The simulator drives the truck toward the requester; the human decides when it has arrived.
+- Google Map with rep's current position (driven by the simulator) and requester's location pinned
 - ETA (updates in real time as position updates come in)
 - Requester name and DTC title
-- **"I've Arrived"** button — triggers On Site state transition
+- **"I've Arrived"** button — the human taps it to trigger the On Site state transition. The simulator navigates the truck but never auto-taps this for a human
 
 ### On Site Screen
-Shown after tapping "I've Arrived".
+Shown after the human taps "I've Arrived". The simulator holds the truck at the requester; the human decides when the work is done.
 - Requester name, DTC title, and request details
-- **"Mark Complete"** button — triggers job completion, returns rep to Available state
+- **"Mark Complete"** button — the human taps it to trigger job completion, returning the rep to Available state. The simulator never auto-completes for a human
 
 ### Redirect Notification
-If the dispatcher redirects the rep while En Route:
-- Current job offer screen updates to show the new destination
+A dispatcher can redirect a human-controlled rep — this **does** apply to human reps. If the dispatcher redirects the rep while En Route:
+- The active-job screen switches to the new destination (a hard reassignment — no accept/decline)
 - New requester name, tier, DTC, distance, and ETA shown
-- Map pin updates to new location
-- No accept/decline — redirect is a hard assignment
+- Map pin (destination) updates to the new location, and the simulator re-navigates the truck toward it
+- No accept/decline — redirect is a hard assignment the human cannot refuse
 
 ---
 
