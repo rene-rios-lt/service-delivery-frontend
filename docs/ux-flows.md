@@ -144,26 +144,61 @@ If all reps decline/expire:
   App crashes or rep logs out while En Route or On Site
 
 [Backend]
-  → Detects session end
-  → Active job → Pending
-  → Vehicle stays Claimed (not released automatically)
+  → Detects session end (human logs out)
+  → Active job → Pending, RE-MATCHED to another available rep
+  → Rep + vehicle go off-duty — the simulator does NOT re-assume them; the truck parks
   → Dispatcher notified: "[Rep name] went offline. [DTC title] request re-queued."
 
 [Dispatcher UI]
   → Rep marker disappears from map (Offline)
   → Notification appears in notifications panel
-  → Vehicle shows as Claimed with no active rep
+  → Vehicle shows as idle/off-duty with no active rep (parked, not driven by the simulator)
 
 [Requester UI]
   → If previously in tracking state → returns to Pending spinner
   → No explicit error message — just "finding your technician" again
 
 [Backend]
-  → Runs matching algorithm for re-queued request
+  → Runs matching algorithm for the re-matched request
   → Proceeds as Flow 1 or Flow 4 depending on availability
 
-[Vehicle Release]
-  → If rep reconnects: they see their vehicle still claimed, can release it normally
-  → If rep cannot reconnect: dispatcher taps Force Release on the vehicle
-  → Vehicle becomes Unclaimed, available for another rep to claim
+[Vehicle Re-takeover]
+  → The simulator never re-assumes the logged-out human's rep/vehicle
+  → The idle vehicle returns to the takeover dropdown — any idle rep can take it over again (see Flow 6)
+```
+
+---
+
+## Flow 6 — Human Takes Over a Truck
+
+```
+[Service Rep]
+  Logs in on a device (mobile) as one of the seeded rep accounts (rep1…rep8)
+
+[Service Rep UI]
+  → "Take over an idle vehicle" screen appears
+  → Dropdown lists IDLE vehicles only (not en route to a job, not on a job)
+  → Each entry shows vehicle ID + equipment capabilities (DTC codes)
+  → Rep selects one idle vehicle
+
+[Backend]
+  → Validates: rep is idle (no active job) AND selected vehicle is idle
+  → Performs takeover: vehicle is claimed for this rep
+  → Takeover SUPERSEDES whatever the simulator had assigned to that vehicle
+  → Rep state → Available
+
+[Dispatcher UI]
+  → Vehicle marker turns green (Available) under the human rep's name
+
+[Service Rep UI]
+  → Moves to the idle/waiting view — ready for dispatch
+  → From here: the SIMULATOR drives the truck's position on the map,
+     the HUMAN makes every decision (Accept/Decline, "I've Arrived", "Mark Complete")
+  → A job offer proceeds as Flow 1, with the human tapping each action and the
+     simulator navigating the truck between them
+
+[On Logout]
+  → Takeover is sticky: rep + vehicle go off-duty
+  → The simulator does NOT re-assume them (see Flow 5)
+  → If the human was mid-job, that request is re-matched to another rep
 ```
