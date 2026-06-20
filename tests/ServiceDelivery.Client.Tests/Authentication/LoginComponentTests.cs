@@ -57,6 +57,35 @@ public class LoginComponentTests : BunitContext
     }
 
     [Fact]
+    public void GivenTheLoginScreen_WhenRendered_ThenAllDataTestIdHooksArePresent()
+    {
+        // Arrange
+        RegisterViewModel();
+
+        // Act
+        var cut = Render<Login>();
+
+        // Assert
+        Assert.NotNull(cut.Find("[data-testid='login-card']"));
+        Assert.NotNull(cut.Find("[data-testid='email-input']"));
+        Assert.NotNull(cut.Find("[data-testid='password-input']"));
+        Assert.NotNull(cut.Find("[data-testid='sign-in-button']"));
+    }
+
+    [Fact]
+    public void GivenTheLoginScreen_WhenRendered_ThenTheBrandMarkIsPresent()
+    {
+        // Arrange
+        RegisterViewModel();
+
+        // Act
+        var cut = Render<Login>();
+
+        // Assert
+        Assert.NotNull(cut.Find("[data-testid='brand-mark']"));
+    }
+
+    [Fact]
     public void GivenAFailedLogin_WhenRendered_ThenInlineErrorShownAndFormRemains()
     {
         // Arrange
