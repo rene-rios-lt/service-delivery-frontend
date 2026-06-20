@@ -2,32 +2,45 @@
 @using ServiceDelivery.Client.Core.ViewModels
 @inject LoginViewModel ViewModel
 
-<MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="d-flex align-center justify-center" Style="min-height: 100vh;">
-    <MudCard data-testid="login-card" Class="pa-6" Style="width: 100%; max-width: 380px;">
-        <MudCardContent>
-            <div class="d-flex flex-column align-center mb-4">
-                <MudText Typo="Typo.h5" Align="Align.Center">Service Delivery</MudText>
-                <MudText Typo="Typo.body2" Align="Align.Center">Sign in to continue</MudText>
+<div class="login-page">
+    <MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="d-flex align-center justify-center pa-0">
+        <MudPaper data-testid="login-card" Class="login-card pa-8" Elevation="0">
+            <div class="d-flex flex-column align-center mb-6">
+                <div data-testid="brand-mark" class="brand-mark mb-4">
+                    <span class="brand-mark-emoji" role="img" aria-label="Service Delivery">🛰️</span>
+                </div>
+                <MudText Typo="Typo.h5" Align="Align.Center" Class="login-title">Service Delivery</MudText>
+                <MudText Typo="Typo.body2" Align="Align.Center" Class="login-subtitle">Sign in to continue</MudText>
             </div>
 
-            <MudTextField data-testid="email-input"
-                          @bind-Value="ViewModel.Email"
-                          Label="Username"
-                          Variant="Variant.Outlined"
-                          Class="mb-3"
-                          Disabled="ViewModel.IsBusy" />
+            <div class="mb-4">
+                <label class="field-label" for="email-input">Username</label>
+                <MudTextField data-testid="email-input"
+                              id="email-input"
+                              @bind-Value="ViewModel.Email"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Adornment="Adornment.None"
+                              Class="login-field"
+                              Disabled="ViewModel.IsBusy" />
+            </div>
 
-            <MudTextField data-testid="password-input"
-                          @bind-Value="ViewModel.Password"
-                          Label="Password"
-                          Variant="Variant.Outlined"
-                          InputType="InputType.Password"
-                          Class="mb-3"
-                          Disabled="ViewModel.IsBusy" />
+            <div class="mb-2">
+                <label class="field-label" for="password-input">Password</label>
+                <MudTextField data-testid="password-input"
+                              id="password-input"
+                              @bind-Value="ViewModel.Password"
+                              Variant="Variant.Outlined"
+                              InputType="InputType.Password"
+                              Margin="Margin.Dense"
+                              Adornment="Adornment.None"
+                              Class="login-field"
+                              Disabled="ViewModel.IsBusy" />
+            </div>
 
             @if (!string.IsNullOrWhiteSpace(ViewModel.ErrorMessage))
             {
-                <MudAlert data-testid="login-error" Severity="Severity.Error" Class="mb-3">
+                <MudAlert data-testid="login-error" Severity="Severity.Error" Class="mb-3 mt-3">
                     @ViewModel.ErrorMessage
                 </MudAlert>
             }
@@ -38,16 +51,17 @@
                        Color="Color.Primary"
                        FullWidth="true"
                        Size="Size.Large"
+                       Class="sign-in-button mt-5"
                        Disabled="ViewModel.IsBusy">
                 Sign in
             </MudButton>
 
-            <MudText Typo="Typo.caption" Align="Align.Center" Class="d-block mt-4">
+            <MudText Typo="Typo.caption" Align="Align.Center" Class="login-helper d-block mt-4">
                 You'll be routed to your view automatically by role.
             </MudText>
-        </MudCardContent>
-    </MudCard>
-</MudContainer>
+        </MudPaper>
+    </MudContainer>
+</div>
 
 @code {
     private async Task SignInAsync()

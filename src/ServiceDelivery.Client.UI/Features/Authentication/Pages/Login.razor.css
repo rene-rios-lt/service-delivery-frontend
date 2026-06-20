@@ -1,0 +1,82 @@
+/* Full-viewport gradient wrapper, scoped to the login page only so it does
+   not leak into authenticated persona views that share MainLayout. */
+.login-page {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #ECEAF6 0%, #F2F3F7 55%, #E9EAF0 100%);
+    overflow: auto;
+}
+
+/* White card: generous radius, pronounced soft drop shadow, centered. */
+.login-page ::deep .login-card {
+    width: 100%;
+    max-width: 380px;
+    border-radius: 24px;
+    box-shadow: 0 24px 60px -12px rgba(40, 33, 90, 0.22),
+                0 8px 24px -8px rgba(40, 33, 90, 0.12);
+    background: #ffffff;
+}
+
+/* Brand mark: rounded-square tile in the primary indigo, white glyph centered. */
+.login-page ::deep .brand-mark {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: #5B4FE0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 18px -6px rgba(91, 79, 224, 0.5);
+}
+
+/* Colored satellite emoji centered in the indigo tile, matching the mockup. */
+.login-page ::deep .brand-mark .brand-mark-emoji {
+    font-size: 28px;
+    line-height: 1;
+}
+
+/* Bold near-black title. */
+.login-page ::deep .login-title {
+    font-weight: 700;
+    color: #15131F;
+    letter-spacing: -0.01em;
+}
+
+/* Muted sub-caption directly under the title. */
+.login-page ::deep .login-subtitle {
+    color: #6B6880;
+}
+
+/* Static bold field labels sitting ABOVE each input. */
+.login-page ::deep .field-label {
+    font-weight: 600;
+    color: #3F3B52;
+    margin-bottom: 0.35rem;
+    display: block;
+}
+
+/* Clean bordered input boxes; no trailing adornment glyph artifacts. */
+.login-page ::deep .login-field .mud-input-control {
+    margin-top: 0;
+}
+
+.login-page ::deep .login-field .mud-input-slot {
+    padding: 0.25rem 0.5rem;
+}
+
+/* Full-width pill-rounded primary button. */
+.login-page ::deep .sign-in-button {
+    border-radius: 999px;
+    padding-top: 0.85rem;
+    padding-bottom: 0.85rem;
+    font-weight: 600;
+}
+
+/* Small muted helper caption below the button. */
+.login-page ::deep .login-helper {
+    color: #9A98A8;
+}
