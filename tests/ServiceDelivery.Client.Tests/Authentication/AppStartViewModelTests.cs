@@ -1,3 +1,6 @@
+using System;
+using System.Text;
+using System.Text.Json;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.ViewModels;
 
@@ -6,11 +9,21 @@ namespace ServiceDelivery.Client.Tests.Authentication;
 public class AppStartViewModelTests
 {
     private const string LoginRoute = "/login";
-    private const string StoredJwt = "eyJhbGciOiJIUzI1NiJ9.header.persisted-session-token";
 
     private readonly Mock<ITokenStore> _tokenStore = new();
 
     private AppStartViewModel CreateViewModel() => new(_tokenStore.Object);
+
+    private static string Base64UrlEncode(byte[] bytes) =>
+        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    private static string TokenWithExp(long expUnixSeconds)
+    {
+        var header = Base64UrlEncode(Encoding.UTF8.GetBytes("{\"alg\":\"HS256\",\"typ\":\"JWT\"}"));
+        var payload = Base64UrlEncode(Encoding.UTF8.GetBytes(
+            JsonSerializer.Serialize(new { exp = expUnixSeconds })));
+        return $"{header}.{payload}.signature";
+    }
 
     [Fact]
     public async Task GivenNoStoredJwt_WhenResolvingTheStartRoute_ThenLoginRouteIsReturned()
@@ -27,10 +40,11 @@ public class AppStartViewModelTests
     }
 
     [Fact]
-    public async Task GivenAStoredJwt_WhenResolvingTheStartRoute_ThenNoRedirectToLoginIsReturned()
+    public async Task GivenAValidStoredJwt_WhenResolvingTheStartRoute_ThenNoRedirectToLoginIsReturned()
     {
         // Arrange
-        _tokenStore.Setup(t => t.GetTokenAsync()).ReturnsAsync(StoredJwt);
+        var token = TokenWithExp(DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeSeconds());
+        _tokenStore.Setup(t => t.GetTokenAsync()).ReturnsAsync(token);
         var viewModel = CreateViewModel();
 
         // Act
@@ -38,5 +52,20 @@ public class AppStartViewModelTests
 
         // Assert
         Assert.NotEqual(LoginRoute, route);
+    }
+
+    [Fact]
+    public async Task GivenAStoredButExpiredToken_WhenAppLaunches_ThenLoginRouteIsResolved()
+    {
+        // Arrange
+        var token = TokenWithExp(DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeSeconds());
+        _tokenStore.Setup(t => t.GetTokenAsync()).ReturnsAsync(token);
+        var viewModel = CreateViewModel();
+
+        // Act
+        var route = await viewModel.ResolveStartRouteAsync();
+
+        // Assert
+        Assert.Equal(LoginRoute, route);
     }
 }

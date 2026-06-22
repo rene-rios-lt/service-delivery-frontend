@@ -21,4 +21,7 @@ public class BlazorPersonaNavigator : IPersonaNavigator
 
     public void NavigateToPersonaHome(UserRole role) =>
         _navigation.NavigateTo(PersonaRouteMap.RouteFor(role));
+
+    public void NavigateToLogin() =>
+        _navigation.NavigateTo(PersonaRouteMap.Login);
 }

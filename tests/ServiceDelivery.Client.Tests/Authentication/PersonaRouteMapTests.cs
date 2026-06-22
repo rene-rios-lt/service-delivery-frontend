@@ -22,6 +22,19 @@ public class PersonaRouteMapTests
     }
 
     [Fact]
+    public void GivenTheLoginRouteConstant_WhenRead_ThenItIsTheLoginPath()
+    {
+        // Arrange
+        // (PersonaRouteMap.Login is the single source of truth for the login route literal)
+
+        // Act
+        var route = PersonaRouteMap.Login;
+
+        // Assert
+        Assert.Equal("/login", route);
+    }
+
+    [Fact]
     public void GivenTheSimulatorRole_WhenMapped_ThenThrowsBecauseItHasNoPersonaUi()
     {
         // Arrange

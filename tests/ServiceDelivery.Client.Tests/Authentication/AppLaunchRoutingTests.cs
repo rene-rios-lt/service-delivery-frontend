@@ -1,3 +1,6 @@
+using System;
+using System.Text;
+using System.Text.Json;
 using Bunit;
 using Bunit.TestDoubles;
 using Microsoft.AspNetCore.Components;
@@ -10,7 +13,16 @@ namespace ServiceDelivery.Client.Tests.Authentication;
 
 public class AppLaunchRoutingTests : BunitContext
 {
-    private const string StoredJwt = "eyJhbGciOiJIUzI1NiJ9.header.persisted-session-token";
+    private static string Base64UrlEncode(byte[] bytes) =>
+        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    private static string ValidStoredJwt()
+    {
+        var header = Base64UrlEncode(Encoding.UTF8.GetBytes("{\"alg\":\"HS256\",\"typ\":\"JWT\"}"));
+        var payload = Base64UrlEncode(Encoding.UTF8.GetBytes(
+            JsonSerializer.Serialize(new { exp = DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeSeconds() })));
+        return $"{header}.{payload}.signature";
+    }
 
     private readonly Mock<ITokenStore> _tokenStore = new();
 
@@ -38,7 +50,7 @@ public class AppLaunchRoutingTests : BunitContext
     public void GivenAValidStoredJwt_WhenAppLaunches_ThenLoginScreenIsNotShown()
     {
         // Arrange
-        _tokenStore.Setup(t => t.GetTokenAsync()).ReturnsAsync(StoredJwt);
+        _tokenStore.Setup(t => t.GetTokenAsync()).ReturnsAsync(ValidStoredJwt());
         RegisterStartViewModel();
         var navigation = Services.GetRequiredService<NavigationManager>();
 

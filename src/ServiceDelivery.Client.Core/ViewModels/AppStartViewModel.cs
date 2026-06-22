@@ -1,3 +1,4 @@
+using ServiceDelivery.Client.Core.Authentication;
 using ServiceDelivery.Client.Core.Interfaces;
 
 namespace ServiceDelivery.Client.Core.ViewModels;
@@ -17,6 +18,8 @@ public class AppStartViewModel
     {
         var token = await _tokenStore.GetTokenAsync();
 
-        return string.IsNullOrWhiteSpace(token) ? LoginRoute : null;
+        var sessionInvalid = JwtExpiryReader.IsExpired(token, DateTimeOffset.UtcNow);
+
+        return sessionInvalid ? LoginRoute : null;
     }
 }
