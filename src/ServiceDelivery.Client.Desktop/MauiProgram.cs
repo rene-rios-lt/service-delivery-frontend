@@ -2,6 +2,7 @@
 using MudBlazor.Services;
 using ServiceDelivery.Client.Core.Authentication;
 using ServiceDelivery.Client.Core.Interfaces;
+using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.Desktop.Services;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
@@ -43,6 +44,15 @@ public static class MauiProgram
 		builder.Services.AddScoped<IAuthService, HttpAuthService>();
 		builder.Services.AddScoped<LoginViewModel>();
 		builder.Services.AddScoped<AppStartViewModel>();
+
+		// Persona shell (FE-021). Desktop presents the menu as an account dropdown. The logout
+		// side-effect and release-vehicle action default to honest null-objects; FE-023 and FE-014
+		// replace these registrations with their real implementations (Open/Closed — no shell change).
+		builder.Services.AddScoped<IShellPresentation, DesktopShellPresentation>();
+		builder.Services.AddScoped<ILogoutSideEffect, NoOpLogoutSideEffect>();
+		builder.Services.AddScoped<IReleaseVehicleAction, NoOpReleaseVehicleAction>();
+		builder.Services.AddScoped<PersonaMenuFactory>();
+		builder.Services.AddScoped<ShellViewModel>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

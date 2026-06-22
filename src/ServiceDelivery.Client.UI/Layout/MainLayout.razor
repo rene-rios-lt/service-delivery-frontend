@@ -1,5 +1,11 @@
 @inherits LayoutComponentBase
+@using ServiceDelivery.Client.Core.Interfaces
+@using ServiceDelivery.Client.Core.ViewModels
+@using ServiceDelivery.Client.UI.Shared.Components
 @using ServiceDelivery.Client.UI.Theme
+@inject NavigationManager Navigation
+@inject IAuthService AuthService
+@inject ShellViewModel Shell
 
 <MudThemeProvider Theme="@AppTheme.Instance" />
 <MudPopoverProvider />
@@ -7,7 +13,30 @@
 <MudSnackbarProvider />
 
 <MudLayout>
-    <MudMainContent>
-        @Body
-    </MudMainContent>
+    @if (IsLoginRoute)
+    {
+        <MudMainContent>
+            @Body
+        </MudMainContent>
+    }
+    else
+    {
+        <PersonaShell ViewModel="Shell" Body="@Body" />
+    }
 </MudLayout>
+
+@code {
+    private bool IsLoginRoute =>
+        Navigation.ToBaseRelativePath(Navigation.Uri)
+            .TrimStart('/')
+            .StartsWith("login", StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsLoginRoute)
+        {
+            var profile = await AuthService.GetCurrentUserAsync();
+            Shell.Load(profile);
+        }
+    }
+}

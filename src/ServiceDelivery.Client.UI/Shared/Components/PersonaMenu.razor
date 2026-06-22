@@ -1,0 +1,125 @@
+@using MudBlazor
+@using ServiceDelivery.Client.Core.Models
+@using ServiceDelivery.Client.Core.ViewModels
+
+@* Renders the persona menu surface. The container is platform-adaptive — a temporary MudDrawer on
+   Mobile, an inline MudPaper account dropdown on Desktop/Web — selected via ShellViewModel.MenuStyle
+   (no platform #if). The menu items themselves are identical, data-driven from PersonaMenuModel.Items
+   and rendered with MudBlazor list/menu primitives (MudNavLink in the drawer's MudNavMenu,
+   MudListItem in the account panel's MudList); only the container differs. *@
+
+@if (ViewModel.Menu is not null)
+{
+    @if (ViewModel.MenuStyle == ShellMenuStyle.Drawer)
+    {
+        <MudDrawer data-testid="persona-menu-drawer"
+                   Open="ViewModel.IsMenuOpen"
+                   Variant="DrawerVariant.Temporary"
+                   Anchor="Anchor.Start"
+                   Overlay="true"
+                   Class="sd-persona-drawer">
+            <MudDrawerHeader Class="sd-persona-drawer__header">
+                <div data-testid="persona-name" class="sd-persona-drawer__name">@ViewModel.Menu.Title</div>
+                <div class="sd-persona-drawer__role">@ViewModel.Menu.ContextLine</div>
+                @if (ViewModel.Menu.VehicleContext is not null)
+                {
+                    <span data-testid="vehicle-context-chip" class="sd-chip sd-chip--available">
+                        @ViewModel.Menu.VehicleContext
+                    </span>
+                }
+            </MudDrawerHeader>
+            <MudNavMenu>
+                @foreach (var item in ViewModel.Menu.Items)
+                {
+                    <MudNavLink data-testid="@TestId(item)"
+                                Class="@ItemClass(item)"
+                                Icon="@MaterialIcon(item.Icon)"
+                                IconColor="@IconColor(item)"
+                                Disabled="!item.IsEnabled"
+                                OnClick="() => OnItemClicked(item)">
+                        @item.Label
+                    </MudNavLink>
+                }
+            </MudNavMenu>
+        </MudDrawer>
+    }
+    else
+    {
+        <div data-testid="persona-menu-account" class="sd-persona-account">
+            <MudAvatar data-testid="persona-avatar" Class="sd-avatar" @onclick="ViewModel.ToggleMenu">@Initials</MudAvatar>
+            @if (ViewModel.IsMenuOpen)
+            {
+                <MudPaper data-testid="persona-menu-account-panel" Elevation="3" Class="sd-persona-account__panel">
+                    <div data-testid="persona-name" class="sd-persona-account__header">
+                        <div class="sd-persona-account__name">@ViewModel.Menu.Title</div>
+                        <div class="sd-persona-account__role">@ViewModel.Menu.ContextLine</div>
+                    </div>
+                    <MudList T="PersonaMenuItem">
+                        @foreach (var item in ViewModel.Menu.Items)
+                        {
+                            <MudListItem T="PersonaMenuItem"
+                                         data-testid="@TestId(item)"
+                                         Class="@ItemClass(item)"
+                                         Icon="@MaterialIcon(item.Icon)"
+                                         IconColor="@IconColor(item)"
+                                         Disabled="!item.IsEnabled"
+                                         OnClick="() => OnItemClicked(item)">
+                                @item.Label
+                            </MudListItem>
+                        }
+                    </MudList>
+                </MudPaper>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public ShellViewModel ViewModel { get; set; } = default!;
+
+    private string Initials =>
+        string.Concat((ViewModel.Menu?.Title ?? string.Empty)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => part[0]))
+            .ToUpperInvariant();
+
+    private static string TestId(PersonaMenuItem item) => $"menu-item-{item.ActionKey}";
+
+    private static string ItemClass(PersonaMenuItem item) =>
+        item.IsDestructive ? "sd-menu-item sd-menu-item--destructive" : "sd-menu-item";
+
+    private static Color IconColor(PersonaMenuItem item) =>
+        item.IsDestructive ? Color.Error : Color.Default;
+
+    private static string MaterialIcon(string name) => name switch
+    {
+        "home" => Icons.Material.Filled.Home,
+        "history" => Icons.Material.Filled.History,
+        "help" => Icons.Material.Filled.HelpOutline,
+        "local_parking" => Icons.Material.Filled.LocalParking,
+        "power_settings_new" => Icons.Material.Filled.PowerSettingsNew,
+        "person" => Icons.Material.Filled.Person,
+        "settings" => Icons.Material.Filled.Settings,
+        _ => Icons.Material.Filled.Circle
+    };
+
+    private async Task OnItemClicked(PersonaMenuItem item)
+    {
+        if (!item.IsEnabled)
+        {
+            return;
+        }
+
+        switch (item.ActionKey)
+        {
+            case "logout":
+                await ViewModel.LogoutAsync();
+                break;
+            case "release":
+                await ViewModel.ReleaseVehicleAsync();
+                break;
+        }
+    }
+}
