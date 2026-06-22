@@ -24,6 +24,7 @@ The backend communicates over REST and SignalR. Vehicle positions update every 3
 
 - Add the `MudBlazor` NuGet package to `ServiceDelivery.Client.UI` and `ServiceDelivery.Client.Web`
 - Register MudBlazor services in `MauiProgram.cs` (Desktop/Mobile) and `Program.cs` (Web)
+- **Load MudBlazor's static assets in *every* host's `wwwroot/index.html`** — Web, Desktop, *and* Mobile each ship their own host page. Each must `<link>` `_content/MudBlazor/MudBlazor.min.css` (+ the Roboto font) and `<script src="_content/MudBlazor/MudBlazor.min.js">`. Registering services and adding `<MudThemeProvider>` is **not** enough — without the stylesheet every `Mud*` component renders as unstyled HTML. (This gap caused BUG-020 on Web and BUG-022 on Desktop/Mobile — fix one host, fix all three.)
 - Use MudBlazor primitives (`MudCard`, `MudChip`, `MudBadge`, `MudDataGrid`, etc.) in preference to plain HTML elements
 - Define a `MudTheme` that maps domain colours to theme tokens:
   - **Rep-state markers:** Green = Available, Blue = En Route, Yellow = Within 15 Miles, Red = On Site, Grey = Offline
