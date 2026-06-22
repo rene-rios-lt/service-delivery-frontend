@@ -5,4 +5,6 @@ namespace ServiceDelivery.Client.Core.Interfaces;
 public interface IPersonaNavigator
 {
     void NavigateToPersonaHome(UserRole role);
+
+    void NavigateToLogin();
 }
