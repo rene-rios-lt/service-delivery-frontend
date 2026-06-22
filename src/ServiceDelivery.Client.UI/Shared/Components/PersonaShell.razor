@@ -1,0 +1,42 @@
+@using Microsoft.AspNetCore.Components
+@using MudBlazor
+@using ServiceDelivery.Client.Core.ViewModels
+
+@* App-shell chrome for authenticated routes: a shared app bar (title + persona context + a menu
+   affordance) above the page body, with the platform-adaptive PersonaMenu attached. The shell only
+   renders chrome — it builds no menu data and calls no auth primitives directly; it binds to
+   ShellViewModel. *@
+
+<div data-testid="persona-shell" class="sd-shell">
+    <MudAppBar Elevation="2" Class="sd-appbar" Fixed="false">
+        <div class="sd-appbar__logo">🚐</div>
+        <div>
+            <div data-testid="appbar-title" class="sd-appbar__title">Service Delivery</div>
+            <div data-testid="appbar-context" class="sd-appbar__sub">@ContextSubtitle</div>
+        </div>
+        <MudSpacer />
+        <MudIconButton data-testid="appbar-menu-affordance"
+                       Icon="@MenuIcon"
+                       Color="Color.Inherit"
+                       OnClick="ViewModel.ToggleMenu"
+                       Class="sd-appbar__action" />
+    </MudAppBar>
+
+    <PersonaMenu ViewModel="ViewModel" />
+
+    <main class="sd-shell__body">
+        @Body
+    </main>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ShellViewModel ViewModel { get; set; } = default!;
+
+    [Parameter]
+    public RenderFragment? Body { get; set; }
+
+    private string ContextSubtitle => ViewModel.Menu?.VehicleContext ?? ViewModel.Menu?.ContextLine ?? string.Empty;
+
+    private string MenuIcon => ViewModel.IsMenuOpen ? Icons.Material.Filled.Close : Icons.Material.Filled.Menu;
+}
