@@ -9,6 +9,7 @@
 @inject IJobOfferStore JobOfferStore
 @inject IPersonaNavigator Navigator
 @inject IJobOfferService JobOfferService
+@inject IDeclineOfferService DeclineOfferService
 
 <div data-testid="job-offer">
     @if (_viewModel is not null)
@@ -92,7 +93,7 @@
         var offer = JobOfferStore.CurrentOffer;
         if (offer is not null)
         {
-            _viewModel = new JobOfferViewModel(offer, Navigator, JobOfferService);
+            _viewModel = new JobOfferViewModel(offer, Navigator, JobOfferService, DeclineOfferService);
             _viewModel.StateChanged += OnViewModelStateChanged;
 
             // Consume the in-flight offer so a back-navigation to /rep/offer after the screen

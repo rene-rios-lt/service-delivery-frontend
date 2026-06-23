@@ -12,6 +12,7 @@ public class JobOfferComponentTests : BunitContext
 {
     private readonly Mock<IPersonaNavigator> _navigator = new();
     private readonly Mock<IJobOfferService> _jobOfferService = new();
+    private readonly Mock<IDeclineOfferService> _declineOfferService = new();
     private readonly InMemoryJobOfferStore _store = new();
 
     private static JobOfferPayload Offer(
@@ -31,6 +32,14 @@ public class JobOfferComponentTests : BunitContext
         Services.AddSingleton<IJobOfferStore>(_store);
         Services.AddSingleton(_navigator.Object);
         Services.AddSingleton(_jobOfferService.Object);
+        Services.AddSingleton(_declineOfferService.Object);
+
+        // Default decline outcome so the Decline button is clickable in tests that do not exercise
+        // the decline path (FE-010). Decline-path tests override this per scenario.
+        _declineOfferService
+            .Setup(s => s.DeclineAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(DeclineOfferResult.Success);
+
         _store.SetOffer(offer);
     }
 
@@ -201,6 +210,25 @@ public class JobOfferComponentTests : BunitContext
         // Assert
         var decline = cut.Find("[data-testid='decline-button']");
         Assert.Contains("Decline", decline.TextContent);
+    }
+
+    [Fact]
+    public void GivenDeclineSuccess_WhenDeclineButtonClicked_ThenNavigateToRepIdleViewIsCalled()
+    {
+        // Arrange
+        // AC-2: tapping Decline dismisses the offer screen and returns the rep to the idle /
+        // waiting-for-offers view.
+        _declineOfferService
+            .Setup(s => s.DeclineAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(DeclineOfferResult.Success);
+        RegisterPage(Offer());
+        var cut = Render<JobOffer>();
+
+        // Act
+        cut.Find("[data-testid='decline-button']").Click();
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToRepIdleView(), Times.Once);
     }
 
     [Fact]

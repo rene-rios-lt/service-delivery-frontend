@@ -62,6 +62,11 @@ public static class MauiProgram
 		// active-job view on success or back to idle (with an "Offer expired" message) on a 409.
 		builder.Services.AddScoped<IJobOfferService, HttpJobOfferService>();
 
+		// Job-offer decline (FE-010). The HTTP decline service backs POST /job-offers/{id}/decline;
+		// the JobOffer page injects it and hands it to JobOfferViewModel, which returns the rep to the
+		// idle / waiting-for-offers view on both success and a 409 (same outcome — the offer is gone).
+		builder.Services.AddScoped<IDeclineOfferService, HttpDeclineOfferService>();
+
 		// Idle / waiting-for-offers view (FE-020). The RepHub client is push-driven — no polling.
 		// RepIdleViewModel needs the rep's claimed vehicle; FE-007's take-over does not yet carry
 		// vehicle details back (TakeOverResult is success/conflict only), so for the POC the session's

@@ -25,6 +25,9 @@ builder.Services.AddScoped<IJobOfferStore, InMemoryJobOfferStore>();
 // service is registered in every host (same pattern as IJobOfferStore above) so the dependency is
 // resolvable wherever the JobOffer page could render.
 builder.Services.AddScoped<IJobOfferService, HttpJobOfferService>();
+// Job-offer decline service (FE-010). Registered in every host for the same reason as the accept
+// service above — the JobOffer page injects IDeclineOfferService, so it must be resolvable here too.
+builder.Services.AddScoped<IDeclineOfferService, HttpDeclineOfferService>();
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 builder.Services.AddScoped<ISessionState, SessionState>();
