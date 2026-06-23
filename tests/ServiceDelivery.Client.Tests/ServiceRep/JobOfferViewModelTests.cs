@@ -8,6 +8,7 @@ public class JobOfferViewModelTests
 {
     private readonly Mock<IPersonaNavigator> _navigator = new();
     private readonly Mock<IJobOfferService> _jobOfferService = new();
+    private readonly Mock<IDeclineOfferService> _declineOfferService = new();
 
     public JobOfferViewModelTests()
     {
@@ -16,6 +17,12 @@ public class JobOfferViewModelTests
         _jobOfferService
             .Setup(s => s.AcceptAsync(It.IsAny<Guid>()))
             .ReturnsAsync(AcceptOfferResult.Success);
+
+        // Default decline outcome for tests that do not exercise the decline path (FE-010).
+        // Decline-path tests override this per scenario.
+        _declineOfferService
+            .Setup(s => s.DeclineAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(DeclineOfferResult.Success);
     }
 
     private static JobOfferPayload Offer(
@@ -29,7 +36,7 @@ public class JobOfferViewModelTests
         new(Guid.NewGuid(), requesterName, tier, dtcTitle, distanceMiles, etaMinutes, lat, lng);
 
     private JobOfferViewModel CreateViewModel(JobOfferPayload? offer = null) =>
-        new(offer ?? Offer(), _navigator.Object, _jobOfferService.Object);
+        new(offer ?? Offer(), _navigator.Object, _jobOfferService.Object, _declineOfferService.Object);
 
     [Fact]
     public void GivenANewJobOffer_WhenViewModelCreated_ThenCountdownStartsAt60()
@@ -147,18 +154,56 @@ public class JobOfferViewModelTests
     }
 
     [Fact]
-    public async Task GivenAJobOffer_WhenDeclineAsyncCalled_ThenCompletesWithoutNavigating()
+    public async Task GivenAnOffer_WhenDeclineAsyncCalled_ThenDeclineServiceIsInvokedWithOfferId()
     {
         // Arrange
-        // Decline is wired but is a no-op stub in FE-008 — FE-010 completes the decline response.
-        // It must not throw and must not navigate.
+        // AC-1: tapping Decline calls POST /job-offers/{id}/decline — the ViewModel delegates to the
+        // decline service with this offer's id. The service owns the HTTP route.
+        var offerId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var offer = Offer() with { OfferId = offerId };
+        var vm = CreateViewModel(offer);
+
+        // Act
+        await vm.DeclineAsync();
+
+        // Assert
+        _declineOfferService.Verify(s => s.DeclineAsync(offerId), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenDeclineReturnsSuccess_WhenDeclineAsyncCalled_ThenNavigateToRepIdleViewIsInvoked()
+    {
+        // Arrange
+        // AC-2: a successful decline dismisses the offer screen and returns the rep to the idle /
+        // waiting-for-offers view.
+        _declineOfferService
+            .Setup(s => s.DeclineAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(DeclineOfferResult.Success);
         var vm = CreateViewModel(Offer());
 
         // Act
         await vm.DeclineAsync();
 
         // Assert
-        _navigator.VerifyNoOtherCalls();
+        _navigator.Verify(n => n.NavigateToRepIdleView(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenDeclineReturnsConflict_WhenDeclineAsyncCalled_ThenNavigateToRepIdleViewIsInvoked()
+    {
+        // Arrange
+        // AC-3: a 409 means the offer expired between the tap and the API call. Declining a
+        // gone-already offer is the same outcome as a clean decline — the rep returns to the idle view.
+        _declineOfferService
+            .Setup(s => s.DeclineAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(DeclineOfferResult.Conflict);
+        var vm = CreateViewModel(Offer());
+
+        // Act
+        await vm.DeclineAsync();
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToRepIdleView(), Times.Once);
     }
 
     [Fact]

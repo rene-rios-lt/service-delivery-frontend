@@ -12,13 +12,18 @@ public class JobOfferViewModel
     private readonly JobOfferPayload _offer;
     private readonly IPersonaNavigator _navigator;
     private readonly IJobOfferService _jobOfferService;
+    private readonly IDeclineOfferService _declineOfferService;
 
     public JobOfferViewModel(
-        JobOfferPayload offer, IPersonaNavigator navigator, IJobOfferService jobOfferService)
+        JobOfferPayload offer,
+        IPersonaNavigator navigator,
+        IJobOfferService jobOfferService,
+        IDeclineOfferService declineOfferService)
     {
         _offer = offer;
         _navigator = navigator;
         _jobOfferService = jobOfferService;
+        _declineOfferService = declineOfferService;
     }
 
     // Raised after each countdown tick so the Razor page can re-render (StateHasChanged). Keeps the
@@ -47,9 +52,7 @@ public class JobOfferViewModel
 
     public double Lng => _offer.Lng;
 
-    // Accept calls POST /job-offers/{id}/accept via the service (AC-1). Decline is still a no-op
-    // stub — FE-010 completes its response. Decline returns a completed Task rather than throwing
-    // NotImplementedException so its button is honestly interactive (Liskov-safe).
+    // Accept calls POST /job-offers/{id}/accept via the service (FE-009).
     public async Task AcceptAsync()
     {
         var result = await _jobOfferService.AcceptAsync(_offer.OfferId);
@@ -67,7 +70,13 @@ public class JobOfferViewModel
         _navigator.NavigateToRepIdleView();
     }
 
-    public Task DeclineAsync() => Task.CompletedTask;
+    // Decline calls POST /job-offers/{id}/decline via the service (AC-1). On success the offer screen
+    // dismisses back to the idle / waiting-for-offers view (AC-2).
+    public async Task DeclineAsync()
+    {
+        await _declineOfferService.DeclineAsync(_offer.OfferId);
+        _navigator.NavigateToRepIdleView();
+    }
 
     public Task TickAsync()
     {
