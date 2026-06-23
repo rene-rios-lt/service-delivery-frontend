@@ -6,6 +6,7 @@ using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.Desktop.Services;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
+using ServiceDelivery.Client.UI.Features.ServiceRep.Services;
 
 namespace ServiceDelivery.Client.Desktop;
 
@@ -31,6 +32,10 @@ public static class MauiProgram
 		// ServiceRep persona, but the navigator is registered in every host, so the store must be
 		// resolvable here too. A lightweight scoped no-op-by-absence store satisfies the dependency.
 		builder.Services.AddScoped<IJobOfferStore, InMemoryJobOfferStore>();
+		// Job-offer accept service (FE-009). Desktop does not host the ServiceRep job-offer screen,
+		// but the service is registered in every host (same pattern as IJobOfferStore above) so the
+		// dependency is resolvable wherever the JobOffer page could render.
+		builder.Services.AddScoped<IJobOfferService, HttpJobOfferService>();
 		builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 		builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 		builder.Services.AddScoped<ISessionState, SessionState>();

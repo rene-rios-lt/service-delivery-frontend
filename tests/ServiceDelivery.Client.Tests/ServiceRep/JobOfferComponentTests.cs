@@ -11,6 +11,7 @@ namespace ServiceDelivery.Client.Tests.ServiceRep;
 public class JobOfferComponentTests : BunitContext
 {
     private readonly Mock<IPersonaNavigator> _navigator = new();
+    private readonly Mock<IJobOfferService> _jobOfferService = new();
     private readonly InMemoryJobOfferStore _store = new();
 
     private static JobOfferPayload Offer(
@@ -29,6 +30,7 @@ public class JobOfferComponentTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton<IJobOfferStore>(_store);
         Services.AddSingleton(_navigator.Object);
+        Services.AddSingleton(_jobOfferService.Object);
         _store.SetOffer(offer);
     }
 
@@ -218,6 +220,44 @@ public class JobOfferComponentTests : BunitContext
 
         // Assert
         _navigator.Verify(n => n.NavigateToRepIdleView(), Times.Once);
+    }
+
+    [Fact]
+    public void GivenAcceptSuccess_WhenAcceptButtonClicked_ThenNavigateToActiveJobIsCalled()
+    {
+        // Arrange
+        // AC-2: a successful accept transitions away from the offer screen to the active-job view.
+        _jobOfferService
+            .Setup(s => s.AcceptAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(AcceptOfferResult.Success);
+        RegisterPage(Offer());
+        var cut = Render<JobOffer>();
+
+        // Act
+        cut.Find("[data-testid='accept-button']").Click();
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToActiveJob(), Times.Once);
+    }
+
+    [Fact]
+    public void GivenAcceptConflict_WhenAcceptButtonClicked_ThenOfferExpiredMessageIsDisplayed()
+    {
+        // Arrange
+        // AC-3: a 409 means the offer expired between the tap and the API call — the page shows the
+        // "Offer expired" message.
+        _jobOfferService
+            .Setup(s => s.AcceptAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(AcceptOfferResult.Conflict);
+        RegisterPage(Offer());
+        var cut = Render<JobOffer>();
+
+        // Act
+        cut.Find("[data-testid='accept-button']").Click();
+
+        // Assert
+        var message = cut.Find("[data-testid='offer-expired-message']");
+        Assert.Contains("Offer expired", message.TextContent);
     }
 
     [Fact]

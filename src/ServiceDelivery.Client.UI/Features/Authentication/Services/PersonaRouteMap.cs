@@ -14,6 +14,7 @@ public static class PersonaRouteMap
     public const string ServiceRepTakeOver = "/rep/takeover";
     public const string ServiceRepIdle = "/rep/idle";
     public const string ServiceRepJobOffer = "/rep/offer";
+    public const string ServiceRepActiveJob = "/rep/job";
     public const string RequesterHome = "/requester";
 
     public static string RouteFor(UserRole role) => role switch

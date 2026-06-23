@@ -57,6 +57,11 @@ public static class MauiProgram
 		builder.Services.AddScoped<IVehicleService, HttpVehicleService>();
 		builder.Services.AddScoped<TakeOverViewModel>();
 
+		// Job-offer accept (FE-009). The HTTP job-offer service backs POST /job-offers/{id}/accept;
+		// the JobOffer page injects it and hands it to JobOfferViewModel, which navigates to the
+		// active-job view on success or back to idle (with an "Offer expired" message) on a 409.
+		builder.Services.AddScoped<IJobOfferService, HttpJobOfferService>();
+
 		// Idle / waiting-for-offers view (FE-020). The RepHub client is push-driven — no polling.
 		// RepIdleViewModel needs the rep's claimed vehicle; FE-007's take-over does not yet carry
 		// vehicle details back (TakeOverResult is success/conflict only), so for the POC the session's
