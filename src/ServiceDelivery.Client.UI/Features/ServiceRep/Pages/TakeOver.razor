@@ -1,0 +1,83 @@
+@page "/rep/takeover"
+@using Microsoft.AspNetCore.Components
+@using MudBlazor
+@using ServiceDelivery.Client.Core.ViewModels
+@using ServiceDelivery.Client.UI.Features.ServiceRep.Components
+@inject TakeOverViewModel ViewModel
+
+@* Rep take-over screen — the first screen after a ServiceRep logs in (AC-1).
+   Mockup: rep-takeover__mobile-390x844. Top-to-bottom: heading block, "IDLE VEHICLES" label,
+   the bordered IdleVehicleList card, a disclaimer caption, and the "Take over" CTA. *@
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="pa-4">
+    <MudText Typo="Typo.h5" Class="mb-1">Pick an idle vehicle</MudText>
+    <MudText Typo="Typo.body2" Class="sd-muted mb-4">
+        Choose a truck that's free right now. You'll take it over from the simulator and start receiving job offers.
+    </MudText>
+
+    @if (!ViewModel.IsEligible)
+    {
+        <MudAlert data-testid="ineligible-notice" Severity="Severity.Info" Class="mb-4">
+            @TakeOverViewModel.IneligibleMessage
+        </MudAlert>
+    }
+
+    <MudText Typo="Typo.overline" Class="sd-section-label">Idle Vehicles</MudText>
+
+    @if (ViewModel.IsBusy)
+    {
+        <div data-testid="take-over-loading" class="d-flex justify-center pa-6">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        </div>
+    }
+    else if (ViewModel.IdleVehicles.Count == 0)
+    {
+        <MudText data-testid="no-vehicles-message" Typo="Typo.body2" Class="sd-muted pa-4">
+            No idle vehicles are available right now. Check back shortly.
+        </MudText>
+    }
+    else
+    {
+        <IdleVehicleList Vehicles="ViewModel.IdleVehicles"
+                         SelectedVehicleId="ViewModel.SelectedVehicleId"
+                         OnSelect="ViewModel.Select" />
+    }
+
+    <MudText Typo="Typo.caption" Class="sd-muted d-block mt-2 mb-4">
+        Only idle vehicles appear — trucks on a job aren't selectable.
+    </MudText>
+
+    @if (ViewModel.ErrorMessage is not null)
+    {
+        <MudAlert data-testid="take-over-error" Severity="Severity.Warning" Class="mb-4">
+            @ViewModel.ErrorMessage
+        </MudAlert>
+    }
+
+    <MudButton data-testid="take-over-button"
+               OnClick="TakeOverAsync"
+               Variant="Variant.Filled"
+               Color="Color.Primary"
+               FullWidth="true"
+               Size="Size.Large"
+               Disabled="@(!ViewModel.CanTakeOver)">
+        @TakeOverLabel
+    </MudButton>
+</MudContainer>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await ViewModel.LoadAsync();
+    }
+
+    private string TakeOverLabel =>
+        ViewModel.SelectedRegistration is { } registration
+            ? $"Take over {registration}"
+            : "Take over";
+
+    private async Task TakeOverAsync()
+    {
+        await ViewModel.TakeOverAsync();
+    }
+}

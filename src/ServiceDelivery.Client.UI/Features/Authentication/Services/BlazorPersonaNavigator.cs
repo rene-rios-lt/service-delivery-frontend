@@ -24,4 +24,7 @@ public class BlazorPersonaNavigator : IPersonaNavigator
 
     public void NavigateToLogin() =>
         _navigation.NavigateTo(PersonaRouteMap.Login);
+
+    public void NavigateToRepIdleView() =>
+        _navigation.NavigateTo(PersonaRouteMap.ServiceRepHome);
 }

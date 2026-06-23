@@ -20,4 +20,18 @@ public class BlazorPersonaNavigatorTests : BunitContext
         // Assert
         Assert.EndsWith(PersonaRouteMap.Login, navigation.Uri);
     }
+
+    [Fact]
+    public void GivenARepIdleViewCall_WhenInvoked_ThenNavigatesToServiceRepHomeRoute()
+    {
+        // Arrange
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        var navigator = new BlazorPersonaNavigator(navigation);
+
+        // Act
+        navigator.NavigateToRepIdleView();
+
+        // Assert
+        Assert.EndsWith(PersonaRouteMap.ServiceRepHome, navigation.Uri);
+    }
 }

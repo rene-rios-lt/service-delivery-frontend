@@ -7,7 +7,7 @@ public class PersonaRouteMapTests
 {
     [Theory]
     [InlineData(UserRole.Dispatcher, "/dispatcher")]
-    [InlineData(UserRole.ServiceRep, "/rep")]
+    [InlineData(UserRole.ServiceRep, "/rep/takeover")]
     [InlineData(UserRole.Requester, "/requester")]
     public void GivenAPersonaRole_WhenMapped_ThenReturnsThatPersonasHomeRoute(UserRole role, string expectedRoute)
     {
