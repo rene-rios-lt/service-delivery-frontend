@@ -1,9 +1,16 @@
 @page "/rep"
+@using Microsoft.AspNetCore.Components
+@using ServiceDelivery.Client.UI.Features.Authentication.Services
+@inject NavigationManager Navigation
 
-@* Placeholder persona home — a valid navigation target for role-based routing (FE-001).
-   The ServiceRep job-offer and active-job views are built in a later story (FE-007+). *@
+@* The /rep route is the legacy ServiceRep placeholder. The real resting screen is the idle /
+   waiting-for-offers view at /rep/idle (FE-020), so any landing on /rep redirects there to keep a
+   single canonical idle route. Take-over success and post-job transitions navigate to /rep/idle
+   directly via PersonaRouteMap.ServiceRepIdle. *@
 
-<MudContainer Class="mt-6">
-    <MudText Typo="Typo.h4">Service Rep</MudText>
-    <MudText Typo="Typo.body1">Your job offers and active job will appear here.</MudText>
-</MudContainer>
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo(PersonaRouteMap.ServiceRepIdle, replace: true);
+    }
+}

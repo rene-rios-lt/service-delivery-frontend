@@ -2,6 +2,7 @@
 using MudBlazor.Services;
 using ServiceDelivery.Client.Core.Authentication;
 using ServiceDelivery.Client.Core.Interfaces;
+using ServiceDelivery.Client.Core.Models;
 using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.Mobile.Services;
@@ -51,6 +52,17 @@ public static class MauiProgram
 		// post-takeover navigation to the idle rep view.
 		builder.Services.AddScoped<IVehicleService, HttpVehicleService>();
 		builder.Services.AddScoped<TakeOverViewModel>();
+
+		// Idle / waiting-for-offers view (FE-020). The RepHub client is push-driven — no polling.
+		// RepIdleViewModel needs the rep's claimed vehicle; FE-007's take-over does not yet carry
+		// vehicle details back (TakeOverResult is success/conflict only), so for the POC the session's
+		// claimed vehicle resolves to the seeded demo truck. Wiring the real take-over hand-off of
+		// claimed-vehicle data is a follow-on — no FE-020 AC depends on it.
+		builder.Services.AddScoped<IRepHubService, SignalRRepHubService>();
+		builder.Services.AddScoped(_ => new ClaimedVehicle(
+			Guid.Empty, "IA-4471", "Transit 350",
+			new[] { "Hydraulics", "Coolant", "Diagnostics" }));
+		builder.Services.AddScoped<RepIdleViewModel>();
 
 		// Persona shell (FE-021). Mobile presents the menu as a slide-in drawer. The logout
 		// side-effect and release-vehicle action default to honest null-objects; FE-023 and FE-014

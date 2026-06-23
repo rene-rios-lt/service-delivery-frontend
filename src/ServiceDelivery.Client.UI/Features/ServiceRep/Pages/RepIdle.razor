@@ -1,0 +1,69 @@
+@page "/rep/idle"
+@using Microsoft.AspNetCore.Components
+@using MudBlazor
+@using ServiceDelivery.Client.Core.Models
+@using ServiceDelivery.Client.Core.ViewModels
+@implements IAsyncDisposable
+@inject RepIdleViewModel ViewModel
+
+@* Idle / waiting-for-offers view (FE-020). Mockup: rep-idle__mobile-390x844. The screen rests in
+   the Available state until a JobOfferReceived event arrives over RepHub, which navigates away to
+   the job-offer screen (FE-008). There are no buttons — the transition is fully push-driven. The
+   app bar, hamburger menu, and avatar come from the shared PersonaShell (FE-021) that wraps every
+   authenticated route, so the navigation menu (AC-4) is reachable without leaving this screen. *@
+
+<div data-testid="rep-idle" class="d-flex flex-column align-center justify-center pa-6">
+    <div data-testid="available-indicator" class="sd-state-available-circle mb-6">
+        <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Large" />
+    </div>
+
+    <MudText Typo="Typo.h5" Align="Align.Center" Class="font-weight-bold">You're available</MudText>
+    <MudText data-testid="waiting-subtext" Typo="Typo.body2" Align="Align.Center" Class="sd-muted mb-4">
+        Waiting for the next job offer…
+    </MudText>
+
+    <div data-testid="available-chip" class="sd-chip sd-chip--available mb-4">
+        <span class="sd-chip__dot"></span>Available
+    </div>
+
+    <div data-testid="claimed-vehicle-card" class="sd-card sd-listitem">
+        <div class="sd-listitem__icon">🚐</div>
+        <div>
+            <div class="sd-listitem__title">@ViewModel.Vehicle.Registration · @ViewModel.Vehicle.Model</div>
+            <div class="sd-equip">
+                @foreach (var equipment in VisibleEquipment)
+                {
+                    <span>@equipment</span>
+                }
+                @if (OverflowCount > 0)
+                {
+                    <span data-testid="equipment-overflow">+@OverflowCount</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <MudText data-testid="jobs-completed" Typo="Typo.caption" Align="Align.Center" Class="sd-muted mt-3">
+        Today · @ViewModel.JobsCompletedToday jobs completed
+    </MudText>
+</div>
+
+@code {
+    private const int MaxVisibleEquipment = 3;
+
+    private IEnumerable<string> VisibleEquipment =>
+        ViewModel.Vehicle.EquipmentTypes.Take(MaxVisibleEquipment);
+
+    private int OverflowCount =>
+        Math.Max(0, ViewModel.Vehicle.EquipmentTypes.Count - MaxVisibleEquipment);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ViewModel.StartAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await ViewModel.StopAsync();
+    }
+}

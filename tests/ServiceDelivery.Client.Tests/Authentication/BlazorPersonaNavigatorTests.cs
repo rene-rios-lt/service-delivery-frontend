@@ -22,9 +22,12 @@ public class BlazorPersonaNavigatorTests : BunitContext
     }
 
     [Fact]
-    public void GivenARepIdleViewCall_WhenInvoked_ThenNavigatesToServiceRepHomeRoute()
+    public void GivenARepIdleViewCall_WhenInvoked_ThenNavigatesToServiceRepIdleRoute()
     {
         // Arrange
+        // FE-020/AC-1: the idle / waiting-for-offers view now has its own route. A successful
+        // take-over (and decline / post-job transitions) lands here rather than the placeholder
+        // /rep home that FE-007 used as a stand-in.
         var navigation = Services.GetRequiredService<NavigationManager>();
         var navigator = new BlazorPersonaNavigator(navigation);
 
@@ -32,6 +35,6 @@ public class BlazorPersonaNavigatorTests : BunitContext
         navigator.NavigateToRepIdleView();
 
         // Assert
-        Assert.EndsWith(PersonaRouteMap.ServiceRepHome, navigation.Uri);
+        Assert.EndsWith(PersonaRouteMap.ServiceRepIdle, navigation.Uri);
     }
 }
