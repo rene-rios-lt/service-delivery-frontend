@@ -6,6 +6,7 @@ using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.Mobile.Services;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
+using ServiceDelivery.Client.UI.Features.ServiceRep.Services;
 
 namespace ServiceDelivery.Client.Mobile;
 
@@ -44,6 +45,12 @@ public static class MauiProgram
 		builder.Services.AddScoped<IAuthService, HttpAuthService>();
 		builder.Services.AddScoped<LoginViewModel>();
 		builder.Services.AddScoped<AppStartViewModel>();
+
+		// Rep take-over screen (FE-007). The HTTP vehicle service backs the idle-vehicle list and
+		// the take-over claim; the ViewModel orchestrates selection, conflict handling, and the
+		// post-takeover navigation to the idle rep view.
+		builder.Services.AddScoped<IVehicleService, HttpVehicleService>();
+		builder.Services.AddScoped<TakeOverViewModel>();
 
 		// Persona shell (FE-021). Mobile presents the menu as a slide-in drawer. The logout
 		// side-effect and release-vehicle action default to honest null-objects; FE-023 and FE-014
