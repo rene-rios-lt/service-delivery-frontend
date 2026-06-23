@@ -8,6 +8,7 @@
 @implements IDisposable
 @inject IJobOfferStore JobOfferStore
 @inject IPersonaNavigator Navigator
+@inject IJobOfferService JobOfferService
 
 <div data-testid="job-offer">
     @if (_viewModel is not null)
@@ -48,6 +49,14 @@
             </div>
         </div>
 
+        @if (_viewModel.ErrorMessage is not null)
+        {
+            <div class="sd-status-msg" data-testid="offer-expired-message"
+                 style="color: var(--sd-state-onsite)">
+                @_viewModel.ErrorMessage
+            </div>
+        }
+
         <div class="sd-flex sd-gap12">
             <button type="button" class="sd-btn sd-btn--ghost sd-btn--block"
                     data-testid="decline-button" @onclick="OnDeclineAsync">
@@ -83,7 +92,7 @@
         var offer = JobOfferStore.CurrentOffer;
         if (offer is not null)
         {
-            _viewModel = new JobOfferViewModel(offer, Navigator);
+            _viewModel = new JobOfferViewModel(offer, Navigator, JobOfferService);
             _viewModel.StateChanged += OnViewModelStateChanged;
 
             // Consume the in-flight offer so a back-navigation to /rep/offer after the screen

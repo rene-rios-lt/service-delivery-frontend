@@ -7,6 +7,16 @@ namespace ServiceDelivery.Client.Tests.ServiceRep;
 public class JobOfferViewModelTests
 {
     private readonly Mock<IPersonaNavigator> _navigator = new();
+    private readonly Mock<IJobOfferService> _jobOfferService = new();
+
+    public JobOfferViewModelTests()
+    {
+        // Default accept outcome for tests that do not exercise the accept path — keeps them free of
+        // accept side effects (FE-009). Accept-path tests override this per scenario.
+        _jobOfferService
+            .Setup(s => s.AcceptAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(AcceptOfferResult.Success);
+    }
 
     private static JobOfferPayload Offer(
         string requesterName = "Marcus",
@@ -19,7 +29,7 @@ public class JobOfferViewModelTests
         new(Guid.NewGuid(), requesterName, tier, dtcTitle, distanceMiles, etaMinutes, lat, lng);
 
     private JobOfferViewModel CreateViewModel(JobOfferPayload? offer = null) =>
-        new(offer ?? Offer(), _navigator.Object);
+        new(offer ?? Offer(), _navigator.Object, _jobOfferService.Object);
 
     [Fact]
     public void GivenANewJobOffer_WhenViewModelCreated_ThenCountdownStartsAt60()
@@ -137,21 +147,6 @@ public class JobOfferViewModelTests
     }
 
     [Fact]
-    public async Task GivenAJobOffer_WhenAcceptAsyncCalled_ThenCompletesWithoutNavigating()
-    {
-        // Arrange
-        // FE-008 only renders the offer and handles expiry. Accept is wired but is a no-op stub —
-        // FE-009 completes the accept response. It must not throw and must not navigate.
-        var vm = CreateViewModel(Offer());
-
-        // Act
-        await vm.AcceptAsync();
-
-        // Assert
-        _navigator.VerifyNoOtherCalls();
-    }
-
-    [Fact]
     public async Task GivenAJobOffer_WhenDeclineAsyncCalled_ThenCompletesWithoutNavigating()
     {
         // Arrange
@@ -164,6 +159,75 @@ public class JobOfferViewModelTests
 
         // Assert
         _navigator.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task GivenAJobOffer_WhenAcceptAsyncCalled_ThenJobOfferServiceAcceptIsInvokedWithOfferId()
+    {
+        // Arrange
+        // AC-1: tapping Accept calls POST /job-offers/{id}/accept — the ViewModel delegates to the
+        // service with this offer's id. The service owns the HTTP route.
+        var offerId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var offer = Offer() with { OfferId = offerId };
+        var vm = CreateViewModel(offer);
+
+        // Act
+        await vm.AcceptAsync();
+
+        // Assert
+        _jobOfferService.Verify(s => s.AcceptAsync(offerId), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenAcceptReturnsSuccess_WhenAcceptAsyncCalled_ThenNavigateToActiveJobIsInvoked()
+    {
+        // Arrange
+        // AC-2: on a successful accept the rep transitions to the active-job view (FE-011).
+        _jobOfferService
+            .Setup(s => s.AcceptAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(AcceptOfferResult.Success);
+        var vm = CreateViewModel(Offer());
+
+        // Act
+        await vm.AcceptAsync();
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToActiveJob(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenAcceptReturnsConflict_WhenAcceptAsyncCalled_ThenErrorMessageIsOfferExpired()
+    {
+        // Arrange
+        // AC-3: a 409 means the offer expired between the tap and the API call. The ViewModel surfaces
+        // an "Offer expired" message for the page to display before dismissing.
+        _jobOfferService
+            .Setup(s => s.AcceptAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(AcceptOfferResult.Conflict);
+        var vm = CreateViewModel(Offer());
+
+        // Act
+        await vm.AcceptAsync();
+
+        // Assert
+        Assert.Equal("Offer expired", vm.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task GivenAcceptReturnsConflict_WhenAcceptAsyncCalled_ThenNavigateToRepIdleViewIsInvoked()
+    {
+        // Arrange
+        // AC-3: after a 409 the offer is gone, so the rep returns to the idle / waiting-for-offers view.
+        _jobOfferService
+            .Setup(s => s.AcceptAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(AcceptOfferResult.Conflict);
+        var vm = CreateViewModel(Offer());
+
+        // Act
+        await vm.AcceptAsync();
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToRepIdleView(), Times.Once);
     }
 
     [Fact]

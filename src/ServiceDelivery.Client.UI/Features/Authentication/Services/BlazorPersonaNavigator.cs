@@ -37,4 +37,7 @@ public class BlazorPersonaNavigator : IPersonaNavigator
         _jobOfferStore.SetOffer(offer);
         _navigation.NavigateTo(PersonaRouteMap.ServiceRepJobOffer);
     }
+
+    public void NavigateToActiveJob() =>
+        _navigation.NavigateTo(PersonaRouteMap.ServiceRepActiveJob);
 }

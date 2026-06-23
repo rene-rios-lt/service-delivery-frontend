@@ -7,6 +7,7 @@ using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
+using ServiceDelivery.Client.UI.Features.ServiceRep.Services;
 using ServiceDelivery.Client.Web;
 using ServiceDelivery.Client.Web.Services;
 
@@ -20,6 +21,10 @@ builder.Services.AddScoped<ITokenStore, BrowserTokenStore>();
 // BlazorPersonaNavigator now depends on IJobOfferStore (FE-008). Web does not host the ServiceRep
 // persona, but the navigator is registered in every host, so the store must be resolvable here too.
 builder.Services.AddScoped<IJobOfferStore, InMemoryJobOfferStore>();
+// Job-offer accept service (FE-009). Web does not host the ServiceRep job-offer screen, but the
+// service is registered in every host (same pattern as IJobOfferStore above) so the dependency is
+// resolvable wherever the JobOffer page could render.
+builder.Services.AddScoped<IJobOfferService, HttpJobOfferService>();
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 builder.Services.AddScoped<ISessionState, SessionState>();
