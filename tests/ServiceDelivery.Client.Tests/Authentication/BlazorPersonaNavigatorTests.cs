@@ -1,6 +1,7 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
 
 namespace ServiceDelivery.Client.Tests.Authentication;
@@ -12,7 +13,7 @@ public class BlazorPersonaNavigatorTests : BunitContext
     {
         // Arrange
         var navigation = Services.GetRequiredService<NavigationManager>();
-        var navigator = new BlazorPersonaNavigator(navigation);
+        var navigator = new BlazorPersonaNavigator(navigation, new InMemoryJobOfferStore());
 
         // Act
         navigator.NavigateToLogin();
@@ -29,7 +30,7 @@ public class BlazorPersonaNavigatorTests : BunitContext
         // take-over (and decline / post-job transitions) lands here rather than the placeholder
         // /rep home that FE-007 used as a stand-in.
         var navigation = Services.GetRequiredService<NavigationManager>();
-        var navigator = new BlazorPersonaNavigator(navigation);
+        var navigator = new BlazorPersonaNavigator(navigation, new InMemoryJobOfferStore());
 
         // Act
         navigator.NavigateToRepIdleView();

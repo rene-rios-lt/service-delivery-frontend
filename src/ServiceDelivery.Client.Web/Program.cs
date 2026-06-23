@@ -17,6 +17,9 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 builder.Services.AddMudServices();
 
 builder.Services.AddScoped<ITokenStore, BrowserTokenStore>();
+// BlazorPersonaNavigator now depends on IJobOfferStore (FE-008). Web does not host the ServiceRep
+// persona, but the navigator is registered in every host, so the store must be resolvable here too.
+builder.Services.AddScoped<IJobOfferStore, InMemoryJobOfferStore>();
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 builder.Services.AddScoped<ISessionState, SessionState>();

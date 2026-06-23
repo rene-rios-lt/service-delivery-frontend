@@ -27,6 +27,10 @@ public static class MauiProgram
 		builder.Services.AddMudServices();
 
 		builder.Services.AddScoped<ITokenStore, SecureStorageTokenStore>();
+		// BlazorPersonaNavigator now depends on IJobOfferStore (FE-008). Desktop does not host the
+		// ServiceRep persona, but the navigator is registered in every host, so the store must be
+		// resolvable here too. A lightweight scoped no-op-by-absence store satisfies the dependency.
+		builder.Services.AddScoped<IJobOfferStore, InMemoryJobOfferStore>();
 		builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 		builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 		builder.Services.AddScoped<ISessionState, SessionState>();

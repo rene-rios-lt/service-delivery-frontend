@@ -13,10 +13,12 @@ namespace ServiceDelivery.Client.UI.Features.Authentication.Services;
 public class BlazorPersonaNavigator : IPersonaNavigator
 {
     private readonly NavigationManager _navigation;
+    private readonly IJobOfferStore _jobOfferStore;
 
-    public BlazorPersonaNavigator(NavigationManager navigation)
+    public BlazorPersonaNavigator(NavigationManager navigation, IJobOfferStore jobOfferStore)
     {
         _navigation = navigation;
+        _jobOfferStore = jobOfferStore;
     }
 
     public void NavigateToPersonaHome(UserRole role) =>
@@ -28,6 +30,11 @@ public class BlazorPersonaNavigator : IPersonaNavigator
     public void NavigateToRepIdleView() =>
         _navigation.NavigateTo(PersonaRouteMap.ServiceRepIdle);
 
-    public void NavigateToJobOffer(JobOfferPayload offer) =>
+    public void NavigateToJobOffer(JobOfferPayload offer)
+    {
+        // Deposit the payload before navigating so the job-offer page (FE-008) renders the offer
+        // without a re-fetch. The store is scoped, so the page resolves the same instance.
+        _jobOfferStore.SetOffer(offer);
         _navigation.NavigateTo(PersonaRouteMap.ServiceRepJobOffer);
+    }
 }
