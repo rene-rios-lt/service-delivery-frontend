@@ -29,6 +29,10 @@ public static class MauiProgram
 		builder.Services.AddMudServices();
 
 		builder.Services.AddScoped<ITokenStore, SecureStorageTokenStore>();
+		// Job-offer handoff store (FE-008). The navigator deposits the in-flight JobOfferReceived
+		// payload here before navigating to /rep/offer; the page reads it on init. Scoped so the
+		// navigator and the page share one instance within a session.
+		builder.Services.AddScoped<IJobOfferStore, InMemoryJobOfferStore>();
 		builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 		builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 		builder.Services.AddScoped<ISessionState, SessionState>();

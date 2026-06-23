@@ -1,6 +1,7 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
 
 namespace ServiceDelivery.Client.Tests.ServiceRep;
@@ -26,7 +27,7 @@ public class PersonaRouteMapIdleTests : BunitContext
     {
         // Arrange
         var navigation = Services.GetRequiredService<NavigationManager>();
-        var navigator = new BlazorPersonaNavigator(navigation);
+        var navigator = new BlazorPersonaNavigator(navigation, new InMemoryJobOfferStore());
 
         // Act
         navigator.NavigateToRepIdleView();

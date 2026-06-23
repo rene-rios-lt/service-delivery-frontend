@@ -1,0 +1,124 @@
+@page "/rep/offer"
+@using System.Globalization
+@using System.Threading
+@using Microsoft.AspNetCore.Components
+@using ServiceDelivery.Client.Core.Interfaces
+@using ServiceDelivery.Client.Core.Models
+@using ServiceDelivery.Client.Core.ViewModels
+@implements IDisposable
+@inject IJobOfferStore JobOfferStore
+@inject IPersonaNavigator Navigator
+
+<div data-testid="job-offer">
+    @if (_viewModel is not null)
+    {
+        <div class="sd-countdown @CountdownUrgentClass" data-testid="countdown-ring"
+             style="--val:@_viewModel.SecondsRemaining; --max:60">
+            <span class="sd-countdown__num" data-testid="countdown-number">@_viewModel.SecondsRemaining</span>
+        </div>
+
+        @if (_viewModel.IsUrgent)
+        {
+            <div class="sd-status-msg" data-testid="urgency-label" style="color: var(--sd-state-onsite)">
+                EXPIRING — RESPOND NOW
+            </div>
+        }
+
+        <div class="sd-map-panel" data-testid="offer-map">
+            <div class="sd-map">
+                <div class="sd-pin-dest" data-testid="map-pin"
+                     style="left:50%; top:50%"
+                     data-lat="@_viewModel.Lat.ToString(CultureInfo.InvariantCulture)"
+                     data-lng="@_viewModel.Lng.ToString(CultureInfo.InvariantCulture)"></div>
+            </div>
+        </div>
+        <div class="sd-card__title" data-testid="requester-name">@_viewModel.RequesterName</div>
+        <span class="sd-badge @TierBadgeClass" data-testid="tier-badge">
+            <span class="sd-badge__icon">★</span>@_viewModel.Tier.ToString().ToUpperInvariant()
+        </span>
+        <div class="sd-card__body sd-muted" data-testid="dtc-title">@_viewModel.DtcTitle</div>
+        <div class="sd-flex sd-gap12">
+            <div class="sd-eta" data-testid="distance-miles">
+                <span class="sd-eta__num">@_viewModel.DistanceMiles.ToString("0.0", CultureInfo.InvariantCulture)</span>
+                <span class="sd-eta__lbl">MILES</span>
+            </div>
+            <div class="sd-eta" data-testid="eta-minutes">
+                <span class="sd-eta__num">@_viewModel.EtaMinutes</span>
+                <span class="sd-eta__lbl">MIN ETA</span>
+            </div>
+        </div>
+
+        <div class="sd-flex sd-gap12">
+            <button type="button" class="sd-btn sd-btn--ghost sd-btn--block"
+                    data-testid="decline-button" @onclick="OnDeclineAsync">
+                Decline
+            </button>
+            <button type="button" class="sd-btn sd-btn--success sd-btn--lg sd-btn--block"
+                    data-testid="accept-button" @onclick="OnAcceptAsync">
+                Accept
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
+
+    private JobOfferViewModel? _viewModel;
+    private Timer? _countdownTimer;
+
+    private string TierBadgeClass => _viewModel?.Tier switch
+    {
+        ServiceTier.Gold => "sd-badge--gold",
+        ServiceTier.Silver => "sd-badge--silver",
+        ServiceTier.Bronze => "sd-badge--bronze",
+        _ => string.Empty
+    };
+
+    private string CountdownUrgentClass =>
+        _viewModel?.IsUrgent == true ? "sd-countdown--urgent" : string.Empty;
+
+    protected override void OnInitialized()
+    {
+        var offer = JobOfferStore.CurrentOffer;
+        if (offer is not null)
+        {
+            _viewModel = new JobOfferViewModel(offer, Navigator);
+            _viewModel.StateChanged += OnViewModelStateChanged;
+
+            // Consume the in-flight offer so a back-navigation to /rep/offer after the screen
+            // dismisses does not re-show a stale offer (the navigator deposits a fresh one per event).
+            JobOfferStore.ClearOffer();
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Start the live countdown after the first render only. The timer fires once per second on a
+        // pool thread, so each tick is marshalled back onto the renderer via TickAsync's InvokeAsync.
+        if (firstRender && _viewModel is not null)
+        {
+            _countdownTimer = new Timer(_ => _ = InvokeAsync(TickAsync), null, TickInterval, TickInterval);
+        }
+    }
+
+    // Single tick entry point. The production timer calls this every second; component tests call it
+    // directly so no real-time delay is needed. Delegates the countdown logic to the ViewModel — the
+    // page only renders the result.
+    public Task TickAsync() => _viewModel?.TickAsync() ?? Task.CompletedTask;
+
+    private Task OnAcceptAsync() => _viewModel?.AcceptAsync() ?? Task.CompletedTask;
+
+    private Task OnDeclineAsync() => _viewModel?.DeclineAsync() ?? Task.CompletedTask;
+
+    private void OnViewModelStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        _countdownTimer?.Dispose();
+        if (_viewModel is not null)
+        {
+            _viewModel.StateChanged -= OnViewModelStateChanged;
+        }
+    }
+}
