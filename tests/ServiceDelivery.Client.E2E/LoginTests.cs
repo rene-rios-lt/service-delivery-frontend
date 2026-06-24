@@ -15,12 +15,12 @@ public sealed class LoginTests : E2ETestBase
         await Page.WaitForSelectorAsync("[data-testid='login-card']");
 
         // Act
-        await Page.FillAsync("[data-testid='email-input'] input", "dispatcher1");
+        await Page.FillAsync("[data-testid='email-input'] input", "alex@dealer.com");
         await Page.FillAsync("[data-testid='password-input'] input", DispatcherPassword);
         await Page.ClickAsync("[data-testid='sign-in-button']");
 
         // Assert
-        await Page.WaitForURLAsync("**/dispatcher");
+        await Page.WaitForSelectorAsync("[data-testid='dispatcher-dashboard']");
         Assert.That(Page.Url, Does.Contain("/dispatcher"));
     }
 
@@ -50,12 +50,12 @@ public sealed class LoginTests : E2ETestBase
         await Page.WaitForSelectorAsync("[data-testid='login-card']");
 
         // Act
-        await Page.FillAsync("[data-testid='email-input'] input", "dispatcher1");
+        await Page.FillAsync("[data-testid='email-input'] input", "alex@dealer.com");
         await Page.FillAsync("[data-testid='password-input'] input", DispatcherPassword);
         await Page.ClickAsync("[data-testid='sign-in-button']");
 
         // Assert
-        await Page.WaitForURLAsync("**/dispatcher");
+        await Page.WaitForSelectorAsync("[data-testid='dispatcher-dashboard']");
         Assert.That(Page.Url, Does.Contain("/dispatcher"));
         Assert.That(await Page.Locator("[data-testid='role-selection']").CountAsync(), Is.Zero);
         Assert.That(await Page.GetByText("Select role").CountAsync(), Is.Zero);

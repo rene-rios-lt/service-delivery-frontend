@@ -56,7 +56,7 @@ public abstract class E2ETestBase
         Environment.GetEnvironmentVariable("E2E_BASE_URL") ?? "http://localhost:5023";
 
     protected static string DispatcherPassword =>
-        Environment.GetEnvironmentVariable("E2E_DISPATCHER_PASSWORD") ?? "Password1!";
+        Environment.GetEnvironmentVariable("E2E_DISPATCHER_PASSWORD") ?? "Password123!";
 
     [SetUp]
     public async Task SetUp()
