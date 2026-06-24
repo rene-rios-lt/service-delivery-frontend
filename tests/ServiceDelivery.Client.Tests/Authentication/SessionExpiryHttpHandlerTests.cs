@@ -105,4 +105,32 @@ public class SessionExpiryHttpHandlerTests
         // Assert
         Assert.Equal(new[] { "handled", "threw" }, sequence);
     }
+
+    [Fact]
+    public async Task GivenA401ResponseFromLoginEndpoint_WhenSentThroughHandler_ThenResponseIsPassedThroughWithoutSessionExpiry()
+    {
+        // Arrange
+        var client = CreateClient(HttpStatusCode.Unauthorized);
+
+        // Act
+        var response = await client.PostAsync("http://localhost:5180/auth/login", new StringContent(""));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        _expiryHandler.Verify(h => h.HandleExpiredSessionAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task GivenA401ResponseFromAuthenticatedEndpoint_WhenSentThroughHandler_ThenSessionExpiryIsHandled()
+    {
+        // Arrange
+        var client = CreateClient(HttpStatusCode.Unauthorized);
+
+        // Act
+        await Assert.ThrowsAsync<SessionExpiredException>(
+            () => client.GetAsync("http://localhost:5180/users/me"));
+
+        // Assert
+        _expiryHandler.Verify(h => h.HandleExpiredSessionAsync(), Times.Once);
+    }
 }
