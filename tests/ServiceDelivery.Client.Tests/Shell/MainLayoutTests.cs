@@ -6,6 +6,7 @@ using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.UI.Layout;
+using ServiceDelivery.Client.UI.Shared.Components;
 
 namespace ServiceDelivery.Client.Tests.Shell;
 
@@ -83,5 +84,22 @@ public class MainLayoutTests
 
         // Assert
         Assert.Contains("Rosa Alvarez", cut.Find("[data-testid='persona-name']").TextContent);
+    }
+
+    [Fact]
+    public async Task GivenAnAuthenticatedRoute_WhenLayoutInitializes_ThenShellVersionIsNonZeroAfterLoad()
+    {
+        // Arrange
+        await using var ctx = new BunitContext();
+        RegisterServices(ctx);
+        var nav = ctx.Services.GetRequiredService<NavigationManager>();
+        nav.NavigateTo(nav.BaseUri + "rep");
+
+        // Act
+        var cut = ctx.Render<MainLayout>(p => p.Add(c => c.Body, Body));
+
+        // Assert
+        var personaShell = cut.FindComponent<PersonaShell>();
+        Assert.NotEqual(0, personaShell.Instance.ShellVersion);
     }
 }

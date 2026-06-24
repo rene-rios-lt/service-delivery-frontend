@@ -21,11 +21,16 @@
     }
     else
     {
-        <PersonaShell ViewModel="Shell" Body="@Body" />
+        <PersonaShell ViewModel="Shell" Body="@Body" ShellVersion="@_shellVersion" />
     }
 </MudLayout>
 
 @code {
+    // Incremented after Shell.Load so PersonaShell receives a changed primitive parameter and Blazor
+    // re-renders the child. Without this, the unchanged Shell reference makes Blazor skip the child
+    // render and PersonaMenu never re-evaluates `@if (ViewModel.Menu is not null)` post-login (BUG-025).
+    private int _shellVersion = 0;
+
     private bool IsLoginRoute =>
         Navigation.ToBaseRelativePath(Navigation.Uri)
             .TrimStart('/')
@@ -37,6 +42,7 @@
         {
             var profile = await AuthService.GetCurrentUserAsync();
             Shell.Load(profile);
+            _shellVersion++;
         }
     }
 }

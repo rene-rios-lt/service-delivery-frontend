@@ -9,6 +9,21 @@ namespace ServiceDelivery.Client.E2E;
 public sealed class AppShellNavTests : E2ETestBase
 {
     [Test]
+    public async Task GivenAuthenticatedDispatcher_WhenDashboardLoads_ThenAvatarIsVisibleWithin5Seconds()
+    {
+        // Arrange
+        await LoginAsDispatcherAsync();
+
+        // Act
+        var avatar = await Page.WaitForSelectorAsync(
+            "[data-testid='persona-avatar']",
+            new() { Timeout = 5000 });
+
+        // Assert
+        Assert.That(await avatar!.IsVisibleAsync(), Is.True);
+    }
+
+    [Test]
     public async Task GivenAuthenticatedDispatcher_WhenAvatarClicked_ThenAccountMenuPanelIsVisible()
     {
         // Arrange
