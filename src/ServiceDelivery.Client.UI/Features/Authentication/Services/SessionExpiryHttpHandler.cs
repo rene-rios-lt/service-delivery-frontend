@@ -11,6 +11,11 @@ namespace ServiceDelivery.Client.UI.Features.Authentication.Services;
 /// <see cref="SessionExpiredException"/> so the in-flight caller's success continuation never runs
 /// against the dead token. It does not clear the token or navigate itself — detection and action
 /// are kept separate (SRP).
+/// <para>
+/// The login endpoint (<c>/auth/login</c>) is exempt: a 401 there means "wrong credentials", not
+/// "session expired". Treating it as an expiry would throw <see cref="SessionExpiredException"/>
+/// instead of letting the caller surface an inline error (BUG-024).
+/// </para>
 /// </summary>
 public class SessionExpiryHttpHandler : DelegatingHandler
 {
@@ -26,7 +31,8 @@ public class SessionExpiryHttpHandler : DelegatingHandler
     {
         var response = await base.SendAsync(request, cancellationToken);
 
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        if (response.StatusCode == HttpStatusCode.Unauthorized
+            && !request.RequestUri!.AbsolutePath.Contains("/auth/login", StringComparison.OrdinalIgnoreCase))
         {
             await _expiryHandler.HandleExpiredSessionAsync();
             throw new SessionExpiredException();
