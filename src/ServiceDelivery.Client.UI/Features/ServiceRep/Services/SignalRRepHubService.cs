@@ -9,13 +9,15 @@ namespace ServiceDelivery.Client.UI.Features.ServiceRep.Services;
 /// Shared by every host because the hub contract is platform-agnostic. The hub URL is resolved from
 /// the same <see cref="HttpClient"/> base address the rest of the app uses (so it always targets the
 /// configured backend) plus the RepHub path <c>/hubs/rep</c>. This adapter only manages the
-/// connection lifecycle and forwards the single <c>JobOfferReceived</c> event to the registered
-/// handler — all idle-screen logic lives in <see cref="ServiceDelivery.Client.Core.ViewModels.RepIdleViewModel"/>.
+/// connection lifecycle and forwards the <c>JobOfferReceived</c> event (idle screen, FE-020) and the
+/// <c>RedirectReceived</c> event (active-job view, FE-011) to the registered handlers — all screen
+/// logic lives in the ViewModels.
 /// </summary>
 public sealed class SignalRRepHubService : IRepHubService, IAsyncDisposable
 {
     private const string RepHubPath = "hubs/rep";
     private const string JobOfferReceivedEvent = "JobOfferReceived";
+    private const string RedirectReceivedEvent = "RedirectReceived";
 
     private readonly HubConnection _connection;
 
@@ -30,6 +32,9 @@ public sealed class SignalRRepHubService : IRepHubService, IAsyncDisposable
 
     public void OnJobOfferReceived(Func<JobOfferPayload, Task> handler) =>
         _connection.On(JobOfferReceivedEvent, handler);
+
+    public void OnRedirectReceived(Func<RedirectPayload, Task> handler) =>
+        _connection.On(RedirectReceivedEvent, handler);
 
     public Task StartAsync() => _connection.StartAsync();
 

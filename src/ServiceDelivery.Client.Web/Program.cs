@@ -28,6 +28,10 @@ builder.Services.AddScoped<IJobOfferService, HttpJobOfferService>();
 // Job-offer decline service (FE-010). Registered in every host for the same reason as the accept
 // service above — the JobOffer page injects IDeclineOfferService, so it must be resolvable here too.
 builder.Services.AddScoped<IDeclineOfferService, HttpDeclineOfferService>();
+// Active job service (FE-011). Web does not host the ServiceRep active-job screen, but the service
+// is registered in every host (same register-everywhere pattern as the offer services above) so the
+// dependency graph resolves regardless of which persona a host renders.
+builder.Services.AddScoped<IActiveJobService, HttpActiveJobService>();
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 builder.Services.AddScoped<ISessionState, SessionState>();

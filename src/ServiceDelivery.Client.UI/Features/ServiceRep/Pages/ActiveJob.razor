@@ -1,0 +1,99 @@
+@page "/rep/job"
+@using System.Globalization
+@using System.Threading
+@using ServiceDelivery.Client.Core.ViewModels
+@implements IDisposable
+@inject ActiveJobViewModel ViewModel
+
+<div class="sd-active-job" data-testid="active-job">
+    <div class="sd-appbar" data-testid="active-job-appbar">
+        <div class="sd-appbar__logo">🧭</div>
+        <div>
+            <div class="sd-appbar__title">Active Job</div>
+            <div class="sd-appbar__sub">Navigating to requester</div>
+        </div>
+        <div class="sd-appbar__spacer"></div>
+        <div class="sd-appbar__action">⋮</div>
+    </div>
+
+    <div class="sd-map" data-testid="active-job-map">
+        <div class="sd-eta" data-testid="eta-card">
+            <span class="sd-eta__num" data-testid="eta-minutes">@ViewModel.EtaMinutes min</span>
+            <span class="sd-eta__lbl">ETA</span>
+        </div>
+
+        <div class="sd-chip @StateChipClass" data-testid="state-chip">
+            <span class="sd-chip__dot"></span>@StateLabel
+        </div>
+
+        <svg class="sd-routeline" data-testid="route-line">
+            <line x1="65%" y1="32%" x2="30%" y2="60%" />
+        </svg>
+
+        <div class="sd-pin-dest" data-testid="rep-marker"
+             style="left:65%; top:32%"
+             data-lat="@ViewModel.RepLat.ToString(CultureInfo.InvariantCulture)"
+             data-lng="@ViewModel.RepLng.ToString(CultureInfo.InvariantCulture)"></div>
+
+        <div class="sd-marker sd-marker--enroute" data-testid="requester-pin"
+             style="left:30%; top:60%"
+             data-lat="@ViewModel.RequesterLat.ToString(CultureInfo.InvariantCulture)"
+             data-lng="@ViewModel.RequesterLng.ToString(CultureInfo.InvariantCulture)">
+            <div class="sd-marker__pin"></div>
+        </div>
+    </div>
+
+    <div class="sd-sheet" data-testid="bottom-sheet">
+        <div class="sd-sheet__grip"></div>
+        <div class="sd-reqcard__row">
+            <div class="sd-listitem__icon">🔧</div>
+            <div class="sd-card__title" data-testid="requester-name">@ViewModel.RequesterName</div>
+        </div>
+        <div class="sd-reqcard__dtc" data-testid="dtc-title">@ViewModel.DtcTitle</div>
+        <button type="button" class="sd-btn sd-btn--primary sd-btn--block sd-btn--lg"
+                data-testid="arrived-button" disabled="@(!ViewModel.IsArrivedEnabled)">
+            @ArrivedButtonLabel
+        </button>
+    </div>
+</div>
+
+@code {
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
+
+    private Timer? _pollTimer;
+
+    private string StateLabel => ViewModel.IsArrivedEnabled ? "Within 15 mi" : "En Route";
+
+    private string StateChipClass => ViewModel.IsArrivedEnabled ? "sd-chip--within15" : "sd-chip--enroute";
+
+    private string ArrivedButtonLabel =>
+        ViewModel.IsArrivedEnabled ? "I've Arrived" : "I've Arrived · enables within 15 mi";
+
+    protected override async Task OnInitializedAsync()
+    {
+        ViewModel.StateChanged += OnViewModelStateChanged;
+        await ViewModel.LoadAsync();
+        await ViewModel.StartAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Poll the rep's simulator-driven position every ~3 seconds (AC-1). The timer fires on a pool
+        // thread; each tick marshals back onto the renderer via InvokeAsync. Tests call PollOnceAsync
+        // directly so no real-time delay is needed.
+        if (firstRender)
+        {
+            _pollTimer = new Timer(_ => _ = InvokeAsync(PollOnceAsync), null, PollInterval, PollInterval);
+        }
+    }
+
+    public Task PollOnceAsync() => ViewModel.PollPositionAsync();
+
+    private void OnViewModelStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        _pollTimer?.Dispose();
+        ViewModel.StateChanged -= OnViewModelStateChanged;
+    }
+}
