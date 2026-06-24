@@ -7,6 +7,7 @@
     <Project Path="src/ServiceDelivery.Client.Web/ServiceDelivery.Client.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ServiceDelivery.Client.Appium/ServiceDelivery.Client.Appium.csproj" />
     <Project Path="tests/ServiceDelivery.Client.E2E/ServiceDelivery.Client.E2E.csproj" />
     <Project Path="tests/ServiceDelivery.Client.Tests/ServiceDelivery.Client.Tests.csproj" />
   </Folder>

@@ -14,7 +14,7 @@
 <div data-testid="job-offer">
     @if (_viewModel is not null)
     {
-        <div class="sd-countdown @CountdownUrgentClass" data-testid="countdown-ring"
+        <div class="sd-countdown @CountdownUrgentClass" data-testid="countdown-ring" id="countdown-ring"
              style="--val:@_viewModel.SecondsRemaining; --max:60">
             <span class="sd-countdown__num" data-testid="countdown-number">@_viewModel.SecondsRemaining</span>
         </div>
@@ -60,11 +60,11 @@
 
         <div class="sd-flex sd-gap12">
             <button type="button" class="sd-btn sd-btn--ghost sd-btn--block"
-                    data-testid="decline-button" @onclick="OnDeclineAsync">
+                    data-testid="decline-button" id="decline-button" @onclick="OnDeclineAsync">
                 Decline
             </button>
             <button type="button" class="sd-btn sd-btn--success sd-btn--lg sd-btn--block"
-                    data-testid="accept-button" @onclick="OnAcceptAsync">
+                    data-testid="accept-button" id="accept-button" @onclick="OnAcceptAsync">
                 Accept
             </button>
         </div>

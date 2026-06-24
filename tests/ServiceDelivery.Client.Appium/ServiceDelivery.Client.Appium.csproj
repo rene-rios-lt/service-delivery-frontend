@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Build only, do not run in the /master pipeline.
+       These Appium tests drive the MAUI Blazor Hybrid Mobile host installed on a live iOS simulator
+       as a black box; they require a running backend on :5180, a booted iOS simulator with the app
+       installed, and a running Appium server (default http://localhost:4723). Execute via
+       scripts/local/test-appium.sh against a live system — never via `dotnet test` in the pipeline.
+       No src/ project references: the suite treats the installed app as a black box and asserts only
+       on accessibility-id / id selectors surfaced into the XCUITest accessibility tree. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Appium.WebDriver" Version="8.3.0" />
+    <!-- Companion to Selenium.WebDriver (transitively pulled by Appium.WebDriver 8.3.0 → Selenium
+         4.44.0); provides WebDriverWait for the AC-6 ≥15 s SignalR polling in the job-offer tests. -->
+    <PackageReference Include="Selenium.Support" Version="4.44.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="NUnit" Version="4.2.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="NUnit.Framework" />
+    <Using Include="OpenQA.Selenium" />
+    <Using Include="OpenQA.Selenium.Appium" />
+    <Using Include="OpenQA.Selenium.Appium.iOS" />
+    <Using Include="OpenQA.Selenium.Support.UI" />
+  </ItemGroup>
+
+</Project>
