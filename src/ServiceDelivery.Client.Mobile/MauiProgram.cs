@@ -78,6 +78,13 @@ public static class MauiProgram
 			new[] { "Hydraulics", "Coolant", "Diagnostics" }));
 		builder.Services.AddScoped<RepIdleViewModel>();
 
+		// Active job navigation view (FE-011). The HTTP active-job service backs
+		// GET /service-requests/my-active; the ActiveJob page injects ActiveJobViewModel, which polls
+		// the rep's simulator-driven position, gates the "I've Arrived" button on the within-15-miles
+		// state, and listens on RepHub for RedirectReceived to move the destination in-place.
+		builder.Services.AddScoped<IActiveJobService, HttpActiveJobService>();
+		builder.Services.AddScoped<ActiveJobViewModel>();
+
 		// Persona shell (FE-021). Mobile presents the menu as a slide-in drawer. The logout
 		// side-effect and release-vehicle action default to honest null-objects; FE-023 and FE-014
 		// replace these registrations with their real implementations (Open/Closed — no shell change).
