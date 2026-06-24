@@ -36,9 +36,13 @@
             .TrimStart('/')
             .StartsWith("login", StringComparison.OrdinalIgnoreCase);
 
-    protected override async Task OnInitializedAsync()
+    // OnParametersSetAsync (not OnInitializedAsync) is required here: the Router calls it on every
+    // navigation by updating the Body parameter, so it fires when the user transitions from /login
+    // to /dispatcher. OnInitializedAsync only runs once — on the login page — so Shell.Load was
+    // never reached in the normal login flow.
+    protected override async Task OnParametersSetAsync()
     {
-        if (!IsLoginRoute)
+        if (!IsLoginRoute && Shell.Menu is null)
         {
             var profile = await AuthService.GetCurrentUserAsync();
             Shell.Load(profile);
