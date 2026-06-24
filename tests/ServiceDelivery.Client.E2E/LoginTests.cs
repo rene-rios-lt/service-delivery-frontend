@@ -15,8 +15,8 @@ public sealed class LoginTests : E2ETestBase
         await Page.WaitForSelectorAsync("[data-testid='login-card']");
 
         // Act
-        await Page.FillAsync("[data-testid='email-input'] input", "alex@dealer.com");
-        await Page.FillAsync("[data-testid='password-input'] input", DispatcherPassword);
+        await Page.FillAsync("[data-testid='email-input']", "alex@dealer.com");
+        await Page.FillAsync("[data-testid='password-input']", DispatcherPassword);
         await Page.ClickAsync("[data-testid='sign-in-button']");
 
         // Assert
@@ -32,8 +32,8 @@ public sealed class LoginTests : E2ETestBase
         await Page.WaitForSelectorAsync("[data-testid='login-card']");
 
         // Act
-        await Page.FillAsync("[data-testid='email-input'] input", "bad");
-        await Page.FillAsync("[data-testid='password-input'] input", "wrong");
+        await Page.FillAsync("[data-testid='email-input']", "bad");
+        await Page.FillAsync("[data-testid='password-input']", "wrong");
         await Page.ClickAsync("[data-testid='sign-in-button']");
 
         // Assert
@@ -50,8 +50,8 @@ public sealed class LoginTests : E2ETestBase
         await Page.WaitForSelectorAsync("[data-testid='login-card']");
 
         // Act
-        await Page.FillAsync("[data-testid='email-input'] input", "alex@dealer.com");
-        await Page.FillAsync("[data-testid='password-input'] input", DispatcherPassword);
+        await Page.FillAsync("[data-testid='email-input']", "alex@dealer.com");
+        await Page.FillAsync("[data-testid='password-input']", DispatcherPassword);
         await Page.ClickAsync("[data-testid='sign-in-button']");
 
         // Assert

@@ -83,8 +83,8 @@ public abstract class E2ETestBase
         await Page.GotoAsync("/login");
         await Page.WaitForSelectorAsync("[data-testid='login-card']");
 
-        await Page.FillAsync("[data-testid='email-input'] input", "dispatcher1");
-        await Page.FillAsync("[data-testid='password-input'] input", DispatcherPassword);
+        await Page.FillAsync("[data-testid='email-input']", "alex@dealer.com");
+        await Page.FillAsync("[data-testid='password-input']", DispatcherPassword);
         await Page.ClickAsync("[data-testid='sign-in-button']");
 
         await Page.WaitForURLAsync("**/dispatcher");
