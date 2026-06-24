@@ -37,6 +37,13 @@
     [Parameter]
     public RenderFragment? Body { get; set; }
 
+    // Carries no rendered data. Its sole purpose is to give Blazor's parameter differ a changed
+    // primitive value (int 0 -> 1) after MainLayout calls Shell.Load(profile), so the child render
+    // cycle runs and PersonaMenu's `@if (ViewModel.Menu is not null)` is re-evaluated post-login.
+    // Without it the unchanged ShellViewModel reference makes Blazor skip the child re-render (BUG-025).
+    [Parameter]
+    public int ShellVersion { get; set; }
+
     private string ContextSubtitle => ViewModel.Menu?.VehicleContext ?? ViewModel.Menu?.ContextLine ?? string.Empty;
 
     private string MenuIcon => ViewModel.IsMenuOpen ? Icons.Material.Filled.Close : Icons.Material.Filled.Menu;
