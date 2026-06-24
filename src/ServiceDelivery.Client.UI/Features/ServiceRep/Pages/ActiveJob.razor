@@ -17,7 +17,7 @@
     </div>
 
     <div class="sd-map" data-testid="active-job-map">
-        <div class="sd-eta" data-testid="eta-card">
+        <div class="sd-eta" data-testid="eta-card" id="eta-card">
             <span class="sd-eta__num" data-testid="eta-minutes">@ViewModel.EtaMinutes min</span>
             <span class="sd-eta__lbl">ETA</span>
         </div>
@@ -51,7 +51,7 @@
         </div>
         <div class="sd-reqcard__dtc" data-testid="dtc-title">@ViewModel.DtcTitle</div>
         <button type="button" class="sd-btn sd-btn--primary sd-btn--block sd-btn--lg"
-                data-testid="arrived-button" disabled="@(!ViewModel.IsArrivedEnabled)">
+                data-testid="arrived-button" id="arrived-button" disabled="@(!ViewModel.IsArrivedEnabled)">
             @ArrivedButtonLabel
         </button>
     </div>

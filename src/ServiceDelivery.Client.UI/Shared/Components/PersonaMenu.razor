@@ -13,6 +13,7 @@
     @if (ViewModel.MenuStyle == ShellMenuStyle.Drawer)
     {
         <MudDrawer data-testid="persona-menu-drawer"
+                   id="persona-menu-drawer"
                    Open="ViewModel.IsMenuOpen"
                    Variant="DrawerVariant.Temporary"
                    Anchor="Anchor.Start"
@@ -32,6 +33,7 @@
                 @foreach (var item in ViewModel.Menu.Items)
                 {
                     <MudNavLink data-testid="@TestId(item)"
+                                id="@TestId(item)"
                                 Class="@ItemClass(item)"
                                 Icon="@MaterialIcon(item.Icon)"
                                 IconColor="@IconColor(item)"

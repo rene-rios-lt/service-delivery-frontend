@@ -8,10 +8,11 @@
    The backend GET /vehicles/available contract returns only registration + equipment, so model
    and loop are not shown. *@
 
-<div data-testid="idle-vehicle-list" class="sd-card">
+<div data-testid="idle-vehicle-list" id="idle-vehicle-list" class="sd-card">
     @foreach (var vehicle in Vehicles)
     {
         <div data-testid="idle-vehicle-row"
+             id="idle-vehicle-row"
              class="sd-listitem @(IsSelected(vehicle) ? "idle-vehicle-row--selected" : null)"
              @onclick="() => OnSelect.InvokeAsync(vehicle.VehicleId)">
             <div class="sd-listitem__icon">🚐</div>

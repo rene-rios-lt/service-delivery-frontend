@@ -13,7 +13,7 @@
    authenticated route, so the navigation menu (AC-4) is reachable without leaving this screen. *@
 
 <div data-testid="rep-idle" class="d-flex flex-column align-center justify-center pa-6">
-    <div data-testid="available-indicator" class="sd-state-available-circle mb-6">
+    <div data-testid="available-indicator" id="available-indicator" class="sd-state-available-circle mb-6">
         <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Large" />
     </div>
 
@@ -26,7 +26,7 @@
         <span class="sd-chip__dot"></span>Available
     </div>
 
-    <div data-testid="claimed-vehicle-card" class="sd-card sd-listitem">
+    <div data-testid="claimed-vehicle-card" id="claimed-vehicle-card" class="sd-card sd-listitem">
         <div class="sd-listitem__icon">🚐</div>
         <div>
             <div class="sd-listitem__title">@ViewModel.Vehicle.Registration · @ViewModel.Vehicle.Model</div>
