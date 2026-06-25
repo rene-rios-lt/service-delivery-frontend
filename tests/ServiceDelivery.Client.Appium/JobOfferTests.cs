@@ -20,14 +20,14 @@ public sealed class JobOfferTests : AppiumTestBase
         TakeOverFirstIdleVehicle();
 
         // Act
-        var countdownRing = WaitForSignalR(d => d.FindElement(MobileBy.AccessibilityId("countdown-ring")));
+        var countdownRing = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='countdown-ring']")));
         var firstReading = ReadCountdown();
         var decremented = WaitForSignalR(_ => ReadCountdown() < firstReading);
 
         // Assert
         Assert.That(countdownRing.Displayed, Is.True);
-        Assert.That(Driver.FindElement(MobileBy.AccessibilityId("accept-button")).Displayed, Is.True);
-        Assert.That(Driver.FindElement(MobileBy.AccessibilityId("decline-button")).Displayed, Is.True);
+        Assert.That(Driver.FindElement(By.CssSelector("[data-testid='accept-button']")).Displayed, Is.True);
+        Assert.That(Driver.FindElement(By.CssSelector("[data-testid='decline-button']")).Displayed, Is.True);
         Assert.That(decremented, Is.True);
     }
 
@@ -36,13 +36,13 @@ public sealed class JobOfferTests : AppiumTestBase
     {
         // Arrange
         TakeOverFirstIdleVehicle();
-        var acceptButton = WaitForSignalR(d => d.FindElement(MobileBy.AccessibilityId("accept-button")));
+        var acceptButton = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='accept-button']")));
 
         // Act
         acceptButton.Click();
 
         // Assert
-        var arrivedButton = Driver.FindElement(MobileBy.AccessibilityId("arrived-button"));
+        var arrivedButton = Driver.FindElement(By.CssSelector("[data-testid='arrived-button']"));
         Assert.That(arrivedButton.Displayed, Is.True);
     }
 
@@ -51,19 +51,19 @@ public sealed class JobOfferTests : AppiumTestBase
     {
         // Arrange
         TakeOverFirstIdleVehicle();
-        var declineButton = WaitForSignalR(d => d.FindElement(MobileBy.AccessibilityId("decline-button")));
+        var declineButton = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='decline-button']")));
 
         // Act
         declineButton.Click();
 
         // Assert
-        var availableIndicator = Driver.FindElement(MobileBy.AccessibilityId("available-indicator"));
+        var availableIndicator = Driver.FindElement(By.CssSelector("[data-testid='available-indicator']"));
         Assert.That(availableIndicator.Displayed, Is.True);
     }
 
     private int ReadCountdown()
     {
-        var text = Driver.FindElement(MobileBy.AccessibilityId("countdown-ring")).Text;
+        var text = Driver.FindElement(By.CssSelector("[data-testid='countdown-ring']")).Text;
         var digits = new string(text.Where(char.IsDigit).ToArray());
         return int.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
             ? value

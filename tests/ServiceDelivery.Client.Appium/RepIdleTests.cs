@@ -15,8 +15,8 @@ public sealed class RepIdleTests : AppiumTestBase
         TakeOverFirstIdleVehicle();
 
         // Act
-        var availableIndicator = Driver.FindElement(MobileBy.AccessibilityId("available-indicator"));
-        var claimedVehicleCard = Driver.FindElement(MobileBy.AccessibilityId("claimed-vehicle-card"));
+        var availableIndicator = Driver.FindElement(By.CssSelector("[data-testid='available-indicator']"));
+        var claimedVehicleCard = Driver.FindElement(By.CssSelector("[data-testid='claimed-vehicle-card']"));
 
         // Assert
         Assert.That(availableIndicator.Displayed, Is.True);

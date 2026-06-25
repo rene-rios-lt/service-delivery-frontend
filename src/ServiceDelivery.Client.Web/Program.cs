@@ -36,14 +36,17 @@ builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 builder.Services.AddScoped<ISessionState, SessionState>();
 builder.Services.AddScoped<SessionExpiryHttpHandler>();
+builder.Services.AddScoped<AuthTokenHttpHandler>();
 
-// Backend API base address (local HTTP profile from scripts/local/start.sh). Every outbound
-// request flows through SessionExpiryHttpHandler so a 401 clears the session and redirects.
+// Backend API base address (local HTTP profile from scripts/local/start.sh). Outbound pipeline:
+// SessionExpiryHttpHandler (reacts to 401) -> AuthTokenHttpHandler (attaches the JWT) -> network.
 var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "http://localhost:5180";
 builder.Services.AddScoped(sp =>
 {
     var expiryHandler = sp.GetRequiredService<SessionExpiryHttpHandler>();
-    expiryHandler.InnerHandler = new HttpClientHandler();
+    var authHandler = sp.GetRequiredService<AuthTokenHttpHandler>();
+    authHandler.InnerHandler = new HttpClientHandler();
+    expiryHandler.InnerHandler = authHandler;
     return new HttpClient(expiryHandler) { BaseAddress = new Uri(apiBaseAddress) };
 });
 

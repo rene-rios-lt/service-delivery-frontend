@@ -102,4 +102,24 @@ public class MainLayoutTests
         var personaShell = cut.FindComponent<PersonaShell>();
         Assert.NotEqual(0, personaShell.Instance.ShellVersion);
     }
+
+    [Fact]
+    public async Task GivenAnUnauthenticatedSession_WhenLayoutInitializesOnANonLoginRoute_ThenItRendersWithoutThrowing()
+    {
+        // Arrange — at the root "/" landing route the user has no valid session yet, so the profile
+        // call fails with 401 (EnsureSuccessStatusCode throws). The layout must not surface that as an
+        // unhandled error; the app's redirect-to-login flow handles routing. (Startup error flash.)
+        await using var ctx = new BunitContext();
+        RegisterServices(ctx);
+        _authService.Setup(a => a.GetCurrentUserAsync())
+            .ThrowsAsync(new HttpRequestException("Response status code does not indicate success: 401 (Unauthorized)."));
+        var nav = ctx.Services.GetRequiredService<NavigationManager>();
+        nav.NavigateTo(nav.BaseUri);
+
+        // Act
+        var cut = ctx.Render<MainLayout>(p => p.Add(c => c.Body, Body));
+
+        // Assert — no exception propagated; the page body still renders.
+        Assert.NotNull(cut.Find("[data-testid='page-body']"));
+    }
 }

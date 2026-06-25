@@ -42,11 +42,23 @@
     // never reached in the normal login flow.
     protected override async Task OnParametersSetAsync()
     {
-        if (!IsLoginRoute && Shell.Menu is null)
+        if (IsLoginRoute || Shell.Menu is not null)
+        {
+            return;
+        }
+
+        try
         {
             var profile = await AuthService.GetCurrentUserAsync();
             Shell.Load(profile);
             _shellVersion++;
+        }
+        catch
+        {
+            // No valid session yet — e.g. the transient root "/" route before the redirect to
+            // /login resolves, or an expired token. Surfacing this would flash Blazor's "unhandled
+            // error" UI; instead let the app's redirect-to-login flow (Home.razor / the session
+            // expiry handler) route the user. (BUG-029 startup error flash.)
         }
     }
 }

@@ -68,4 +68,20 @@ public class AppStartViewModelTests
         // Assert
         Assert.Equal(LoginRoute, route);
     }
+
+    [Fact]
+    public async Task GivenTokenStoreFails_WhenAppLaunches_ThenLoginRouteIsResolved()
+    {
+        // Arrange — simulates iOS Keychain unavailable on first launch (the race that causes the
+        // "An unhandled error has occurred" Blazor banner if the exception is not caught).
+        _tokenStore.Setup(t => t.GetTokenAsync())
+            .ThrowsAsync(new InvalidOperationException("Keychain unavailable"));
+        var viewModel = CreateViewModel();
+
+        // Act
+        var route = await viewModel.ResolveStartRouteAsync();
+
+        // Assert
+        Assert.Equal(LoginRoute, route);
+    }
 }

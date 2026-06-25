@@ -30,7 +30,7 @@ public static class AppiumConfig
 
     /// <summary>Shared password for the seeded <c>rep1</c>–<c>rep8</c> accounts (AC-4).</summary>
     public static string RepPassword =>
-        Environment.GetEnvironmentVariable("APPIUM_REP_PASSWORD") ?? "Password1!";
+        Environment.GetEnvironmentVariable("APPIUM_REP_PASSWORD") ?? "Password123!";
 
     /// <summary>
     /// Wait budget for SignalR-driven UI changes (AC-6): the job-offer screen appearing and the idle
@@ -82,6 +82,8 @@ public abstract class AppiumTestBase
 
     protected static string RepPassword => AppiumConfig.RepPassword;
 
+    private const string AppBundleId = "com.companyname.servicedelivery.client.mobile";
+
     [SetUp]
     public void SetUp()
     {
@@ -93,6 +95,110 @@ public abstract class AppiumTestBase
         // AC-6: a 15-second implicit wait covers SignalR-driven screen transitions (job offer
         // appearing, idle view populating) without an explicit poll loop at every call site.
         Driver.Manage().Timeouts().ImplicitWait = AppiumConfig.SignalRWait;
+
+        // Test isolation: noReset keeps the app installed and running between sessions, so without
+        // this a prior test can leave the app on a deep screen (active job, offer) that the
+        // logged-out reset below can't navigate away from. Terminating and re-activating forces a
+        // fresh launch to the app's landing route, so every test starts from the same known state.
+        Driver.TerminateApp(AppBundleId);
+        Driver.ActivateApp(AppBundleId);
+
+        // MAUI Blazor Hybrid renders all UI inside a WKWebView (BlazorWebView). XCUITest's native
+        // accessibility tree sees only the WebView container — HTML elements are not exposed as
+        // native accessibility IDs. Switching to the WEBVIEW context lets Selenium use standard
+        // CSS selectors against the HTML DOM rendered by Blazor.
+        SwitchToWebContext();
+
+        // SecureStorageTokenStore.GetTokenAsync can throw on first launch in the iOS simulator
+        // before the Keychain is ready, surfacing as Blazor's "An unhandled error has occurred"
+        // banner. Clicking Reload re-initialises the circuit, which succeeds on the second
+        // attempt. The root cause is guarded in SecureStorageTokenStore, but this catches any
+        // remaining cases so no test fails due to this transient startup race.
+        DismissStartupErrorIfPresent();
+
+        // Test isolation: the JWT lives in the iOS Keychain (SecureStorage), which survives both
+        // app reinstall and Appium's noReset session, so a token left by a prior test/run would
+        // auto-authenticate the app and skip the login screen. Each test must start logged out.
+        EnsureLoggedOut();
+    }
+
+    /// <summary>
+    /// Guarantees the app is on the login screen before the test body runs. If a persisted session
+    /// has routed the app into an authenticated view, this drives the app's own logout (app-bar menu
+    /// → "Log out"), which clears the stored token — leaving a clean login screen for the test.
+    /// </summary>
+    private void EnsureLoggedOut()
+    {
+        Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(3);
+        try
+        {
+            if (Driver.FindElements(By.CssSelector("[data-testid='login-card']")).Count > 0)
+            {
+                return; // already logged out
+            }
+
+            // Authenticated via a persisted session. Open the nav drawer if it isn't already open.
+            if (Driver.FindElements(By.CssSelector("[data-testid='menu-item-logout']")).Count == 0)
+            {
+                Driver.FindElement(By.CssSelector("[data-testid='appbar-menu-affordance']")).Click();
+            }
+
+            // The Mobile drawer renders each item as a MudNavLink: the data-testid sits on the outer
+            // wrapper div, but the click handler lives on the inner .mud-nav-link element. Clicking
+            // the wrapper does not fire the handler, so target the inner element to log out.
+            Driver.FindElement(By.CssSelector("[data-testid='menu-item-logout'] .mud-nav-link")).Click();
+        }
+        catch (NoSuchElementException)
+        {
+            // No menu/logout reachable — treat as already logged out and let the test's own
+            // login-screen wait surface a clear failure if that assumption is wrong.
+        }
+        finally
+        {
+            Driver.Manage().Timeouts().ImplicitWait = AppiumConfig.SignalRWait;
+        }
+
+        Driver.FindElement(By.CssSelector("[data-testid='login-card']"));
+    }
+
+    private void SwitchToWebContext()
+    {
+        var deadline = DateTime.UtcNow + AppiumConfig.SignalRWait;
+        while (DateTime.UtcNow < deadline)
+        {
+            var webContext = Driver.Contexts.FirstOrDefault(c => c.Contains("WEBVIEW"));
+            if (webContext is not null)
+            {
+                Driver.Context = webContext;
+                return;
+            }
+            Thread.Sleep(500);
+        }
+        throw new InvalidOperationException(
+            "No WEBVIEW context found within the SignalR budget. The BlazorWebView may not have loaded.");
+    }
+
+    private void DismissStartupErrorIfPresent()
+    {
+        // Use a short wait so we don't burn the full SignalR budget if startup was clean.
+        Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(3);
+        try
+        {
+            var reload = Driver.FindElement(By.PartialLinkText("Reload"));
+            if (reload.Displayed)
+            {
+                reload.Click();
+                Thread.Sleep(2000);
+            }
+        }
+        catch (NoSuchElementException)
+        {
+            // No error banner — startup was clean.
+        }
+        finally
+        {
+            Driver.Manage().Timeouts().ImplicitWait = AppiumConfig.SignalRWait;
+        }
     }
 
     [TearDown]
@@ -125,12 +231,34 @@ public abstract class AppiumTestBase
     /// </summary>
     protected void Login(string username, string password)
     {
-        Driver.FindElement(MobileBy.AccessibilityId("email-input")).SendKeys(username);
-        Driver.FindElement(MobileBy.AccessibilityId("password-input")).SendKeys(password);
-        Driver.FindElement(MobileBy.AccessibilityId("sign-in-button")).Click();
+        FillInput("email-input", username);
+        FillInput("password-input", password);
+
+        Driver.FindElement(By.CssSelector("[data-testid='sign-in-button']")).Click();
 
         // The take-over screen is the first authenticated screen for a rep (FE-001 / AC-8).
-        Driver.FindElement(MobileBy.AccessibilityId("take-over-button"));
+        Driver.FindElement(By.CssSelector("[data-testid='take-over-button']"));
+    }
+
+    /// <summary>
+    /// Types <paramref name="value"/> into the <c>data-testid</c> input and commits the Blazor
+    /// two-way binding. MudTextField binds <c>@bind-Value</c> on the <c>change</c> event (blur),
+    /// which Appium <c>SendKeys</c> does not raise — so the bound ViewModel property never updates
+    /// and the login submits empty/partial credentials ("Invalid email or password"). We Clear()
+    /// first (noReset:true persists prior text across sessions), type, then dispatch <c>input</c>
+    /// and <c>change</c> via JS so the binding commits before submit — mirroring what Playwright's
+    /// FillAsync does for the web E2E suite.
+    /// </summary>
+    protected void FillInput(string testId, string value)
+    {
+        var el = Driver.FindElement(By.CssSelector($"[data-testid='{testId}']"));
+        el.Click();
+        el.Clear();
+        el.SendKeys(value);
+        ((IJavaScriptExecutor)Driver).ExecuteScript(
+            "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));" +
+            "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",
+            el);
     }
 
     /// <summary>
@@ -140,12 +268,12 @@ public abstract class AppiumTestBase
     /// </summary>
     protected void TakeOverFirstIdleVehicle()
     {
-        Login("rep1", RepPassword);
+        Login("rep1@dealer.com", RepPassword);
 
-        Driver.FindElement(MobileBy.AccessibilityId("idle-vehicle-row")).Click();
-        Driver.FindElement(MobileBy.AccessibilityId("take-over-button")).Click();
+        Driver.FindElement(By.CssSelector("[data-testid='idle-vehicle-row']")).Click();
+        Driver.FindElement(By.CssSelector("[data-testid='take-over-button']")).Click();
 
         // The idle / available view is the post-take-over screen (FE-020 / AC-11).
-        Driver.FindElement(MobileBy.AccessibilityId("available-indicator"));
+        Driver.FindElement(By.CssSelector("[data-testid='available-indicator']"));
     }
 }

@@ -30,7 +30,7 @@ public sealed class JwtExpiryTests : AppiumTestBase
         Driver.Navigate().Refresh();
 
         // Assert
-        var loginButton = Driver.FindElement(MobileBy.AccessibilityId("sign-in-button"));
+        var loginButton = Driver.FindElement(By.CssSelector("[data-testid='sign-in-button']"));
         Assert.That(loginButton.Displayed, Is.True);
     }
 
