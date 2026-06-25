@@ -30,11 +30,11 @@
     <div data-testid="claimed-vehicle-card" id="claimed-vehicle-card" class="sd-card sd-listitem">
         <div class="sd-listitem__icon">🚐</div>
         <div>
-            <div class="sd-listitem__title">@ViewModel.Vehicle.Registration · @ViewModel.Vehicle.Model</div>
+            <div class="sd-listitem__title">@ViewModel.Vehicle.Registration@(string.IsNullOrEmpty(ViewModel.Vehicle.Model) ? "" : $" · {ViewModel.Vehicle.Model}")</div>
             <div class="sd-equip">
                 @foreach (var equipment in VisibleEquipment)
                 {
-                    <span>@equipment</span>
+                    <span data-testid="equipment-chip">@EquipmentLabels.FriendlyLabel(equipment)</span>
                 }
                 @if (OverflowCount > 0)
                 {

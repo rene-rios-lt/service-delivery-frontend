@@ -2,7 +2,6 @@
 using MudBlazor.Services;
 using ServiceDelivery.Client.Core.Authentication;
 using ServiceDelivery.Client.Core.Interfaces;
-using ServiceDelivery.Client.Core.Models;
 using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.Mobile.Services;
@@ -71,14 +70,11 @@ public static class MauiProgram
 		builder.Services.AddScoped<IDeclineOfferService, HttpDeclineOfferService>();
 
 		// Idle / waiting-for-offers view (FE-020). The RepHub client is push-driven — no polling.
-		// RepIdleViewModel needs the rep's claimed vehicle; FE-007's take-over does not yet carry
-		// vehicle details back (TakeOverResult is success/conflict only), so for the POC the session's
-		// claimed vehicle resolves to the seeded demo truck. Wiring the real take-over hand-off of
-		// claimed-vehicle data is a follow-on — no FE-020 AC depends on it.
+		// RepIdleViewModel reads the rep's claimed vehicle from IClaimedVehicleStore (BUG-034):
+		// TakeOverViewModel deposits the vehicle the rep actually took over before navigating here,
+		// so the card and app-bar subtitle reflect the real selection rather than a hardcoded truck.
 		builder.Services.AddScoped<IRepHubService, SignalRRepHubService>();
-		builder.Services.AddScoped(_ => new ClaimedVehicle(
-			Guid.Empty, "IA-4471", "Transit 350",
-			new[] { "Hydraulics", "Coolant", "Diagnostics" }));
+		builder.Services.AddScoped<IClaimedVehicleStore, InMemoryClaimedVehicleStore>();
 		builder.Services.AddScoped<RepIdleViewModel>();
 
 		// Active job navigation view (FE-011). The HTTP active-job service backs

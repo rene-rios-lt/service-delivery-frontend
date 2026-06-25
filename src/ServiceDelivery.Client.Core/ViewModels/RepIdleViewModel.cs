@@ -13,12 +13,20 @@ public class RepIdleViewModel
     private readonly IRepHubService _repHub;
     private readonly IPersonaNavigator _navigator;
 
+    // Rendered when the store is empty (direct navigation with no prior take-over): a neutral,
+    // blank-but-safe vehicle so the card and app-bar subtitle render without a NullReferenceException.
+    private static readonly ClaimedVehicle EmptyVehicle =
+        new(Guid.Empty, string.Empty, string.Empty, []);
+
     public RepIdleViewModel(
-        ClaimedVehicle vehicle,
+        IClaimedVehicleStore claimedVehicleStore,
         IRepHubService repHub,
         IPersonaNavigator navigator)
     {
-        Vehicle = vehicle;
+        // Consume the hand-off once: read the vehicle the rep took over, then clear the store so a
+        // later re-navigation does not resurrect a stale claim (mirrors IJobOfferStore consumption).
+        Vehicle = claimedVehicleStore.CurrentVehicle ?? EmptyVehicle;
+        claimedVehicleStore.ClearVehicle();
         _repHub = repHub;
         _navigator = navigator;
     }

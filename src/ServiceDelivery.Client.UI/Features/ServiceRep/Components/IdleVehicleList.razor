@@ -22,7 +22,7 @@
                 <div class="sd-equip">
                     @foreach (var equipment in VisibleEquipment(vehicle))
                     {
-                        <span data-testid="equipment-chip">@FriendlyLabel(equipment)</span>
+                        <span data-testid="equipment-chip">@EquipmentLabels.FriendlyLabel(equipment)</span>
                     }
                     @if (OverflowCount(vehicle) > 0)
                     {
@@ -44,27 +44,8 @@
 @code {
     private const int MaxVisibleEquipment = 2;
 
-    // Maps the raw EquipmentType enum names the backend returns (AvailableVehicleDto serialises
-    // EquipmentType.ToString() — verified against ServiceDelivery.Domain.Enums.EquipmentType) to the
-    // short, human-friendly chip labels shown in the mockup. Unknown keys fall through to the raw
-    // string so a new enum value never renders blank. Display-only concern → lives in the component.
-    private static readonly IReadOnlyDictionary<string, string> EquipmentLabels =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["HydraulicTool"]            = "Hydraulics",
-            ["ElectricalDiagnosticKit"] = "Diagnostics",
-            ["TransmissionKit"]         = "Transmission",
-            ["BrakingSystemKit"]        = "Braking",
-            ["CoolingSystemKit"]        = "Coolant",
-            ["FuelSystemKit"]           = "Fuel",
-            ["ExhaustSystemKit"]        = "Exhaust",
-            ["SuspensionKit"]           = "Suspension",
-            ["SteeringKit"]             = "Steering",
-            ["PowertrainKit"]           = "Powertrain",
-        };
-
-    private static string FriendlyLabel(string raw) =>
-        EquipmentLabels.TryGetValue(raw, out var label) ? label : raw;
+    // Friendly equipment labels are mapped through the shared EquipmentLabels helper in Core so the
+    // take-over list and the idle card (RepIdle) render identical text from a single source (BUG-034).
 
     [Parameter, EditorRequired]
     public IReadOnlyList<IdleVehicle> Vehicles { get; set; } = [];
