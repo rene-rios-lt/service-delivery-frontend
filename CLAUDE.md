@@ -123,7 +123,7 @@ Never write production code speculatively. If there is no failing test, there is
 | Project | What to test | Tools |
 |---------|-------------|-------|
 | `Client.Tests` | Component behaviour, view model logic, service interface contracts | xUnit, bUnit |
-| `Client.E2E` | Web/Desktop persona flows against a live system (Dispatcher, Requester, ServiceRep-web) | Playwright — run via `scripts/local/test-e2e.sh` |
+| `Client.E2E` | Web/Desktop persona flows against a live system (Dispatcher, Requester, ServiceRep-web) | Playwright — run via `scripts/local/test-playwright.sh` (or `test-e2e.sh` for Playwright + Appium) |
 | `Client.Appium` | Mobile ServiceRep flows on an iOS simulator against a live system | Appium/XCUITest — run via `scripts/local/test-appium.sh` |
 
 All unit/bUnit tests live in `tests/ServiceDelivery.Client.Tests`. E2E projects (`Client.E2E`, `Client.Appium`) require a running backend (`start.sh`) and, for Appium, a booted iOS simulator. Host projects (Desktop, Mobile, Web) are bootstrapping only — they contain no logic and require no tests.
