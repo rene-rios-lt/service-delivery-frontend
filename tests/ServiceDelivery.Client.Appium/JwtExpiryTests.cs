@@ -19,10 +19,15 @@ namespace ServiceDelivery.Client.Appium;
 public sealed class JwtExpiryTests : AppiumTestBase
 {
     [Test]
+    [Ignore("ExpireStoredToken is a no-op on iOS — the JWT lives in SecureStorage (Keychain), which " +
+            "is not reachable from the WebView DOM the Appium accessibility tree exposes; see this " +
+            "class summary. A real expiry trigger requires either a debug-only deep link that clears " +
+            "the Keychain token (frontend change) or a backend signing-key rotation (cross-repo " +
+            "change) — both out of scope for this test-fix. Re-enable once such a hook exists.")]
     public void GivenExpiredStoredToken_WhenNextApiCallMade_ThenRedirectedToLoginScreen()
     {
         // Arrange
-        Login("rep1", RepPassword);
+        Login("rep1@dealer.com", RepPassword);
 
         // Act
         ExpireStoredToken();
