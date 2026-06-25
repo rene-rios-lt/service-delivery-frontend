@@ -15,11 +15,11 @@ public sealed class AppShellNavTests : AppiumTestBase
         TakeOverFirstIdleVehicle();
 
         // Act
-        Driver.FindElement(MobileBy.AccessibilityId("appbar-menu-affordance")).Click();
+        Driver.FindElement(By.CssSelector("[data-testid='appbar-menu-affordance']")).Click();
 
         // Assert
-        var releaseItem = Driver.FindElement(MobileBy.AccessibilityId("menu-item-release"));
-        var logoutItem = Driver.FindElement(MobileBy.AccessibilityId("menu-item-logout"));
+        var releaseItem = Driver.FindElement(By.CssSelector("[data-testid='menu-item-release']"));
+        var logoutItem = Driver.FindElement(By.CssSelector("[data-testid='menu-item-logout']"));
         Assert.That(releaseItem.Displayed, Is.True);
         Assert.That(logoutItem.Displayed, Is.True);
     }

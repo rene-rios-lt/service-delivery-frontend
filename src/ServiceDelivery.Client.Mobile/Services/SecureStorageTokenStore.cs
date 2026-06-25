@@ -13,8 +13,19 @@ public class SecureStorageTokenStore : ITokenStore
     public Task SetTokenAsync(string token) =>
         SecureStorage.Default.SetAsync(TokenKey, token);
 
-    public Task<string?> GetTokenAsync() =>
-        SecureStorage.Default.GetAsync(TokenKey);
+    public async Task<string?> GetTokenAsync()
+    {
+        try
+        {
+            return await SecureStorage.Default.GetAsync(TokenKey);
+        }
+        catch
+        {
+            // SecureStorage can throw on first launch in the iOS simulator before the Keychain
+            // is ready (timing race). Treat any failure as "no token" → redirect to login.
+            return null;
+        }
+    }
 
     public Task ClearAsync()
     {

@@ -13,11 +13,11 @@ public sealed class ActiveJobTests : AppiumTestBase
     {
         // Arrange
         TakeOverFirstIdleVehicle();
-        WaitForSignalR(d => d.FindElement(MobileBy.AccessibilityId("accept-button"))).Click();
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='accept-button']"))).Click();
 
         // Act
-        var arrivedButton = Driver.FindElement(MobileBy.AccessibilityId("arrived-button"));
-        var etaCard = Driver.FindElement(MobileBy.AccessibilityId("eta-card"));
+        var arrivedButton = Driver.FindElement(By.CssSelector("[data-testid='arrived-button']"));
+        var etaCard = Driver.FindElement(By.CssSelector("[data-testid='eta-card']"));
 
         // Assert
         Assert.That(arrivedButton.Displayed, Is.True);

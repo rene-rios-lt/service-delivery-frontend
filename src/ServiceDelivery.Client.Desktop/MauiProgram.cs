@@ -48,13 +48,16 @@ public static class MauiProgram
 		builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 		builder.Services.AddScoped<ISessionState, SessionState>();
 		builder.Services.AddScoped<SessionExpiryHttpHandler>();
+		builder.Services.AddScoped<AuthTokenHttpHandler>();
 
-		// Every outbound request flows through SessionExpiryHttpHandler so a 401 clears the
-		// session and redirects to login.
+		// Outbound pipeline: SessionExpiryHttpHandler (reacts to a 401 → clears session + redirects)
+		// -> AuthTokenHttpHandler (attaches the JWT to every request) -> network.
 		builder.Services.AddScoped(sp =>
 		{
 			var expiryHandler = sp.GetRequiredService<SessionExpiryHttpHandler>();
-			expiryHandler.InnerHandler = new HttpClientHandler();
+			var authHandler = sp.GetRequiredService<AuthTokenHttpHandler>();
+			authHandler.InnerHandler = new HttpClientHandler();
+			expiryHandler.InnerHandler = authHandler;
 			return new HttpClient(expiryHandler) { BaseAddress = new Uri(ApiBaseAddress) };
 		});
 

@@ -13,15 +13,15 @@ public sealed class TakeOverTests : AppiumTestBase
     public void GivenRep1LoggedIn_WhenVehicleSelectedAndTakenOver_ThenIdleViewIsShown()
     {
         // Arrange
-        Login("rep1", RepPassword);
-        var firstVehicle = Driver.FindElement(MobileBy.AccessibilityId("idle-vehicle-row"));
+        Login("rep1@dealer.com", RepPassword);
+        var firstVehicle = Driver.FindElement(By.CssSelector("[data-testid='idle-vehicle-row']"));
 
         // Act
         firstVehicle.Click();
-        Driver.FindElement(MobileBy.AccessibilityId("take-over-button")).Click();
+        Driver.FindElement(By.CssSelector("[data-testid='take-over-button']")).Click();
 
         // Assert
-        var availableIndicator = Driver.FindElement(MobileBy.AccessibilityId("available-indicator"));
+        var availableIndicator = Driver.FindElement(By.CssSelector("[data-testid='available-indicator']"));
         Assert.That(availableIndicator.Displayed, Is.True);
     }
 }

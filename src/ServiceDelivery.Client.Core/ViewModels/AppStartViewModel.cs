@@ -16,7 +16,17 @@ public class AppStartViewModel
 
     public async Task<string?> ResolveStartRouteAsync()
     {
-        var token = await _tokenStore.GetTokenAsync();
+        string? token;
+        try
+        {
+            token = await _tokenStore.GetTokenAsync();
+        }
+        catch
+        {
+            // If the token store is unavailable (e.g., iOS Keychain not ready on first launch),
+            // treat it as no token and send the user to the login screen.
+            return LoginRoute;
+        }
 
         var sessionInvalid = JwtExpiryReader.IsExpired(token, DateTimeOffset.UtcNow);
 
