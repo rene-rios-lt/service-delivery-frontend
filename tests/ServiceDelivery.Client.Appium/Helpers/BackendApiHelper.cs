@@ -90,6 +90,21 @@ public static class BackendApiHelper
         SubmitServiceRequestAsync(baseUrl).GetAwaiter().GetResult();
     }
 
+    /// <summary>
+    /// Re-posts a position at the request site for the whole fleet, as the <c>Simulator</c> account.
+    /// Call this <b>after</b> the rep has accepted the offer (the rep is now <c>EnRoute</c>): the
+    /// <c>Within15Miles</c> transition is driven only by <c>UpdateVehiclePositionCommandHandler</c>,
+    /// which recomputes proximity on a position POST received <i>while the rep is on an active job</i>.
+    /// The positioning inside <see cref="SubmitServiceRequest"/> happens <i>before</i> the rep accepts,
+    /// so it only makes the rep matchable. Posting the site position again here (distance 0 &lt; 15 mi)
+    /// transitions the rep to <c>Within15Miles</c>, which the active-job poll then surfaces to enable the
+    /// "I've Arrived" button. Throws if the fleet is empty or any call returns a non-success status.
+    /// </summary>
+    public static void PositionFleetAtRequestSite(string baseUrl)
+    {
+        PositionFleetAtRequestSiteAsync(baseUrl).GetAwaiter().GetResult();
+    }
+
     private static async Task SubmitServiceRequestAsync(string baseUrl)
     {
         // 1. Give every vehicle a position at the request site. Matching ignores vehicles with no

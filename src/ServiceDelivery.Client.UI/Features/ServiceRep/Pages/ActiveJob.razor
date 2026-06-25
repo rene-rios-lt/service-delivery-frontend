@@ -6,16 +6,9 @@
 @inject ActiveJobViewModel ViewModel
 
 <div class="sd-active-job" data-testid="active-job">
-    <div class="sd-appbar" data-testid="active-job-appbar">
-        <div class="sd-appbar__logo">🧭</div>
-        <div>
-            <div class="sd-appbar__title">Active Job</div>
-            <div class="sd-appbar__sub" data-testid="appbar-subtitle">@AppBarSubtitle</div>
-        </div>
-        <div class="sd-appbar__spacer"></div>
-        <div class="sd-appbar__action">⋮</div>
-    </div>
-
+    @* App bar, hamburger menu, and avatar come from the shared PersonaShell (FE-021) that wraps every
+       authenticated route — like every other rep page. This screen renders only the map + bottom sheet
+       into the shell body; the En Route / Within 15 mi / On Site status is carried by the state chip. *@
     <div class="sd-map" data-testid="active-job-map">
         <div class="sd-eta" data-testid="eta-card" id="eta-card">
             <span class="sd-eta__num" data-testid="eta-minutes">@ViewModel.EtaMinutes min</span>
@@ -109,9 +102,6 @@
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
 
     private Timer? _pollTimer;
-
-    private string AppBarSubtitle =>
-        ViewModel.IsOnSite ? "On site — work underway" : "Navigating to requester";
 
     // Maps the request tier (Gold/Silver/Bronze) to its design-system badge modifier generically —
     // no per-tier hardcoding, so a new tier needs only its design-system class, not a code branch.
