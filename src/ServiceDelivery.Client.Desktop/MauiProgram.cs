@@ -32,6 +32,10 @@ public static class MauiProgram
 		// ServiceRep persona, but the navigator is registered in every host, so the store must be
 		// resolvable here too. A lightweight scoped no-op-by-absence store satisfies the dependency.
 		builder.Services.AddScoped<IJobOfferStore, InMemoryJobOfferStore>();
+		// Claimed-vehicle hand-off store (BUG-034). Desktop does not host the ServiceRep idle view,
+		// but the store is registered in every host (same register-everywhere pattern as IJobOfferStore
+		// above) so the dependency graph resolves wherever RepIdleViewModel could be constructed.
+		builder.Services.AddScoped<IClaimedVehicleStore, InMemoryClaimedVehicleStore>();
 		// Job-offer accept service (FE-009). Desktop does not host the ServiceRep job-offer screen,
 		// but the service is registered in every host (same pattern as IJobOfferStore above) so the
 		// dependency is resolvable wherever the JobOffer page could render.

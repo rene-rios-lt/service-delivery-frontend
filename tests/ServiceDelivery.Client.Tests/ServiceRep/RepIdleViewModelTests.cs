@@ -8,6 +8,7 @@ public class RepIdleViewModelTests
 {
     private readonly Mock<IRepHubService> _repHub = new();
     private readonly Mock<IPersonaNavigator> _navigator = new();
+    private readonly Mock<IClaimedVehicleStore> _claimedVehicleStore = new();
 
     private static ClaimedVehicle Vehicle(
         string registration = "IA-4471",
@@ -19,8 +20,73 @@ public class RepIdleViewModelTests
     private static JobOfferPayload Offer() =>
         new(Guid.NewGuid(), "Maria Lopez", ServiceTier.Gold, "Hydraulic leak", 4.2, 9, 41.6, -93.6);
 
-    private RepIdleViewModel CreateViewModel(ClaimedVehicle? vehicle = null) =>
-        new(vehicle ?? Vehicle(), _repHub.Object, _navigator.Object);
+    private RepIdleViewModel CreateViewModel(ClaimedVehicle? vehicle = null)
+    {
+        _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns(vehicle ?? Vehicle());
+        return new RepIdleViewModel(_claimedVehicleStore.Object, _repHub.Object, _navigator.Object);
+    }
+
+    [Fact]
+    public void GivenAStoredClaimedVehicle_WhenRepIdleViewModelConstructed_ThenVehicleRegistrationIsFromStore()
+    {
+        // Arrange
+        var stored = Vehicle(registration: "V-001");
+        _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns(stored);
+
+        // Act
+        var vm = new RepIdleViewModel(_claimedVehicleStore.Object, _repHub.Object, _navigator.Object);
+
+        // Assert
+        Assert.Equal("V-001", vm.Vehicle.Registration);
+    }
+
+    [Fact]
+    public void GivenAStoredClaimedVehicle_WhenRepIdleViewModelConstructed_ThenVehicleEquipmentIsFromStore()
+    {
+        // Arrange
+        var stored = Vehicle(equipment: new[] { "Hydraulics", "Coolant", "Diagnostics" });
+        _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns(stored);
+
+        // Act
+        var vm = new RepIdleViewModel(_claimedVehicleStore.Object, _repHub.Object, _navigator.Object);
+
+        // Assert
+        Assert.Equal(new[] { "Hydraulics", "Coolant", "Diagnostics" }, vm.Vehicle.EquipmentTypes);
+    }
+
+    [Fact]
+    public void GivenAStoredClaimedVehicle_WhenRepIdleViewModelConstructed_ThenStoreIsClearedAfterReading()
+    {
+        // Arrange
+        // The store hands the vehicle off once — the idle view consumes it on construction and clears
+        // it so a later re-navigation does not resurrect a stale claim (mirrors IJobOfferStore).
+        _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns(Vehicle());
+
+        // Act
+        _ = new RepIdleViewModel(_claimedVehicleStore.Object, _repHub.Object, _navigator.Object);
+
+        // Assert
+        _claimedVehicleStore.Verify(s => s.ClearVehicle(), Times.Once);
+    }
+
+    [Fact]
+    public void GivenAnEmptyStore_WhenRepIdleViewModelConstructed_ThenVehicleIsNeutralEmptyAndDoesNotThrow()
+    {
+        // Arrange
+        // Edge case (Checkpoint #1): direct navigation to /rep/idle with no prior take-over leaves the
+        // store empty. The VM must degrade gracefully to a neutral empty ClaimedVehicle — no
+        // NullReferenceException — so the card/subtitle render blank-but-safe.
+        _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns((ClaimedVehicle?)null);
+
+        // Act
+        var vm = new RepIdleViewModel(_claimedVehicleStore.Object, _repHub.Object, _navigator.Object);
+
+        // Assert
+        Assert.NotNull(vm.Vehicle);
+        Assert.Equal(string.Empty, vm.Vehicle.Registration);
+        Assert.Equal(string.Empty, vm.Vehicle.Model);
+        Assert.Empty(vm.Vehicle.EquipmentTypes);
+    }
 
     [Fact]
     public void GivenClaimedVehicle_WhenRepIdleViewModelLoaded_ThenStateIsAvailable()

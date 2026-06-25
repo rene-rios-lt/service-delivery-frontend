@@ -29,9 +29,17 @@ public class RepIdleComponentTests : BunitContext
 
     private ShellViewModel? _shell;
 
+    private static RepIdleViewModel BuildViewModel(
+        ClaimedVehicle vehicle, Mock<IRepHubService> repHub, Mock<IPersonaNavigator> navigator)
+    {
+        var store = new Mock<IClaimedVehicleStore>();
+        store.SetupGet(s => s.CurrentVehicle).Returns(vehicle);
+        return new RepIdleViewModel(store.Object, repHub.Object, navigator.Object);
+    }
+
     private RepIdleViewModel RegisterPage(ClaimedVehicle? vehicle = null)
     {
-        var viewModel = new RepIdleViewModel(vehicle ?? Vehicle(), _repHub.Object, _navigator.Object);
+        var viewModel = BuildViewModel(vehicle ?? Vehicle(), _repHub, _navigator);
         Services.AddMudServices();
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton(viewModel);
@@ -53,7 +61,7 @@ public class RepIdleComponentTests : BunitContext
     {
         ctx.Services.AddMudServices();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton(new RepIdleViewModel(vehicle, _repHub.Object, _navigator.Object));
+        ctx.Services.AddSingleton(BuildViewModel(vehicle, _repHub, _navigator));
 
         _presentation.SetupGet(p => p.MenuStyle).Returns(ShellMenuStyle.Drawer);
         _authService.Setup(a => a.GetCurrentUserAsync())
@@ -94,6 +102,85 @@ public class RepIdleComponentTests : BunitContext
         Assert.Contains("Transit 350", card.TextContent);
         Assert.Contains("Hydraulics", card.TextContent);
         Assert.Contains("Coolant", card.TextContent);
+    }
+
+    [Fact]
+    public void GivenAClaimedVehicle_WhenRepIdleComponentRendered_ThenCardShowsSelectedRegistration()
+    {
+        // Arrange
+        RegisterPage(Vehicle("V-001", string.Empty, "Hydraulics"));
+
+        // Act
+        var cut = Render<RepIdle>();
+
+        // Assert
+        var card = cut.Find("[data-testid='claimed-vehicle-card']");
+        Assert.Contains("V-001", card.TextContent);
+    }
+
+    [Fact]
+    public void GivenAClaimedVehicleWithEquipment_WhenRepIdleComponentRendered_ThenCardShowsEquipment()
+    {
+        // Arrange
+        RegisterPage(Vehicle("V-001", string.Empty, "Hydraulics", "Coolant"));
+
+        // Act
+        var cut = Render<RepIdle>();
+
+        // Assert
+        var card = cut.Find("[data-testid='claimed-vehicle-card']");
+        Assert.Contains("Hydraulics", card.TextContent);
+        Assert.Contains("Coolant", card.TextContent);
+    }
+
+    [Fact]
+    public void GivenRawEnumEquipmentNames_WhenRepIdleComponentRendered_ThenIdleCardShowsFriendlyLabels()
+    {
+        // Arrange
+        // BUG-034: the claimed vehicle now flows from the real take-over (raw EquipmentType enum
+        // names like "HydraulicTool"), so the idle card must render the same friendly labels the
+        // take-over list shows — not the raw enum names.
+        RegisterPage(Vehicle("V-001", string.Empty, "HydraulicTool", "ElectricalDiagnosticKit"));
+
+        // Act
+        var cut = Render<RepIdle>();
+
+        // Assert
+        var card = cut.Find("[data-testid='claimed-vehicle-card']");
+        Assert.Contains("Hydraulics", card.TextContent);
+        Assert.Contains("Diagnostics", card.TextContent);
+        Assert.DoesNotContain("HydraulicTool", card.TextContent);
+        Assert.DoesNotContain("ElectricalDiagnosticKit", card.TextContent);
+    }
+
+    [Fact]
+    public void GivenAClaimedVehicleWithEmptyModel_WhenRepIdleComponentRendered_ThenCardTitleShowsRegistrationOnly()
+    {
+        // Arrange
+        // BUG-034: with the model deferred to BUG-035, the title is just the registration — no
+        // trailing " · " separator. The conditional render appends " · {model}" only when non-empty.
+        RegisterPage(Vehicle("V-001", string.Empty, "Hydraulics"));
+
+        // Act
+        var cut = Render<RepIdle>();
+
+        // Assert
+        var title = cut.Find("[data-testid='claimed-vehicle-card'] .sd-listitem__title");
+        Assert.Equal("V-001", title.TextContent.Trim());
+        Assert.DoesNotContain("·", title.TextContent);
+    }
+
+    [Fact]
+    public void GivenAClaimedVehicle_WhenRepIdleInitialised_ThenShellSubtitleContainsSelectedRegistration()
+    {
+        // Arrange
+        RegisterPage(Vehicle("V-001", string.Empty, "Hydraulics"));
+
+        // Act
+        Render<RepIdle>();
+
+        // Assert
+        Assert.Equal("Vehicle V-001 · On shift", _shell!.Menu!.VehicleContext);
     }
 
     [Fact]

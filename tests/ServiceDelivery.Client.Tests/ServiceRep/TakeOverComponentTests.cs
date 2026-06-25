@@ -13,6 +13,7 @@ public class TakeOverComponentTests : BunitContext
 {
     private readonly Mock<IVehicleService> _vehicleService = new();
     private readonly Mock<IPersonaNavigator> _navigator = new();
+    private readonly Mock<IClaimedVehicleStore> _claimedVehicleStore = new();
 
     private static IdleVehicle Vehicle(
         string registration = "IA-4471",
@@ -29,7 +30,7 @@ public class TakeOverComponentTests : BunitContext
     private TakeOverViewModel RegisterPage(params IdleVehicle[] vehicles)
     {
         _vehicleService.Setup(s => s.GetIdleVehiclesAsync()).ReturnsAsync(vehicles);
-        var viewModel = new TakeOverViewModel(_vehicleService.Object, _navigator.Object);
+        var viewModel = new TakeOverViewModel(_vehicleService.Object, _navigator.Object, _claimedVehicleStore.Object);
         RegisterServices();
         Services.AddSingleton(viewModel);
         return viewModel;
@@ -316,7 +317,7 @@ public class TakeOverComponentTests : BunitContext
         // Arrange
         var tcs = new TaskCompletionSource<IReadOnlyList<IdleVehicle>>();
         _vehicleService.Setup(s => s.GetIdleVehiclesAsync()).Returns(tcs.Task);
-        var viewModel = new TakeOverViewModel(_vehicleService.Object, _navigator.Object);
+        var viewModel = new TakeOverViewModel(_vehicleService.Object, _navigator.Object, _claimedVehicleStore.Object);
         RegisterServices();
         Services.AddSingleton(viewModel);
 

@@ -12,11 +12,16 @@ public class TakeOverViewModel
 {
     private readonly IVehicleService _vehicleService;
     private readonly IPersonaNavigator _navigator;
+    private readonly IClaimedVehicleStore _claimedVehicleStore;
 
-    public TakeOverViewModel(IVehicleService vehicleService, IPersonaNavigator navigator)
+    public TakeOverViewModel(
+        IVehicleService vehicleService,
+        IPersonaNavigator navigator,
+        IClaimedVehicleStore claimedVehicleStore)
     {
         _vehicleService = vehicleService;
         _navigator = navigator;
+        _claimedVehicleStore = claimedVehicleStore;
     }
 
     public IReadOnlyList<IdleVehicle> IdleVehicles { get; private set; } = [];
@@ -75,6 +80,10 @@ public class TakeOverViewModel
 
         if (LastResult == TakeOverResult.Success)
         {
+            var selected = IdleVehicles.First(v => v.VehicleId == vehicleId);
+            // Model is empty until the backend carries it on the take-over response (BUG-035 deferral).
+            _claimedVehicleStore.SetVehicle(new ClaimedVehicle(
+                selected.VehicleId, selected.Registration, string.Empty, selected.EquipmentTypes));
             _navigator.NavigateToRepIdleView();
             return;
         }

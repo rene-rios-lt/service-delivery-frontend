@@ -9,9 +9,10 @@ public class TakeOverViewModelTests
 {
     private readonly Mock<IVehicleService> _vehicleService = new();
     private readonly Mock<IPersonaNavigator> _navigator = new();
+    private readonly Mock<IClaimedVehicleStore> _claimedVehicleStore = new();
 
     private TakeOverViewModel CreateViewModel() =>
-        new(_vehicleService.Object, _navigator.Object);
+        new(_vehicleService.Object, _navigator.Object, _claimedVehicleStore.Object);
 
     private static IdleVehicle Vehicle(string registration = "IA-4471") =>
         new(Guid.NewGuid(), registration, new[] { "Hydraulics", "Coolant" });
@@ -181,6 +182,108 @@ public class TakeOverViewModelTests
 
         // Assert
         _vehicleService.Verify(s => s.TakeOverAsync(It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GivenASelectedVehicle_WhenTakeOverSucceeds_ThenClaimedVehicleStoreContainsSelectedVehicle()
+    {
+        // Arrange
+        var vehicle = Vehicle("V-001");
+        _vehicleService.Setup(s => s.GetIdleVehiclesAsync()).ReturnsAsync(new[] { vehicle });
+        _vehicleService.Setup(s => s.TakeOverAsync(vehicle.VehicleId)).ReturnsAsync(TakeOverResult.Success);
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+        vm.Select(vehicle.VehicleId);
+
+        // Act
+        await vm.TakeOverAsync();
+
+        // Assert
+        _claimedVehicleStore.Verify(
+            s => s.SetVehicle(It.Is<ClaimedVehicle>(c => c.VehicleId == vehicle.VehicleId)),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenASelectedVehicle_WhenTakeOverSucceeds_ThenStoredRegistrationMatchesSelectedIdleVehicle()
+    {
+        // Arrange
+        var vehicle = Vehicle("V-001");
+        _vehicleService.Setup(s => s.GetIdleVehiclesAsync()).ReturnsAsync(new[] { vehicle });
+        _vehicleService.Setup(s => s.TakeOverAsync(vehicle.VehicleId)).ReturnsAsync(TakeOverResult.Success);
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+        vm.Select(vehicle.VehicleId);
+
+        // Act
+        await vm.TakeOverAsync();
+
+        // Assert
+        _claimedVehicleStore.Verify(
+            s => s.SetVehicle(It.Is<ClaimedVehicle>(c => c.Registration == "V-001")),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenASelectedVehicle_WhenTakeOverSucceeds_ThenStoredEquipmentMatchesSelectedIdleVehicle()
+    {
+        // Arrange
+        var vehicle = new IdleVehicle(Guid.NewGuid(), "V-001", new[] { "Hydraulics", "Coolant" });
+        _vehicleService.Setup(s => s.GetIdleVehiclesAsync()).ReturnsAsync(new[] { vehicle });
+        _vehicleService.Setup(s => s.TakeOverAsync(vehicle.VehicleId)).ReturnsAsync(TakeOverResult.Success);
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+        vm.Select(vehicle.VehicleId);
+
+        // Act
+        await vm.TakeOverAsync();
+
+        // Assert
+        _claimedVehicleStore.Verify(
+            s => s.SetVehicle(It.Is<ClaimedVehicle>(c =>
+                c.EquipmentTypes.SequenceEqual(new[] { "Hydraulics", "Coolant" }))),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenASelectedVehicle_WhenTakeOverSucceeds_ThenStoredModelIsEmptyString()
+    {
+        // Arrange
+        // BUG-035 deferral: the take-over response carries no model, so the claimed vehicle's
+        // Model is an empty string until the backend supplies it. The idle card renders just the
+        // registration in the meantime.
+        var vehicle = Vehicle("V-001");
+        _vehicleService.Setup(s => s.GetIdleVehiclesAsync()).ReturnsAsync(new[] { vehicle });
+        _vehicleService.Setup(s => s.TakeOverAsync(vehicle.VehicleId)).ReturnsAsync(TakeOverResult.Success);
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+        vm.Select(vehicle.VehicleId);
+
+        // Act
+        await vm.TakeOverAsync();
+
+        // Assert
+        _claimedVehicleStore.Verify(
+            s => s.SetVehicle(It.Is<ClaimedVehicle>(c => c.Model == string.Empty)),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenTakeOverConflict_WhenTakeOverCalled_ThenClaimedVehicleStoreIsNotPopulated()
+    {
+        // Arrange
+        var vehicle = Vehicle("V-001");
+        _vehicleService.Setup(s => s.GetIdleVehiclesAsync()).ReturnsAsync(new[] { vehicle });
+        _vehicleService.Setup(s => s.TakeOverAsync(vehicle.VehicleId)).ReturnsAsync(TakeOverResult.Conflict);
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+        vm.Select(vehicle.VehicleId);
+
+        // Act
+        await vm.TakeOverAsync();
+
+        // Assert
+        _claimedVehicleStore.Verify(s => s.SetVehicle(It.IsAny<ClaimedVehicle>()), Times.Never);
     }
 
     [Fact]
