@@ -1,0 +1,13 @@
+/* Rep take-over screen (mockup: rep-takeover__mobile-390x844).
+   The idle-vehicle list can hold all 8 fleet vehicles, which would push the caption and the
+   "Take over" CTA below the fold. Bounding the list to a scrollable region keeps the button
+   visible at the bottom of the viewport — matching the mockup, where a short list sits above an
+   always-visible CTA (BUG-033). */
+
+.sd-takeover__list {
+    max-height: 46vh;
+    overflow-y: auto;
+    /* room so the card's rounded border + shadow aren't clipped by the scroll edge */
+    padding: 2px;
+    margin: 0 -2px;
+}

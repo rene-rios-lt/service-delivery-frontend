@@ -5,6 +5,7 @@
 @using ServiceDelivery.Client.Core.ViewModels
 @implements IAsyncDisposable
 @inject RepIdleViewModel ViewModel
+@inject ShellViewModel Shell
 
 @* Idle / waiting-for-offers view (FE-020). Mockup: rep-idle__mobile-390x844. The screen rests in
    the Available state until a JobOfferReceived event arrives over RepHub, which navigates away to
@@ -59,6 +60,11 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Surface the claimed vehicle in the shared app-bar subtitle ("Vehicle IA-4471 · On shift")
+        // to match the idle mockup (BUG-033). The shell owns the app bar, so the page pushes its
+        // context up rather than re-rendering chrome itself.
+        Shell.SetVehicleContext($"Vehicle {ViewModel.Vehicle.Registration} · On shift");
+
         await ViewModel.StartAsync();
     }
 

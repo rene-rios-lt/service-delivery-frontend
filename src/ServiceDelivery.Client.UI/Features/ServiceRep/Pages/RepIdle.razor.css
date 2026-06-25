@@ -33,8 +33,30 @@
     background: currentColor;
 }
 
-.claimed-vehicle-card {
+/* Claimed-vehicle card (mockup: rep-idle__mobile-390x844) — a single white rounded card with a
+   soft shadow, icon on the left and title + equipment chips stacked to its right. The base
+   sd-card / sd-listitem classes are defined per scoped component (the take-over list has its own
+   in IdleVehicleList.razor.css); this screen needs the single-card variant — soft shadow, no row
+   divider, not clickable — so it defines them here (BUG-033). */
+#claimed-vehicle-card {
     width: 100%;
+}
+
+.sd-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(27, 29, 41, .08);
+}
+
+.sd-listitem {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+}
+
+.sd-listitem__title {
+    font-weight: 700;
+    color: #1B1D29;
 }
 
 .sd-listitem__icon {

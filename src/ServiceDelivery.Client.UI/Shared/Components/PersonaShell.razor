@@ -15,12 +15,18 @@
             <div data-testid="appbar-context" class="sd-appbar__sub">@ContextSubtitle</div>
         </div>
         <MudSpacer />
-        <MudIconButton data-testid="appbar-menu-affordance"
-                       id="appbar-menu-affordance"
-                       Icon="@MenuIcon"
-                       Color="Color.Inherit"
-                       OnClick="ViewModel.ToggleMenu"
-                       Class="sd-appbar__action" />
+        <div class="sd-appbar__controls">
+            <MudIconButton data-testid="appbar-menu-affordance"
+                           id="appbar-menu-affordance"
+                           Icon="@MenuIcon"
+                           Color="Color.Inherit"
+                           OnClick="ViewModel.ToggleMenu"
+                           Class="sd-appbar__action" />
+            @if (ViewModel.Menu is not null)
+            {
+                <MudAvatar data-testid="appbar-avatar" Class="sd-avatar">@Initials</MudAvatar>
+            }
+        </div>
     </MudAppBar>
 
     <PersonaMenu ViewModel="ViewModel" />
@@ -47,4 +53,14 @@
     private string ContextSubtitle => ViewModel.Menu?.VehicleContext ?? ViewModel.Menu?.ContextLine ?? string.Empty;
 
     private string MenuIcon => ViewModel.IsMenuOpen ? Icons.Material.Filled.Close : Icons.Material.Filled.Menu;
+
+    // Same initials derivation as PersonaMenu.razor — reproduced here (per BUG-033 review) rather
+    // than extracted, keeping the small two-letter avatar label consistent across the app bar and
+    // the menu surface without coupling the two components.
+    private string Initials =>
+        string.Concat((ViewModel.Menu?.Title ?? string.Empty)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => part[0]))
+            .ToUpperInvariant();
 }

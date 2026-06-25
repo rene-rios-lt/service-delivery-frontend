@@ -58,6 +58,58 @@ public class TakeOverComponentTests : BunitContext
     }
 
     [Fact]
+    public void GivenIdleVehicles_WhenIdleVehicleListRendered_ThenCardContainerIsPresent()
+    {
+        // Arrange
+        RegisterServices();
+        var vehicles = new[] { Vehicle("IA-4471", "HydraulicTool", "CoolingSystemKit") };
+
+        // Act
+        var cut = Render<IdleVehicleList>(p => p
+            .Add(c => c.Vehicles, vehicles));
+
+        // Assert
+        var card = cut.Find("[data-testid='idle-vehicle-list']");
+        Assert.Contains("sd-card", card.ClassList);
+    }
+
+    [Fact]
+    public void GivenIdleVehicles_WhenIdleVehicleListRendered_ThenEachRowHasListItemStructure()
+    {
+        // Arrange
+        RegisterServices();
+        var vehicles = new[] { Vehicle("IA-4471", "HydraulicTool", "CoolingSystemKit") };
+
+        // Act
+        var cut = Render<IdleVehicleList>(p => p
+            .Add(c => c.Vehicles, vehicles));
+
+        // Assert
+        var row = cut.Find("[data-testid='idle-vehicle-row']");
+        Assert.Contains("sd-listitem", row.ClassList);
+        Assert.NotNull(row.QuerySelector(".sd-listitem__icon"));
+        Assert.NotNull(row.QuerySelector(".sd-listitem__title"));
+    }
+
+    [Fact]
+    public void GivenIdleVehicles_WhenIdleVehicleListRendered_ThenEquipmentChipsAreRenderedPerRow()
+    {
+        // Arrange
+        RegisterServices();
+        var vehicles = new[] { Vehicle("IA-4471", "HydraulicTool", "CoolingSystemKit") };
+
+        // Act
+        var cut = Render<IdleVehicleList>(p => p
+            .Add(c => c.Vehicles, vehicles));
+
+        // Assert
+        var row = cut.Find("[data-testid='idle-vehicle-row']");
+        var equip = row.QuerySelector(".sd-equip");
+        Assert.NotNull(equip);
+        Assert.NotEmpty(equip!.QuerySelectorAll("span"));
+    }
+
+    [Fact]
     public void GivenAVehicleWithMoreThanTwoEquipmentTypes_WhenRendered_ThenChipsCollapseToFirstTwoPlusOverflow()
     {
         // Arrange
@@ -78,6 +130,76 @@ public class TakeOverComponentTests : BunitContext
         Assert.Contains("Coolant", row.TextContent);
         Assert.DoesNotContain("Diagnostics", row.TextContent);
         Assert.Contains("+4", cut.Find("[data-testid='equipment-overflow']").TextContent);
+    }
+
+    [Fact]
+    public void GivenRawEnumEquipmentName_WhenIdleVehicleListRendered_ThenFriendlyLabelIsDisplayed()
+    {
+        // Arrange
+        RegisterServices();
+        var vehicles = new[] { Vehicle("IA-4471", "HydraulicTool", "CoolingSystemKit") };
+
+        // Act
+        var cut = Render<IdleVehicleList>(p => p
+            .Add(c => c.Vehicles, vehicles));
+
+        // Assert
+        var chips = cut.FindAll("[data-testid='equipment-chip']").Select(c => c.TextContent.Trim()).ToList();
+        Assert.Contains("Hydraulics", chips);
+        Assert.Contains("Coolant", chips);
+        Assert.DoesNotContain("HydraulicTool", chips);
+        Assert.DoesNotContain("CoolingSystemKit", chips);
+    }
+
+    [Fact]
+    public void GivenUnknownEquipmentKey_WhenIdleVehicleListRendered_ThenRawNameIsDisplayedAsChip()
+    {
+        // Arrange
+        RegisterServices();
+        var vehicles = new[] { Vehicle("IA-4471", "UnknownGadget") };
+
+        // Act
+        var cut = Render<IdleVehicleList>(p => p
+            .Add(c => c.Vehicles, vehicles));
+
+        // Assert
+        var chips = cut.FindAll("[data-testid='equipment-chip']").Select(c => c.TextContent.Trim()).ToList();
+        Assert.Contains("UnknownGadget", chips);
+    }
+
+    [Fact]
+    public void GivenVehicleWithMoreThanTwoEquipmentTypes_WhenIdleVehicleListRendered_ThenOverflowChipShowsCorrectCount()
+    {
+        // Arrange
+        RegisterServices();
+        var vehicles = new[]
+        {
+            Vehicle("IA-4471",
+                "HydraulicTool", "CoolingSystemKit", "ElectricalDiagnosticKit",
+                "BrakingSystemKit", "FuelSystemKit", "SuspensionKit")
+        };
+
+        // Act
+        var cut = Render<IdleVehicleList>(p => p
+            .Add(c => c.Vehicles, vehicles));
+
+        // Assert
+        Assert.Contains("+4", cut.Find("[data-testid='equipment-overflow']").TextContent);
+    }
+
+    [Fact]
+    public void GivenEquipmentChips_WhenIdleVehicleListRendered_ThenEachChipHasEquipmentChipTestId()
+    {
+        // Arrange
+        RegisterServices();
+        var vehicles = new[] { Vehicle("IA-4471", "HydraulicTool", "CoolingSystemKit") };
+
+        // Act
+        var cut = Render<IdleVehicleList>(p => p
+            .Add(c => c.Vehicles, vehicles));
+
+        // Assert
+        Assert.Equal(2, cut.FindAll("[data-testid='equipment-chip']").Count);
     }
 
     [Fact]

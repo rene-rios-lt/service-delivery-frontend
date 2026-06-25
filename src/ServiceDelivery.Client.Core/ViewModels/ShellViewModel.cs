@@ -51,6 +51,21 @@ public class ShellViewModel
         IsMenuOpen = !IsMenuOpen;
     }
 
+    /// <summary>
+    /// Replaces the current menu with a copy carrying the supplied vehicle-context line (e.g.
+    /// "Vehicle IA-4471 · On shift"), so the app-bar subtitle reflects the claimed vehicle after a
+    /// take-over. No-op when no menu has been loaded yet.
+    /// </summary>
+    public void SetVehicleContext(string vehicleContext)
+    {
+        if (Menu is null)
+        {
+            return;
+        }
+
+        Menu = Menu with { VehicleContext = vehicleContext };
+    }
+
     public async Task LogoutAsync()
     {
         await _logoutSideEffect.RunBeforeTokenClearedAsync();

@@ -38,9 +38,11 @@
     }
     else
     {
-        <IdleVehicleList Vehicles="ViewModel.IdleVehicles"
-                         SelectedVehicleId="ViewModel.SelectedVehicleId"
-                         OnSelect="ViewModel.Select" />
+        <div class="sd-takeover__list">
+            <IdleVehicleList Vehicles="ViewModel.IdleVehicles"
+                             SelectedVehicleId="ViewModel.SelectedVehicleId"
+                             OnSelect="ViewModel.Select" />
+        </div>
     }
 
     <MudText Typo="Typo.caption" Class="sd-muted d-block mt-2 mb-4">
