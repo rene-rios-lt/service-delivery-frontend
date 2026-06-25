@@ -204,8 +204,30 @@ public abstract class AppiumTestBase
     [TearDown]
     public void TearDown()
     {
+        CaptureScreenshotIfRequested();
         Driver?.Quit();
         Driver?.Dispose();
+    }
+
+    // When SD_SHOT_DIR is set, save a screenshot of the final screen as <TestName>.png. Used by the
+    // AI-review render-and-screenshot check to visually compare the live screen against its mockup —
+    // off by default and best-effort, so a capture failure never fails the test.
+    private void CaptureScreenshotIfRequested()
+    {
+        var dir = Environment.GetEnvironmentVariable("SD_SHOT_DIR");
+        if (string.IsNullOrWhiteSpace(dir) || Driver is null)
+            return;
+
+        try
+        {
+            System.IO.Directory.CreateDirectory(dir);
+            var name = TestContext.CurrentContext.Test.Name;
+            Driver.GetScreenshot().SaveAsFile(System.IO.Path.Combine(dir, $"{name}.png"));
+        }
+        catch
+        {
+            // Screenshot capture is diagnostics only — never fail a test because of it.
+        }
     }
 
     /// <summary>

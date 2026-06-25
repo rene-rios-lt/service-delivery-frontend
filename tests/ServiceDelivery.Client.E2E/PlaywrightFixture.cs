@@ -71,7 +71,33 @@ public abstract class E2ETestBase
     [TearDown]
     public async Task TearDown()
     {
+        await CaptureScreenshotIfRequestedAsync();
         await _context.CloseAsync();
+    }
+
+    // When SD_SHOT_DIR is set, save a full-page screenshot of the final page as <TestName>.png. Used by
+    // the AI-review render-and-screenshot check to visually compare the live screen against its mockup —
+    // off by default and best-effort, so a capture failure never fails the test.
+    private async Task CaptureScreenshotIfRequestedAsync()
+    {
+        var dir = Environment.GetEnvironmentVariable("SD_SHOT_DIR");
+        if (string.IsNullOrWhiteSpace(dir))
+            return;
+
+        try
+        {
+            System.IO.Directory.CreateDirectory(dir);
+            var name = TestContext.CurrentContext.Test.Name;
+            await Page.ScreenshotAsync(new PageScreenshotOptions
+            {
+                Path = System.IO.Path.Combine(dir, $"{name}.png"),
+                FullPage = true
+            });
+        }
+        catch
+        {
+            // Screenshot capture is diagnostics only — never fail a test because of it.
+        }
     }
 
     /// <summary>
