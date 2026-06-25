@@ -3,10 +3,11 @@
 @using ServiceDelivery.Client.Core.Models
 
 @* Renders the idle-vehicle list inside a bordered card (mockup: rep-takeover__mobile-390x844).
-   Each row shows a truck icon, the registration as the title, an "idle" subtitle, and the
-   vehicle's equipment as chips (collapsed to the first two plus an overflow count). Display only.
-   The backend GET /vehicles/available contract returns only registration + equipment, so model
-   and loop are not shown. *@
+   Each row shows a truck icon, the title ("<registration> · <model>", matching the mockup), an
+   "idle" subtitle, and the vehicle's equipment as chips (collapsed to the first two plus an
+   overflow count). Display only. The "· <model>" suffix is guarded so a vehicle with no model
+   renders the registration alone — the same empty-guard pattern used by the idle card in
+   RepIdle.razor (BUG-035). *@
 
 <div data-testid="idle-vehicle-list" id="idle-vehicle-list" class="sd-card">
     @foreach (var vehicle in Vehicles)
@@ -17,7 +18,7 @@
              @onclick="() => OnSelect.InvokeAsync(vehicle.VehicleId)">
             <div class="sd-listitem__icon">🚐</div>
             <div>
-                <div class="sd-listitem__title">@vehicle.Registration</div>
+                <div class="sd-listitem__title">@vehicle.Registration@(string.IsNullOrEmpty(vehicle.Model) ? "" : $" · {vehicle.Model}")</div>
                 <div class="sd-listitem__sub">idle</div>
                 <div class="sd-equip">
                     @foreach (var equipment in VisibleEquipment(vehicle))

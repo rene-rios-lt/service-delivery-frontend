@@ -41,11 +41,12 @@ public class HttpVehicleServiceTests
     public async Task GivenIdleVehiclesEndpointReturnsJson_WhenGetIdleVehiclesAsync_ThenVehiclesAreDeserialized()
     {
         // Arrange
-        // Matches the backend AvailableVehicleDto shape: vehicleId, registration, equipment.
+        // Matches the backend AvailableVehicleDto shape: vehicleId, registration, model, equipment.
         const string json = """
             [
               { "vehicleId": "11111111-1111-1111-1111-111111111111",
-                "registration": "IA-4471", "equipment": ["Hydraulics", "Coolant"] }
+                "registration": "IA-4471", "model": "Transit 350",
+                "equipment": ["Hydraulics", "Coolant"] }
             ]
             """;
         var handler = new StubHandler(HttpStatusCode.OK, json);
@@ -58,6 +59,28 @@ public class HttpVehicleServiceTests
         Assert.Single(vehicles);
         Assert.Equal("IA-4471", vehicles[0].Registration);
         Assert.Contains("Hydraulics", vehicles[0].EquipmentTypes);
+    }
+
+    [Fact]
+    public async Task GivenIdleVehiclesEndpointReturnsJson_WhenGetIdleVehiclesAsync_ThenModelFieldIsDeserialized()
+    {
+        // Arrange
+        // The backend AvailableVehicleDto carries the vehicle model under the camelCase "model" key.
+        const string json = """
+            [
+              { "vehicleId": "11111111-1111-1111-1111-111111111111",
+                "registration": "IA-4471", "model": "Transit 350",
+                "equipment": ["Hydraulics", "Coolant"] }
+            ]
+            """;
+        var handler = new StubHandler(HttpStatusCode.OK, json);
+        var service = CreateService(handler);
+
+        // Act
+        var vehicles = await service.GetIdleVehiclesAsync();
+
+        // Assert
+        Assert.Equal("Transit 350", vehicles[0].Model);
     }
 
     [Fact]

@@ -81,9 +81,8 @@ public class TakeOverViewModel
         if (LastResult == TakeOverResult.Success)
         {
             var selected = IdleVehicles.First(v => v.VehicleId == vehicleId);
-            // Model is empty until the backend carries it on the take-over response (BUG-035 deferral).
             _claimedVehicleStore.SetVehicle(new ClaimedVehicle(
-                selected.VehicleId, selected.Registration, string.Empty, selected.EquipmentTypes));
+                selected.VehicleId, selected.Registration, selected.Model, selected.EquipmentTypes));
             _navigator.NavigateToRepIdleView();
             return;
         }
