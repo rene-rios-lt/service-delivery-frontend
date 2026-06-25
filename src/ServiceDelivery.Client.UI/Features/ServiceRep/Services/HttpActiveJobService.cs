@@ -12,14 +12,14 @@ namespace ServiceDelivery.Client.UI.Features.ServiceRep.Services;
 /// <c>null</c> on 404 (the rep has no active request) so callers never see HTTP status codes.
 /// </summary>
 /// <remarks>
-/// The backend <c>MyActiveServiceRequestDto</c> currently exposes only the request id, tier, DTC
-/// title, status, requester lat/lng, and created-at — it does NOT carry the rep's current position,
-/// ETA, requester name, or the <c>EnRoute</c>/<c>Within15Miles</c> rep state the active-job ACs
-/// reference. Those values are computed server-side and pushed on the <c>RepPositionUpdated</c>
-/// requester-hub event (BE-008); the <c>my-active</c> REST payload has not yet been extended to
-/// return them. This adapter maps the fields the endpoint does expose and surfaces the backend
-/// <c>status</c> as the rep state; the rep marker starts at the requester pin until a richer payload
-/// (or a position poll endpoint) is available. See the FE-011 implementation report's backend-gap note.
+/// The backend <c>MyActiveServiceRequestDto</c> exposes the request id, tier, DTC title, request
+/// <c>status</c>, and — critically for the "I've Arrived" enable rule — the rep's <c>RepState</c>
+/// (EnRoute/Within15Miles/OnSite, computed server-side from the rep's proximity). This adapter maps
+/// <c>RepState</c> onto <see cref="ActiveJobContext.RepState"/> so the poll reflects the rep crossing
+/// 15 miles. (It previously surfaced the request <c>status</c> as the rep state — a placeholder that
+/// could never equal "Within15Miles", so the button never enabled live; fixed by extending the DTO.)
+/// The payload still does not carry the rep's live position/ETA, so the rep marker starts at the
+/// requester pin until a richer payload is available.
 /// </remarks>
 public class HttpActiveJobService : IActiveJobService
 {
@@ -54,7 +54,7 @@ public class HttpActiveJobService : IActiveJobService
             RepLat: dto.RequesterLatitude,
             RepLng: dto.RequesterLongitude,
             EtaMinutes: 0,
-            RepState: dto.Status,
+            RepState: dto.RepState,
             Tier: dto.Tier);
     }
 
@@ -65,6 +65,7 @@ public class HttpActiveJobService : IActiveJobService
         string Tier,
         string DtcTitle,
         string Status,
+        string RepState,
         double RequesterLatitude,
         double RequesterLongitude,
         DateTime CreatedAt);

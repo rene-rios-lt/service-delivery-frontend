@@ -29,10 +29,10 @@ public sealed class ActiveJobTests : AppiumTestBase
     }
 
     /// <summary>
-    /// FE-012 coverage (AC-1, AC-2, AC-3): the fleet is positioned at the request site (distance 0),
-    /// so once the rep accepts the offer the backend reports the rep within 15 miles and the
-    /// "I've Arrived" button becomes enabled. Tapping it calls POST /rep/arrive; on success the
-    /// highlighted navigation route line is removed and "Mark Complete" becomes the primary action.
+    /// FE-012 coverage (AC-1, AC-2, AC-3): once the rep accepts and is EnRoute, a position posted at the
+    /// request site (distance 0) drives the backend to report the rep Within15Miles; the active-job poll
+    /// surfaces that, enabling the "I've Arrived" button. Tapping it calls POST /rep/arrive; on success
+    /// the highlighted navigation route line is removed and "Mark Complete" becomes the primary action.
     /// </summary>
     [Test]
     public void GivenRepIsWithin15Miles_WhenArrivedButtonTapped_ThenRouteLineGoneAndMarkCompleteVisible()
@@ -41,8 +41,14 @@ public sealed class ActiveJobTests : AppiumTestBase
         TakeOverFirstIdleVehicle();
         BackendApiHelper.SubmitServiceRequest(AppiumConfig.BackendBaseUrl);
         WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='accept-button']"))).Click();
-        // AC-3: the fleet sits at the request site, so the backend reports Within15Miles and the
-        // arrived button becomes enabled. Poll for the enabled state before tapping.
+        // Wait until the active-job screen is up — its presence means the accept has committed and the
+        // rep is now EnRoute. Re-posting before that would hit UpdateVehiclePositionCommandHandler while
+        // the rep is not yet EnRoute, so no Within15Miles transition would occur.
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='arrived-button']")));
+        // AC-3: re-post the site position so the EnRoute rep (vehicle at distance 0 < 15 mi) moves to
+        // Within15Miles. The page polls the active job every ~3s, so IsArrivedEnabled flips and the
+        // button enables. Poll for the enabled state before tapping.
+        BackendApiHelper.PositionFleetAtRequestSite(AppiumConfig.BackendBaseUrl);
         var arrivedButton = WaitForSignalR(d =>
         {
             var button = d.FindElement(By.CssSelector("[data-testid='arrived-button']"));
