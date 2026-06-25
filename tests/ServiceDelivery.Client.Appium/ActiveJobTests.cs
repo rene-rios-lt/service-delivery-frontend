@@ -1,3 +1,5 @@
+using ServiceDelivery.Client.Appium.Helpers;
+
 namespace ServiceDelivery.Client.Appium;
 
 /// <summary>
@@ -13,6 +15,7 @@ public sealed class ActiveJobTests : AppiumTestBase
     {
         // Arrange
         TakeOverFirstIdleVehicle();
+        BackendApiHelper.SubmitServiceRequest(AppiumConfig.BackendBaseUrl);
         WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='accept-button']"))).Click();
 
         // Act
