@@ -36,6 +36,57 @@
     color: white;
 }
 
+.sd-chip--onsite {
+    background: rgba(229, 57, 47, .13);
+    color: #E5392F;
+}
+
+.sd-popover {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 10;
+    padding: 8px 14px;
+    border-radius: 18px;
+    background: white;
+    font-weight: 700;
+    font-size: .85rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+}
+
+/* Faint background road grid (NOT the navigation route). Persists in the on-site state; only the
+   highlighted route line is removed once the rep arrives. */
+.sd-roadgrid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.sd-roadgrid line {
+    stroke: #FFFFFF;
+    stroke-width: 4;
+    opacity: .7;
+}
+
+.sd-marker--onsite {
+    position: absolute;
+    z-index: 9;
+    transform: translate(-50%, -100%);
+}
+
+.sd-marker--onsite .sd-marker__pin {
+    width: 22px;
+    height: 22px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    background: #E5392F;
+    border: 3px solid white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
+}
+
 .sd-routeline {
     position: absolute;
     top: 0;
@@ -57,4 +108,43 @@
     background: #C0C4CC;
     border-radius: 2px;
     margin: 0 auto 12px;
+}
+
+/* Requester row: icon, name, and the inline tier badge to the right of the name (matches the
+   rep-on-site mockup). */
+.sd-reqcard__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Service-tier badge — mirrors the design system's .sd-badge (gold/silver/bronze, star icon,
+   uppercase). Sits inline beside the requester name in the bottom sheet. */
+.sd-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    font-size: 11.5px;
+    font-weight: 750;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    border-radius: 999px;
+    color: #fff;
+}
+
+.sd-badge--bronze {
+    background: #B0703C;
+}
+
+.sd-badge--silver {
+    background: #8893A0;
+}
+
+.sd-badge--gold {
+    background: #D4A017;
+}
+
+.sd-badge__icon {
+    font-size: 11px;
 }

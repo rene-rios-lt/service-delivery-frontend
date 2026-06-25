@@ -82,6 +82,10 @@ public static class MauiProgram
 		// the rep's simulator-driven position, gates the "I've Arrived" button on the within-15-miles
 		// state, and listens on RepHub for RedirectReceived to move the destination in-place.
 		builder.Services.AddScoped<IActiveJobService, HttpActiveJobService>();
+		// Mark-arrived action (FE-012). The HTTP arrive service backs POST /rep/arrive; ActiveJobViewModel
+		// injects it and, on a successful arrive, transitions to OnSite — the page removes the route line
+		// and swaps "I've Arrived" for the "Mark Complete" primary action.
+		builder.Services.AddScoped<IArriveService, HttpArriveService>();
 		builder.Services.AddScoped<ActiveJobViewModel>();
 
 		// Persona shell (FE-021). Mobile presents the menu as a slide-in drawer. The logout

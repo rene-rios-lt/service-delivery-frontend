@@ -8,6 +8,7 @@ public class ActiveJobViewModelTests
 {
     private readonly Mock<IActiveJobService> _activeJobService = new();
     private readonly Mock<IRepHubService> _repHub = new();
+    private readonly Mock<IArriveService> _arriveService = new();
 
     private static ActiveJobContext Context(
         string requesterName = "Marcus Webb",
@@ -17,12 +18,82 @@ public class ActiveJobViewModelTests
         double repLat = 41.70,
         double repLng = -93.50,
         int etaMinutes = 9,
-        string repState = "EnRoute") =>
+        string repState = "EnRoute",
+        string tier = "Gold") =>
         new(Guid.NewGuid(), requesterName, dtcTitle, requesterLat, requesterLng,
-            repLat, repLng, etaMinutes, repState);
+            repLat, repLng, etaMinutes, repState, tier);
 
     private ActiveJobViewModel CreateViewModel() =>
-        new(_activeJobService.Object, _repHub.Object);
+        new(_activeJobService.Object, _repHub.Object, _arriveService.Object);
+
+    [Fact]
+    public async Task GivenAnActiveJobWithTier_WhenViewModelLoads_ThenTierIsSurfacedFromContext()
+    {
+        // Arrange
+        // FE-012 fidelity: the active-job context carries the request tier (mirrors the backend
+        // MyActiveServiceRequestDto.Tier field); the ViewModel surfaces it so the bottom sheet can
+        // render the tier badge.
+        _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(Context(tier: "Gold"));
+        var vm = CreateViewModel();
+
+        // Act
+        await vm.LoadAsync();
+
+        // Assert
+        Assert.Equal("Gold", vm.Tier);
+    }
+
+    [Fact]
+    public async Task GivenRepTapsArrivedButton_WhenArriveAsyncCalled_ThenArriveServiceIsInvoked()
+    {
+        // Arrange
+        // AC-1: tapping "I've Arrived" calls POST /rep/arrive via IArriveService.
+        _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(Context(repState: "Within15Miles"));
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+
+        // Act
+        await vm.ArriveAsync();
+
+        // Assert
+        _arriveService.Verify(s => s.ArriveAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenRepArrives_WhenArriveAsyncSucceeds_ThenIsOnSiteIsTrue()
+    {
+        // Arrange
+        // AC-2: on a successful arrive the ViewModel transitions to OnSite, which the page uses to
+        // remove the route line and swap in the "Mark Complete" action.
+        _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(Context(repState: "Within15Miles"));
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+
+        // Act
+        await vm.ArriveAsync();
+
+        // Assert
+        Assert.True(vm.IsOnSite);
+    }
+
+    [Fact]
+    public async Task GivenRepArrives_WhenArriveAsyncSucceeds_ThenStateChangedIsRaised()
+    {
+        // Arrange
+        // AC-2: arriving raises StateChanged so the page re-renders — the map re-centres on the rep's
+        // current (on-site) location and the bottom sheet swaps to "Mark Complete" without a reload.
+        _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(Context(repState: "Within15Miles"));
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+        var raised = 0;
+        vm.StateChanged += () => raised++;
+
+        // Act
+        await vm.ArriveAsync();
+
+        // Assert
+        Assert.Equal(1, raised);
+    }
 
     [Fact]
     public async Task GivenAnActiveJob_WhenViewModelLoads_ThenRequesterAndDtcFieldsArePopulated()
@@ -156,6 +227,38 @@ public class ActiveJobViewModelTests
         Assert.Equal(41.62, vm.RepLat);
         Assert.Equal(-93.58, vm.RepLng);
         Assert.Equal(1, raised);
+    }
+
+    [Fact]
+    public async Task GivenRepStateIsOnSite_WhenViewModelLoads_ThenIsArrivedEnabledIsTrue()
+    {
+        // Arrange
+        // AC-3: if the backend already reports the rep OnSite on load (e.g. a page reload after
+        // arriving), the arrive action remains enabled — the rep is on-site at any time once OnSite.
+        _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(Context(repState: "OnSite"));
+        var vm = CreateViewModel();
+
+        // Act
+        await vm.LoadAsync();
+
+        // Assert
+        Assert.True(vm.IsArrivedEnabled);
+    }
+
+    [Fact]
+    public async Task GivenRepStateIsOnSite_WhenViewModelLoads_ThenIsOnSiteIsTrue()
+    {
+        // Arrange
+        // AC-3: a backend-reported OnSite state on load also puts the ViewModel into the on-site
+        // presentation (route line gone, "Mark Complete" primary) without a fresh arrive call.
+        _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(Context(repState: "OnSite"));
+        var vm = CreateViewModel();
+
+        // Act
+        await vm.LoadAsync();
+
+        // Assert
+        Assert.True(vm.IsOnSite);
     }
 
     private static RedirectPayload Redirect(

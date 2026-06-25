@@ -10,7 +10,7 @@
         <div class="sd-appbar__logo">🧭</div>
         <div>
             <div class="sd-appbar__title">Active Job</div>
-            <div class="sd-appbar__sub">Navigating to requester</div>
+            <div class="sd-appbar__sub" data-testid="appbar-subtitle">@AppBarSubtitle</div>
         </div>
         <div class="sd-appbar__spacer"></div>
         <div class="sd-appbar__action">⋮</div>
@@ -22,25 +22,56 @@
             <span class="sd-eta__lbl">ETA</span>
         </div>
 
+        @if (ViewModel.IsOnSite)
+        {
+            <div class="sd-popover" data-testid="at-location-pill">
+                <span>📍</span> At requester location
+            </div>
+        }
+
         <div class="sd-chip @StateChipClass" data-testid="state-chip">
             <span class="sd-chip__dot"></span>@StateLabel
         </div>
 
-        <svg class="sd-routeline" data-testid="route-line">
-            <line x1="65%" y1="32%" x2="30%" y2="60%" />
+        <svg class="sd-roadgrid" data-testid="road-grid">
+            <line x1="48%" y1="0" x2="48%" y2="100%" />
+            <line x1="0" y1="48%" x2="100%" y2="48%" />
+            <line x1="10%" y1="20%" x2="72%" y2="30%" />
         </svg>
 
-        <div class="sd-pin-dest" data-testid="rep-marker"
-             style="left:65%; top:32%"
-             data-lat="@ViewModel.RepLat.ToString(CultureInfo.InvariantCulture)"
-             data-lng="@ViewModel.RepLng.ToString(CultureInfo.InvariantCulture)"></div>
+        @if (!ViewModel.IsOnSite)
+        {
+            <svg class="sd-routeline" data-testid="route-line">
+                <line x1="65%" y1="32%" x2="30%" y2="60%" />
+            </svg>
+        }
 
-        <div class="sd-marker sd-marker--enroute" data-testid="requester-pin"
-             style="left:30%; top:60%"
-             data-lat="@ViewModel.RequesterLat.ToString(CultureInfo.InvariantCulture)"
-             data-lng="@ViewModel.RequesterLng.ToString(CultureInfo.InvariantCulture)">
-            <div class="sd-marker__pin"></div>
-        </div>
+        @if (ViewModel.IsOnSite)
+        {
+            <div class="sd-marker sd-marker--onsite" data-testid="rep-marker"
+                 style="left:50%; top:50%"
+                 data-lat="@ViewModel.RepLat.ToString(CultureInfo.InvariantCulture)"
+                 data-lng="@ViewModel.RepLng.ToString(CultureInfo.InvariantCulture)">
+                <div class="sd-marker__pin"></div>
+            </div>
+        }
+        else
+        {
+            <div class="sd-pin-dest" data-testid="rep-marker"
+                 style="left:65%; top:32%"
+                 data-lat="@ViewModel.RepLat.ToString(CultureInfo.InvariantCulture)"
+                 data-lng="@ViewModel.RepLng.ToString(CultureInfo.InvariantCulture)"></div>
+        }
+
+        @if (!ViewModel.IsOnSite)
+        {
+            <div class="sd-marker sd-marker--enroute" data-testid="requester-pin"
+                 style="left:30%; top:60%"
+                 data-lat="@ViewModel.RequesterLat.ToString(CultureInfo.InvariantCulture)"
+                 data-lng="@ViewModel.RequesterLng.ToString(CultureInfo.InvariantCulture)">
+                <div class="sd-marker__pin"></div>
+            </div>
+        }
     </div>
 
     <div class="sd-sheet" data-testid="bottom-sheet">
@@ -48,12 +79,29 @@
         <div class="sd-reqcard__row">
             <div class="sd-listitem__icon">🔧</div>
             <div class="sd-card__title" data-testid="requester-name">@ViewModel.RequesterName</div>
+            @if (!string.IsNullOrWhiteSpace(ViewModel.Tier))
+            {
+                <span class="sd-badge @TierBadgeClass" data-testid="tier-badge">
+                    <span class="sd-badge__icon">⭐</span>@ViewModel.Tier
+                </span>
+            }
         </div>
         <div class="sd-reqcard__dtc" data-testid="dtc-title">@ViewModel.DtcTitle</div>
-        <button type="button" class="sd-btn sd-btn--primary sd-btn--block sd-btn--lg"
-                data-testid="arrived-button" id="arrived-button" disabled="@(!ViewModel.IsArrivedEnabled)">
-            @ArrivedButtonLabel
-        </button>
+        @if (ViewModel.IsOnSite)
+        {
+            <button type="button" class="sd-btn sd-btn--primary sd-btn--block sd-btn--lg"
+                    data-testid="complete-button" id="complete-button" disabled>
+                Mark Complete
+            </button>
+        }
+        else
+        {
+            <button type="button" class="sd-btn sd-btn--primary sd-btn--block sd-btn--lg"
+                    data-testid="arrived-button" id="arrived-button" disabled="@(!ViewModel.IsArrivedEnabled)"
+                    @onclick="OnArrivedClicked">
+                @ArrivedButtonLabel
+            </button>
+        }
     </div>
 </div>
 
@@ -62,9 +110,22 @@
 
     private Timer? _pollTimer;
 
-    private string StateLabel => ViewModel.IsArrivedEnabled ? "Within 15 mi" : "En Route";
+    private string AppBarSubtitle =>
+        ViewModel.IsOnSite ? "On site — work underway" : "Navigating to requester";
 
-    private string StateChipClass => ViewModel.IsArrivedEnabled ? "sd-chip--within15" : "sd-chip--enroute";
+    // Maps the request tier (Gold/Silver/Bronze) to its design-system badge modifier generically —
+    // no per-tier hardcoding, so a new tier needs only its design-system class, not a code branch.
+    private string TierBadgeClass => $"sd-badge--{ViewModel.Tier.ToLowerInvariant()}";
+
+    private string StateLabel =>
+        ViewModel.IsOnSite ? "On Site"
+        : ViewModel.IsArrivedEnabled ? "Within 15 mi"
+        : "En Route";
+
+    private string StateChipClass =>
+        ViewModel.IsOnSite ? "sd-chip--onsite"
+        : ViewModel.IsArrivedEnabled ? "sd-chip--within15"
+        : "sd-chip--enroute";
 
     private string ArrivedButtonLabel =>
         ViewModel.IsArrivedEnabled ? "I've Arrived" : "I've Arrived · enables within 15 mi";
@@ -88,6 +149,8 @@
     }
 
     public Task PollOnceAsync() => ViewModel.PollPositionAsync();
+
+    private Task OnArrivedClicked() => ViewModel.ArriveAsync();
 
     private void OnViewModelStateChanged() => InvokeAsync(StateHasChanged);
 

@@ -9,13 +9,19 @@ public class ActiveJobViewModel
     // "I've Arrived" button (AC-4) becomes enabled.
     private const string Within15MilesState = "Within15Miles";
 
+    // The backend rep state once the rep has marked arrival (BE-019). On load in this state the view
+    // is already on-site: arrive stays enabled (AC-3) and the on-site presentation applies.
+    private const string OnSiteState = "OnSite";
+
     private readonly IActiveJobService _activeJobService;
     private readonly IRepHubService _repHub;
+    private readonly IArriveService _arriveService;
 
-    public ActiveJobViewModel(IActiveJobService activeJobService, IRepHubService repHub)
+    public ActiveJobViewModel(IActiveJobService activeJobService, IRepHubService repHub, IArriveService arriveService)
     {
         _activeJobService = activeJobService;
         _repHub = repHub;
+        _arriveService = arriveService;
     }
 
     // Raised after each position poll and after a redirect so the Razor page can re-render
@@ -35,9 +41,13 @@ public class ActiveJobViewModel
 
     public bool IsArrivedEnabled { get; private set; }
 
+    public bool IsOnSite { get; private set; }
+
     public string RequesterName { get; private set; } = string.Empty;
 
     public string DtcTitle { get; private set; } = string.Empty;
+
+    public string Tier { get; private set; } = string.Empty;
 
     public async Task LoadAsync()
     {
@@ -52,6 +62,13 @@ public class ActiveJobViewModel
     }
 
     public Task StopAsync() => _repHub.StopAsync();
+
+    public async Task ArriveAsync()
+    {
+        await _arriveService.ArriveAsync();
+        IsOnSite = true;
+        StateChanged?.Invoke();
+    }
 
     public async Task PollPositionAsync()
     {
@@ -83,7 +100,9 @@ public class ActiveJobViewModel
         RequesterLng = context.RequesterLng;
         RequesterName = context.RequesterName;
         DtcTitle = context.DtcTitle;
+        Tier = context.Tier;
         EtaMinutes = context.EtaMinutes;
-        IsArrivedEnabled = context.RepState == Within15MilesState;
+        IsOnSite = IsOnSite || context.RepState == OnSiteState;
+        IsArrivedEnabled = IsOnSite || context.RepState == Within15MilesState;
     }
 }
