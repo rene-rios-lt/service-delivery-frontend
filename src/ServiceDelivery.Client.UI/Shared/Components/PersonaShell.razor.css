@@ -29,6 +29,28 @@
     font-weight: 500;
 }
 
+/* App-bar trailing controls (mockup: rep-idle / rep-takeover) — the hamburger and the persona
+   avatar are matching translucent-white circles on the indigo bar, not a bare icon + grey avatar
+   (BUG-033). MudIconButton/MudAvatar are child components, so their rendered roots don't carry this
+   component's scoped attribute — ::deep from the scoped wrapper is required to reach them. */
+.sd-appbar__controls {
+    display: flex;
+    align-items: center;
+}
+
+.sd-appbar__controls ::deep .sd-appbar__action {
+    background: rgba(255, 255, 255, .15);
+    color: #fff;
+    margin-left: 8px;
+}
+
+.sd-appbar__controls ::deep .sd-avatar {
+    background: rgba(255, 255, 255, .22);
+    color: #fff;
+    font-weight: 650;
+    margin-left: 10px;
+}
+
 .sd-shell__body {
     padding: 16px;
 }

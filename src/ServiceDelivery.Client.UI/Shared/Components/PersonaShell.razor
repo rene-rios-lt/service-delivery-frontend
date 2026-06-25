@@ -15,16 +15,18 @@
             <div data-testid="appbar-context" class="sd-appbar__sub">@ContextSubtitle</div>
         </div>
         <MudSpacer />
-        <MudIconButton data-testid="appbar-menu-affordance"
-                       id="appbar-menu-affordance"
-                       Icon="@MenuIcon"
-                       Color="Color.Inherit"
-                       OnClick="ViewModel.ToggleMenu"
-                       Class="sd-appbar__action" />
-        @if (ViewModel.Menu is not null)
-        {
-            <MudAvatar data-testid="appbar-avatar" Class="sd-avatar">@Initials</MudAvatar>
-        }
+        <div class="sd-appbar__controls">
+            <MudIconButton data-testid="appbar-menu-affordance"
+                           id="appbar-menu-affordance"
+                           Icon="@MenuIcon"
+                           Color="Color.Inherit"
+                           OnClick="ViewModel.ToggleMenu"
+                           Class="sd-appbar__action" />
+            @if (ViewModel.Menu is not null)
+            {
+                <MudAvatar data-testid="appbar-avatar" Class="sd-avatar">@Initials</MudAvatar>
+            }
+        </div>
     </MudAppBar>
 
     <PersonaMenu ViewModel="ViewModel" />
