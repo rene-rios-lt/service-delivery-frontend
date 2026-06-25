@@ -54,7 +54,8 @@ public class HttpActiveJobService : IActiveJobService
             RepLat: dto.RequesterLatitude,
             RepLng: dto.RequesterLongitude,
             EtaMinutes: 0,
-            RepState: dto.Status);
+            RepState: dto.Status,
+            Tier: dto.Tier);
     }
 
     // Wire shape mirroring the backend MyActiveServiceRequestDto exactly (property names matched to
