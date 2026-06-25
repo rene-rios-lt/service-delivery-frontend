@@ -15,10 +15,18 @@ public class TakeOverComponentTests : BunitContext
     private readonly Mock<IPersonaNavigator> _navigator = new();
     private readonly Mock<IClaimedVehicleStore> _claimedVehicleStore = new();
 
+    private const string DefaultModel = "Transit 350";
+
     private static IdleVehicle Vehicle(
         string registration = "IA-4471",
         params string[] equipment) =>
-        new(Guid.NewGuid(), registration,
+        VehicleWithModel(registration, DefaultModel, equipment);
+
+    private static IdleVehicle VehicleWithModel(
+        string registration,
+        string model,
+        params string[] equipment) =>
+        new(Guid.NewGuid(), registration, model,
             equipment.Length == 0 ? new[] { "Hydraulics", "Coolant" } : equipment);
 
     private void RegisterServices()
@@ -56,6 +64,22 @@ public class TakeOverComponentTests : BunitContext
         Assert.Equal(2, rows.Count);
         Assert.Contains("IA-4471", rows[0].TextContent);
         Assert.Contains("Hydraulics", rows[0].TextContent);
+    }
+
+    [Fact]
+    public void GivenAnIdleVehicleWithAModel_WhenIdleVehicleListRendered_ThenRowTitleShowsRegistrationDotModel()
+    {
+        // Arrange
+        RegisterServices();
+        var vehicles = new[] { VehicleWithModel("IA-4471", "Transit 350", "Hydraulics", "Coolant") };
+
+        // Act
+        var cut = Render<IdleVehicleList>(p => p
+            .Add(c => c.Vehicles, vehicles));
+
+        // Assert
+        var title = cut.Find("[data-testid='idle-vehicle-row'] .sd-listitem__title");
+        Assert.Equal("IA-4471 · Transit 350", title.TextContent.Trim());
     }
 
     [Fact]

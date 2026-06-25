@@ -14,8 +14,8 @@ public class TakeOverViewModelTests
     private TakeOverViewModel CreateViewModel() =>
         new(_vehicleService.Object, _navigator.Object, _claimedVehicleStore.Object);
 
-    private static IdleVehicle Vehicle(string registration = "IA-4471") =>
-        new(Guid.NewGuid(), registration, new[] { "Hydraulics", "Coolant" });
+    private static IdleVehicle Vehicle(string registration = "IA-4471", string model = "Transit 350") =>
+        new(Guid.NewGuid(), registration, model, new[] { "Hydraulics", "Coolant" });
 
     [Fact]
     public async Task GivenIdleVehiclesReturnedByService_WhenViewModelLoads_ThenIdleVehiclesListIsPopulated()
@@ -228,7 +228,7 @@ public class TakeOverViewModelTests
     public async Task GivenASelectedVehicle_WhenTakeOverSucceeds_ThenStoredEquipmentMatchesSelectedIdleVehicle()
     {
         // Arrange
-        var vehicle = new IdleVehicle(Guid.NewGuid(), "V-001", new[] { "Hydraulics", "Coolant" });
+        var vehicle = new IdleVehicle(Guid.NewGuid(), "V-001", "Transit 350", new[] { "Hydraulics", "Coolant" });
         _vehicleService.Setup(s => s.GetIdleVehiclesAsync()).ReturnsAsync(new[] { vehicle });
         _vehicleService.Setup(s => s.TakeOverAsync(vehicle.VehicleId)).ReturnsAsync(TakeOverResult.Success);
         var vm = CreateViewModel();
@@ -246,13 +246,34 @@ public class TakeOverViewModelTests
     }
 
     [Fact]
-    public async Task GivenASelectedVehicle_WhenTakeOverSucceeds_ThenStoredModelIsEmptyString()
+    public async Task GivenASelectedVehicle_WhenTakeOverSucceeds_ThenStoredModelMatchesSelectedIdleVehicle()
     {
         // Arrange
-        // BUG-035 deferral: the take-over response carries no model, so the claimed vehicle's
-        // Model is an empty string until the backend supplies it. The idle card renders just the
-        // registration in the meantime.
-        var vehicle = Vehicle("V-001");
+        // The claimed vehicle must carry the selected idle vehicle's model end to end (BUG-035) —
+        // not an empty string and not an echoed constant. A distinct model proves the real value flows.
+        var vehicle = Vehicle("V-001", model: "Transit 350");
+        _vehicleService.Setup(s => s.GetIdleVehiclesAsync()).ReturnsAsync(new[] { vehicle });
+        _vehicleService.Setup(s => s.TakeOverAsync(vehicle.VehicleId)).ReturnsAsync(TakeOverResult.Success);
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+        vm.Select(vehicle.VehicleId);
+
+        // Act
+        await vm.TakeOverAsync();
+
+        // Assert
+        _claimedVehicleStore.Verify(
+            s => s.SetVehicle(It.Is<ClaimedVehicle>(c => c.Model == vehicle.Model && c.Model == "Transit 350")),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenASelectedVehicleWithNoModel_WhenTakeOverSucceeds_ThenStoredModelIsEmptyString()
+    {
+        // Arrange
+        // When the idle vehicle carries no model, the claimed vehicle's Model stays empty so the
+        // idle card renders the registration only (the empty-guard path).
+        var vehicle = Vehicle("V-001", model: string.Empty);
         _vehicleService.Setup(s => s.GetIdleVehiclesAsync()).ReturnsAsync(new[] { vehicle });
         _vehicleService.Setup(s => s.TakeOverAsync(vehicle.VehicleId)).ReturnsAsync(TakeOverResult.Success);
         var vm = CreateViewModel();
