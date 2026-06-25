@@ -115,6 +115,21 @@ public class ShellViewModelTests
     }
 
     [Fact]
+    public void GivenALoadedShell_WhenSetVehicleContextCalled_ThenMenuVehicleContextIsUpdated()
+    {
+        // Arrange
+        var profile = new UserProfile(Guid.NewGuid(), "Rosa Alvarez", UserRole.ServiceRep, ServiceTier.None, Guid.NewGuid());
+        var vm = CreateViewModel();
+        vm.Load(profile);
+
+        // Act
+        vm.SetVehicleContext("Vehicle IA-4471 · On shift");
+
+        // Assert
+        Assert.Equal("Vehicle IA-4471 · On shift", vm.Menu!.VehicleContext);
+    }
+
+    [Fact]
     public void GivenAnOpenMenu_WhenToggleMenuCalled_ThenMenuStateFlips()
     {
         // Arrange

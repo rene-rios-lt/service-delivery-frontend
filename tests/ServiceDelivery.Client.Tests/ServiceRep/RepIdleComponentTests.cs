@@ -27,12 +27,22 @@ public class RepIdleComponentTests : BunitContext
         new(Guid.NewGuid(), registration, model,
             equipment.Length == 0 ? new[] { "Hydraulics", "Coolant" } : equipment);
 
+    private ShellViewModel? _shell;
+
     private RepIdleViewModel RegisterPage(ClaimedVehicle? vehicle = null)
     {
         var viewModel = new RepIdleViewModel(vehicle ?? Vehicle(), _repHub.Object, _navigator.Object);
         Services.AddMudServices();
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton(viewModel);
+
+        _presentation.SetupGet(p => p.MenuStyle).Returns(ShellMenuStyle.Drawer);
+        _shell = new ShellViewModel(
+            _tokenStore.Object, _navigator.Object, _sideEffect.Object,
+            _releaseAction.Object, _presentation.Object, new PersonaMenuFactory());
+        _shell.Load(new UserProfile(
+            Guid.NewGuid(), "Rosa Alvarez", UserRole.ServiceRep, ServiceTier.None, Guid.NewGuid()));
+        Services.AddSingleton(_shell);
         return viewModel;
     }
 
@@ -105,6 +115,19 @@ public class RepIdleComponentTests : BunitContext
 
         // Assert
         _navigator.Verify(n => n.NavigateToJobOffer(offer), Times.Once);
+    }
+
+    [Fact]
+    public void GivenRepIdleComponent_WhenInitialized_ThenShellVehicleContextIsSet()
+    {
+        // Arrange
+        RegisterPage(Vehicle("IA-4471", "Transit 350", "HydraulicTool"));
+
+        // Act
+        Render<RepIdle>();
+
+        // Assert
+        Assert.Equal("Vehicle IA-4471 · On shift", _shell!.Menu!.VehicleContext);
     }
 
     [Fact]

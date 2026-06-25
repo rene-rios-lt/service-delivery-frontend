@@ -100,6 +100,36 @@ public class PersonaShellComponentTests
     }
 
     [Fact]
+    public async Task GivenADrawerStyleShellWithVehicleContext_WhenRendered_ThenSubtitleShowsVehicleContext()
+    {
+        // Arrange
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+        vm.SetVehicleContext("Vehicle IA-4471 · On shift");
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.Contains("Vehicle IA-4471 · On shift", cut.Find("[data-testid='appbar-context']").TextContent);
+    }
+
+    [Fact]
+    public async Task GivenADrawerStyleShellWithVehicleContext_WhenRendered_ThenAppBarAvatarIsVisible()
+    {
+        // Arrange
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+        vm.SetVehicleContext("Vehicle IA-4471 · On shift");
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.NotNull(cut.Find("[data-testid='appbar-avatar']"));
+    }
+
+    [Fact]
     public async Task GivenTheMenuAffordance_WhenClicked_ThenTheMenuStateToggles()
     {
         // Arrange
