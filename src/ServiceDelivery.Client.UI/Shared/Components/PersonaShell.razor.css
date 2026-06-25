@@ -41,13 +41,18 @@
 .sd-appbar__controls ::deep .sd-appbar__action {
     background: rgba(255, 255, 255, .15);
     color: #fff;
-    margin-left: 8px;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    margin-left: 10px;
 }
 
 .sd-appbar__controls ::deep .sd-avatar {
     background: rgba(255, 255, 255, .22);
     color: #fff;
     font-weight: 650;
+    width: 42px;
+    height: 42px;
     margin-left: 10px;
 }
 
