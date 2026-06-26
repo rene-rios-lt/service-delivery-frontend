@@ -107,6 +107,40 @@ public sealed class JobOfferTests : AppiumTestBase
         Assert.That(availableIndicator.Displayed, Is.True);
     }
 
+    [Test]
+    public void GivenJobOfferExpired_WhenServerPushesExpiredEvent_ThenOfferScreenDismissesWithoutWaitingForCountdown()
+    {
+        // Arrange
+        // BUG-037 (AC-1 E2E): the backend's ExpiredJobOfferSweeper expires an unanswered offer after
+        // ~60 s and pushes JobOfferExpired over RepHub. Before the fix the frontend ignored that event
+        // and only cleared the screen when the local countdown hit zero. With the rep owning the only
+        // candidate vehicle, a single submitted request routes its offer deterministically to this rep.
+        TakeOverFirstIdleVehicle();
+        BackendApiHelper.SubmitServiceRequest(AppiumConfig.BackendBaseUrl);
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='countdown-ring']")));
+
+        // Act
+        // Wait for the server-pushed expiry to dismiss the offer back to the idle view. The sweep
+        // fires ~60 s after the offer; poll the SignalR budget repeatedly (well past 70 s) for the
+        // idle indicator, capturing the countdown reading just before dismissal to prove the screen
+        // cleared on the server event rather than on the local timer reaching zero.
+        var countdownAtDismissal = int.MaxValue;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(80);
+        IWebElement? availableIndicator = null;
+        while (DateTime.UtcNow < deadline && availableIndicator is null)
+        {
+            countdownAtDismissal = Math.Min(countdownAtDismissal, ReadCountdown());
+            availableIndicator = WaitForSignalR(d =>
+                d.FindElements(By.CssSelector("[data-testid='available-indicator']")).FirstOrDefault());
+        }
+
+        // Assert
+        Assert.That(availableIndicator, Is.Not.Null, "Offer screen never dismissed to the idle view.");
+        Assert.That(availableIndicator!.Displayed, Is.True);
+        Assert.That(countdownAtDismissal, Is.GreaterThan(0),
+            "Screen cleared only when the local countdown hit zero — the server JobOfferExpired event was ignored.");
+    }
+
     private int ReadCountdown()
     {
         var text = Driver.FindElement(By.CssSelector("[data-testid='countdown-ring']")).Text;

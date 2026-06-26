@@ -18,6 +18,7 @@ public sealed class SignalRRepHubService : IRepHubService, IAsyncDisposable
     private const string RepHubPath = "hubs/rep";
     private const string JobOfferReceivedEvent = "JobOfferReceived";
     private const string RedirectReceivedEvent = "RedirectReceived";
+    private const string JobOfferExpiredEvent = "JobOfferExpired";
 
     private readonly HubConnection _connection;
     private readonly ITokenStore _tokenStore;
@@ -50,6 +51,12 @@ public sealed class SignalRRepHubService : IRepHubService, IAsyncDisposable
 
     public void OnRedirectReceived(Func<RedirectPayload, Task> handler) =>
         _connection.On(RedirectReceivedEvent, handler);
+
+    // BUG-037: bind the JobOfferExpired event so a server-side expiry dismisses the offer screen
+    // immediately. The backend payload field (OfferId) matches JobOfferExpiredPayload exactly, so —
+    // unlike JobOfferReceived — there is no field-name mismatch and we bind directly to the payload.
+    public void OnJobOfferExpired(Func<JobOfferExpiredPayload, Task> handler) =>
+        _connection.On(JobOfferExpiredEvent, handler);
 
     public Task StartAsync() => _connection.StartAsync();
 
