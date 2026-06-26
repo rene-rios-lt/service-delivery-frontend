@@ -66,9 +66,26 @@ public static class BackendApiHelper
     /// <summary>DTC-001 — Hydraulic system fault (requires <c>HydraulicTool</c>), seeded GUID.</summary>
     private const string Dtc001Id = "20000000-0000-0000-0000-000000000001";
 
-    /// <summary>Iowa geographic centroid — permanently inside the simulator's operational area.</summary>
-    private const double IowaCentroidLatitude = 41.88;
-    private const double IowaCentroidLongitude = -93.10;
+    /// <summary>
+    /// Where the fleet starts — the Iowa geographic centroid, permanently inside the simulator's
+    /// operational area. The taken-over rep's vehicle gets this position so it is matchable; the request
+    /// is then submitted ~100 mi east (see <see cref="RequestLongitude"/>) so the offer carries a real,
+    /// non-zero distance and ETA instead of the degenerate 0 mi / 0 min a co-located request produced.
+    /// </summary>
+    private const double VehicleStartLatitude = 41.88;
+    private const double VehicleStartLongitude = -93.10;
+
+    /// <summary>
+    /// Request location — same latitude as the fleet start but ~100 mi due east (still eastern Iowa,
+    /// inside the operational area). At this latitude one degree of longitude is about 51.5 mi, so the
+    /// +1.944 deg offset is about 100 mi: the backend's Haversine distance is therefore about 100 mi and,
+    /// at the assumed 60 mph, the ETA is about 100 min — real values the offer screen can display.
+    /// Determinism is unchanged: with the rep-operating simulator disabled the taken-over rep is still
+    /// the sole match candidate (there is no max-match-radius), so distance only affects the displayed
+    /// numbers, not which rep is matched.
+    /// </summary>
+    private const double RequestLatitude = 41.88;
+    private const double RequestLongitude = -91.156;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -77,8 +94,9 @@ public static class BackendApiHelper
     };
 
     /// <summary>
-    /// Positions the fleet then submits one Gold-tier service request at the Iowa centroid for DTC-001.
-    /// Positioning (as the <c>Simulator</c> account) is what makes the taken-over rep visible to
+    /// Positions the fleet at the start point then submits one Gold-tier service request about 100 mi
+    /// east (DTC-001), so the offer carries a real distance and ETA. Positioning (as the <c>Simulator</c>
+    /// account) is what makes the taken-over rep visible to
     /// matching; with the rep-operating simulator disabled (backend-only run) that rep is then the sole
     /// match candidate, so the single submission routes an offer to it deterministically. Throws
     /// <see cref="InvalidOperationException"/> if any login, position, or submission returns a
@@ -102,15 +120,16 @@ public static class BackendApiHelper
     /// </summary>
     public static void PositionFleetAtRequestSite(string baseUrl)
     {
-        PositionFleetAtRequestSiteAsync(baseUrl).GetAwaiter().GetResult();
+        PositionFleetAtAsync(baseUrl, RequestLatitude, RequestLongitude).GetAwaiter().GetResult();
     }
 
     private static async Task SubmitServiceRequestAsync(string baseUrl)
     {
-        // 1. Give every vehicle a position at the request site. Matching ignores vehicles with no
-        //    position, and in a backend-only run nothing else posts one. Without this the taken-over
-        //    rep is invisible to matching and no offer is ever generated.
-        await PositionFleetAtRequestSiteAsync(baseUrl);
+        // 1. Give every vehicle a position at the FLEET START point. Matching ignores vehicles with no
+        //    position, and in a backend-only run nothing else posts one. Positioning at the start (not
+        //    the request site) leaves the rep about 100 mi from the request, so the offer's distance/ETA
+        //    are real; the rep is still the sole candidate, so the match is unaffected.
+        await PositionFleetAtAsync(baseUrl, VehicleStartLatitude, VehicleStartLongitude);
 
         // 2. Submit the matching request as the Gold-tier requester.
         using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
@@ -121,8 +140,8 @@ public static class BackendApiHelper
         var body = new
         {
             dtcId = Dtc001Id,
-            latitude = IowaCentroidLatitude,
-            longitude = IowaCentroidLongitude
+            latitude = RequestLatitude,
+            longitude = RequestLongitude
         };
 
         var response = await client.PostAsJsonAsync("/service-requests", body);
@@ -135,12 +154,13 @@ public static class BackendApiHelper
     }
 
     /// <summary>
-    /// Authenticates as the <c>Simulator</c> account, reads the dealer fleet, and posts a position at
-    /// the Iowa centroid for every vehicle — so whichever vehicle the test took over has a location and
-    /// becomes an eligible match candidate. Mirrors the real simulator, which posts positions for all
-    /// vehicles. Throws if the fleet is empty or any call returns a non-success status.
+    /// Authenticates as the <c>Simulator</c> account, reads the dealer fleet, and posts the given
+    /// position for every vehicle. Used two ways: at the fleet-start point to make the taken-over rep
+    /// matchable (about 100 mi from the request), and again at the request site after the rep accepts to
+    /// drive the <c>Within15Miles</c> transition (distance 0). Mirrors the real simulator, which posts
+    /// positions for all vehicles. Throws if the fleet is empty or any call returns a non-success status.
     /// </summary>
-    private static async Task PositionFleetAtRequestSiteAsync(string baseUrl)
+    private static async Task PositionFleetAtAsync(string baseUrl, double latitude, double longitude)
     {
         using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
         var token = await LoginAsync(client, SimulatorEmail);
@@ -159,8 +179,8 @@ public static class BackendApiHelper
         {
             var body = new
             {
-                latitude = IowaCentroidLatitude,
-                longitude = IowaCentroidLongitude,
+                latitude,
+                longitude,
                 timestamp = DateTime.UtcNow
             };
 
