@@ -292,6 +292,62 @@ public class JobOfferViewModelTests
         Assert.Equal(1, raised);
     }
 
+    [Fact]
+    public async Task GivenJobOfferExpiredEventForCurrentOffer_WhenHandled_ThenNavigateToRepIdleViewIsInvoked()
+    {
+        // Arrange
+        // BUG-037 / AC-2: the backend pushed JobOfferExpired for the on-screen offer before the local
+        // countdown reached zero. The ViewModel must dismiss the screen by returning the rep to the
+        // idle / waiting-for-offers view immediately, not wait out the timer.
+        var offerId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        var offer = Offer() with { OfferId = offerId };
+        var vm = CreateViewModel(offer);
+
+        // Act
+        await vm.HandleJobOfferExpiredAsync(new JobOfferExpiredPayload(offerId));
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToRepIdleView(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenJobOfferExpiredEventForCurrentOffer_WhenHandled_ThenCountdownStops()
+    {
+        // Arrange
+        // BUG-037 / AC-2 (side effect): after a server-driven expiry the local countdown must stop so a
+        // stray tick cannot fire a second navigation. Setting SecondsRemaining to zero parks the
+        // countdown — TickAsync's zero-guard prevents any further decrement or navigation.
+        var offerId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        var offer = Offer() with { OfferId = offerId };
+        var vm = CreateViewModel(offer);
+
+        // Act
+        await vm.HandleJobOfferExpiredAsync(new JobOfferExpiredPayload(offerId));
+        await vm.TickAsync();
+
+        // Assert
+        Assert.Equal(0, vm.SecondsRemaining);
+        _navigator.Verify(n => n.NavigateToRepIdleView(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenJobOfferExpiredEventWithNonMatchingOfferId_WhenHandled_ThenNavigationIsNotInvoked()
+    {
+        // Arrange
+        // BUG-037 / AC-3: an expiry event for a different offer (e.g. a stale or out-of-order push)
+        // must be ignored — it must not dismiss the offer the rep is currently looking at.
+        var offer = Offer() with { OfferId = Guid.Parse("99999999-9999-9999-9999-999999999999") };
+        var vm = CreateViewModel(offer);
+
+        // Act
+        await vm.HandleJobOfferExpiredAsync(
+            new JobOfferExpiredPayload(Guid.Parse("11111111-1111-1111-1111-111111111111")));
+
+        // Assert
+        Assert.Equal(60, vm.SecondsRemaining);
+        _navigator.Verify(n => n.NavigateToRepIdleView(), Times.Never);
+    }
+
     private static async Task TickTimes(JobOfferViewModel vm, int count)
     {
         for (var i = 0; i < count; i++)

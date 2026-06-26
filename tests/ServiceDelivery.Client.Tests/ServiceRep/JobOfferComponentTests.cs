@@ -14,6 +14,7 @@ public class JobOfferComponentTests : BunitContext
     private readonly Mock<IPersonaNavigator> _navigator = new();
     private readonly Mock<IJobOfferService> _jobOfferService = new();
     private readonly Mock<IDeclineOfferService> _declineOfferService = new();
+    private readonly Mock<IRepHubService> _repHubService = new();
     private readonly InMemoryJobOfferStore _store = new();
 
     // ShellViewModel collaborators — the page now drives the shared app-bar chrome (BUG-036), so the
@@ -42,6 +43,7 @@ public class JobOfferComponentTests : BunitContext
         Services.AddSingleton(_navigator.Object);
         Services.AddSingleton(_jobOfferService.Object);
         Services.AddSingleton(_declineOfferService.Object);
+        Services.AddSingleton(_repHubService.Object);
 
         _presentation.SetupGet(p => p.MenuStyle).Returns(ShellMenuStyle.Drawer);
         _shell = new ShellViewModel(
@@ -416,6 +418,29 @@ public class JobOfferComponentTests : BunitContext
         // Assert
         var message = cut.Find("[data-testid='offer-expired-message']");
         Assert.Contains("Offer expired", message.TextContent);
+    }
+
+    [Fact]
+    public async Task GivenJobOfferExpiredEventWithMatchingOfferId_WhenHandledByComponent_ThenNavigateToRepIdleViewIsInvoked()
+    {
+        // Arrange
+        // BUG-037 / AC-2 (component): the page registers an OnJobOfferExpired callback with the hub on
+        // init. When the server pushes JobOfferExpired for the on-screen offer, the page must dismiss
+        // to the idle view immediately — without the local countdown reaching zero. We capture the
+        // registered callback and invoke it with the on-screen offer's id to simulate the hub push.
+        var offerId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        Func<JobOfferExpiredPayload, Task>? expiredHandler = null;
+        _repHubService
+            .Setup(s => s.OnJobOfferExpired(It.IsAny<Func<JobOfferExpiredPayload, Task>>()))
+            .Callback<Func<JobOfferExpiredPayload, Task>>(h => expiredHandler = h);
+        RegisterPage(Offer() with { OfferId = offerId });
+        var cut = Render<JobOffer>();
+
+        // Act
+        await cut.InvokeAsync(() => expiredHandler!(new JobOfferExpiredPayload(offerId)));
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToRepIdleView(), Times.Once);
     }
 
     [Fact]

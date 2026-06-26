@@ -10,6 +10,7 @@
 @inject IPersonaNavigator Navigator
 @inject IJobOfferService JobOfferService
 @inject IDeclineOfferService DeclineOfferService
+@inject IRepHubService RepHubService
 @inject ShellViewModel Shell
 
 <div data-testid="job-offer">
@@ -99,6 +100,11 @@
             _viewModel = new JobOfferViewModel(offer, Navigator, JobOfferService, DeclineOfferService);
             _viewModel.StateChanged += OnViewModelStateChanged;
 
+            // BUG-037: subscribe to the server-pushed JobOfferExpired event so the offer screen
+            // dismisses the instant the backend expires the offer, instead of waiting for the local
+            // countdown to reach zero. The ViewModel ignores expiry events for any other offer.
+            RepHubService.OnJobOfferExpired(OnJobOfferExpiredAsync);
+
             // Consume the in-flight offer so a back-navigation to /rep/offer after the screen
             // dismisses does not re-show a stale offer (the navigator deposits a fresh one per event).
             JobOfferStore.ClearOffer();
@@ -131,6 +137,20 @@
     // directly so no real-time delay is needed. Delegates the countdown logic to the ViewModel — the
     // page only renders the result.
     public Task TickAsync() => _viewModel?.TickAsync() ?? Task.CompletedTask;
+
+    // BUG-037: hub callback for a server-pushed JobOfferExpired event. Marshalled onto the renderer
+    // because the SignalR callback fires off the render thread. The ViewModel decides whether this
+    // expiry targets the on-screen offer; we then re-render to reflect the dismissal.
+    private async Task OnJobOfferExpiredAsync(JobOfferExpiredPayload payload)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        await InvokeAsync(() => _viewModel.HandleJobOfferExpiredAsync(payload));
+        await InvokeAsync(StateHasChanged);
+    }
 
     private Task OnAcceptAsync() => _viewModel?.AcceptAsync() ?? Task.CompletedTask;
 

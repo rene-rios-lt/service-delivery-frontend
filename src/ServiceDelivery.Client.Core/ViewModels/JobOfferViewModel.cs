@@ -78,6 +78,27 @@ public class JobOfferViewModel
         _navigator.NavigateToRepIdleView();
     }
 
+    // BUG-037: handle the server-pushed JobOfferExpired event. When it targets the on-screen offer the
+    // server has expired it before the local countdown reached zero, so dismiss the screen immediately
+    // rather than waiting out the timer. A payload for any other offer (stale or out-of-order push) is
+    // ignored so it cannot dismiss the offer the rep is currently looking at (AC-3). Server-driven
+    // expiry joins the local countdown and the 409-on-accept path as a third "this offer is no longer
+    // actionable" route — all cohesive in this ViewModel.
+    public Task HandleJobOfferExpiredAsync(JobOfferExpiredPayload payload)
+    {
+        if (payload.OfferId != _offer.OfferId)
+        {
+            return Task.CompletedTask;
+        }
+
+        // Park the countdown at zero so a stray tick cannot fire a second navigation — TickAsync's
+        // zero-guard then short-circuits any further decrement.
+        SecondsRemaining = 0;
+        _navigator.NavigateToRepIdleView();
+
+        return Task.CompletedTask;
+    }
+
     public Task TickAsync()
     {
         if (SecondsRemaining == 0)

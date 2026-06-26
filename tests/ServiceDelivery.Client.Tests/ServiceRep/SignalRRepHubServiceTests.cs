@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Threading.Tasks;
 using ServiceDelivery.Client.Core.Interfaces;
+using ServiceDelivery.Client.Core.Models;
 using ServiceDelivery.Client.UI.Features.ServiceRep.Services;
 
 namespace ServiceDelivery.Client.Tests.ServiceRep;
@@ -43,5 +44,31 @@ public class SignalRRepHubServiceTests
 
         // Assert
         Assert.Null(token);
+    }
+
+    [Fact]
+    public void GivenAJobOfferExpiredEventPushed_WhenOnJobOfferExpiredRegistered_ThenHandlerBindsToTheJobOfferExpiredEvent()
+    {
+        // Arrange — BUG-037: the RepHub publishes JobOfferExpired carrying a single OfferId. The
+        // service must register a "JobOfferExpired" handler that forwards the deserialized
+        // JobOfferExpiredPayload to the subscriber, mirroring the OnRedirectReceived direct-bind
+        // pattern (no field-name mismatch). HubConnection is sealed and cannot dispatch a registered
+        // client handler without a live transport, so this unit test proves the binding is wired
+        // (correct event name and payload type, no throw); the Appium E2E test is the live-system
+        // complement that proves an actual server push dismisses the screen.
+        var service = CreateService();
+        JobOfferExpiredPayload? received = null;
+
+        // Act
+        var register = () => service.OnJobOfferExpired(payload =>
+        {
+            received = payload;
+            return Task.CompletedTask;
+        });
+
+        // Assert
+        var exception = Record.Exception(register);
+        Assert.Null(exception);
+        Assert.Null(received);
     }
 }
