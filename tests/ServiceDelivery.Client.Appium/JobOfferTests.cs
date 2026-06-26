@@ -55,6 +55,27 @@ public sealed class JobOfferTests : AppiumTestBase
     }
 
     [Test]
+    public void GivenVehicleAbout100MilesFromRequest_WhenJobOfferArrives_ThenDistanceAndEtaShowRealValues()
+    {
+        // Arrange
+        // BackendApiHelper positions the fleet at the start point and submits the request ~100 mi east,
+        // so the backend computes a real Haversine distance (~100 mi) and ETA (~100 min at 60 mph) —
+        // not the degenerate 0 mi / 0 min a co-located request produced.
+        TakeOverFirstIdleVehicle();
+        BackendApiHelper.SubmitServiceRequest(AppiumConfig.BackendBaseUrl);
+
+        // Act
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='tier-badge']")));
+        var distance = ParseLeadingNumber(Driver.FindElement(By.CssSelector("[data-testid='distance-miles']")).Text);
+        var eta = ParseLeadingNumber(Driver.FindElement(By.CssSelector("[data-testid='eta-minutes']")).Text);
+        TestContext.Progress.WriteLine($"[offer] distance={distance} mi, eta={eta} min");
+
+        // Assert — real, non-zero values in the ~100 mi band (not the old co-located 0/0).
+        Assert.That(distance, Is.GreaterThan(50).And.LessThan(150));
+        Assert.That(eta, Is.GreaterThan(50).And.LessThan(150));
+    }
+
+    [Test]
     public void GivenJobOfferScreenShown_WhenAcceptTapped_ThenActiveJobScreenIsShown()
     {
         // Arrange
@@ -93,5 +114,14 @@ public sealed class JobOfferTests : AppiumTestBase
         return int.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
             ? value
             : int.MaxValue;
+    }
+
+    // Reads the leading numeric part of a stat tile (e.g. "99.8MILES" -> 99.8, "100MIN ETA" -> 100).
+    private static double ParseLeadingNumber(string text)
+    {
+        var prefix = new string(text.TakeWhile(c => char.IsDigit(c) || c == '.').ToArray());
+        return double.TryParse(prefix, NumberStyles.Any, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : 0;
     }
 }
