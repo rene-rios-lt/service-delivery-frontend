@@ -19,6 +19,9 @@ public class ShellViewModel
     private readonly IShellPresentation _presentation;
     private readonly PersonaMenuFactory _menuFactory;
 
+    private const string DefaultTitle = "Service Delivery";
+    private string? _titleOverride;
+
     public ShellViewModel(
         ITokenStore tokenStore,
         IPersonaNavigator navigator,
@@ -41,6 +44,18 @@ public class ShellViewModel
 
     public bool IsMenuOpen { get; private set; }
 
+    /// <summary>
+    /// The app-bar title. Defaults to "Service Delivery"; a route may override it for its own screen
+    /// (e.g. "Incoming Job Offer" on the job-offer view — BUG-036) via <see cref="SetTitle"/>.
+    /// </summary>
+    public string Title => _titleOverride ?? DefaultTitle;
+
+    /// <summary>
+    /// Whether the app-bar menu affordance (the hamburger) is shown. The job-offer screen hides it so
+    /// the rep stays focused on accept/decline, matching the mockup (BUG-036). Defaults to visible.
+    /// </summary>
+    public bool IsMenuAffordanceVisible { get; private set; } = true;
+
     public void Load(UserProfile profile)
     {
         Menu = _menuFactory.Build(profile);
@@ -50,6 +65,18 @@ public class ShellViewModel
     {
         IsMenuOpen = !IsMenuOpen;
     }
+
+    /// <summary>
+    /// Overrides the app-bar title for the current route. Pass <c>null</c> to restore the default
+    /// ("Service Delivery"). The route that sets an override owns clearing it when it leaves.
+    /// </summary>
+    public void SetTitle(string? title) => _titleOverride = title;
+
+    /// <summary>
+    /// Shows or hides the app-bar menu affordance (the hamburger) for the current route. Defaults to
+    /// visible; the route that hides it owns restoring it when it leaves.
+    /// </summary>
+    public void SetMenuAffordanceVisible(bool visible) => IsMenuAffordanceVisible = visible;
 
     /// <summary>
     /// Replaces the current menu with a copy carrying the supplied vehicle-context line (e.g.

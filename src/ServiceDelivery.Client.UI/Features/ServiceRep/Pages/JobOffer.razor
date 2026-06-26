@@ -10,6 +10,7 @@
 @inject IPersonaNavigator Navigator
 @inject IJobOfferService JobOfferService
 @inject IDeclineOfferService DeclineOfferService
+@inject ShellViewModel Shell
 
 <div data-testid="job-offer">
     @if (_viewModel is not null)
@@ -34,19 +35,21 @@
                      data-lng="@_viewModel.Lng.ToString(CultureInfo.InvariantCulture)"></div>
             </div>
         </div>
-        <div class="sd-card__title" data-testid="requester-name">@_viewModel.RequesterName</div>
-        <span class="sd-badge @TierBadgeClass" data-testid="tier-badge">
-            <span class="sd-badge__icon">★</span>@_viewModel.Tier.ToString().ToUpperInvariant()
-        </span>
-        <div class="sd-card__body sd-muted" data-testid="dtc-title">@_viewModel.DtcTitle</div>
-        <div class="sd-flex sd-gap12">
-            <div class="sd-eta" data-testid="distance-miles">
-                <span class="sd-eta__num">@_viewModel.DistanceMiles.ToString("0.0", CultureInfo.InvariantCulture)</span>
-                <span class="sd-eta__lbl">MILES</span>
-            </div>
-            <div class="sd-eta" data-testid="eta-minutes">
-                <span class="sd-eta__num">@_viewModel.EtaMinutes</span>
-                <span class="sd-eta__lbl">MIN ETA</span>
+        <div class="sd-card" data-testid="offer-card">
+            <div class="sd-card__title" data-testid="requester-name">@_viewModel.RequesterName</div>
+            <span class="sd-badge @TierBadgeClass" data-testid="tier-badge">
+                <span class="sd-badge__icon">★</span>@_viewModel.Tier.ToString().ToUpperInvariant()
+            </span>
+            <div class="sd-card__body sd-muted" data-testid="dtc-title">@_viewModel.DtcTitle</div>
+            <div class="sd-flex sd-gap12">
+                <div class="sd-eta" data-testid="distance-miles">
+                    <span class="sd-eta__num">@_viewModel.DistanceMiles.ToString("0.0", CultureInfo.InvariantCulture)</span>
+                    <span class="sd-eta__lbl">MILES</span>
+                </div>
+                <div class="sd-eta" data-testid="eta-minutes">
+                    <span class="sd-eta__num">@_viewModel.EtaMinutes</span>
+                    <span class="sd-eta__lbl">MIN ETA</span>
+                </div>
             </div>
         </div>
 
@@ -99,6 +102,18 @@
             // Consume the in-flight offer so a back-navigation to /rep/offer after the screen
             // dismisses does not re-show a stale offer (the navigator deposits a fresh one per event).
             JobOfferStore.ClearOffer();
+
+            // App-bar chrome for an incoming offer (BUG-036): the offer screen is its own moment, not
+            // the idle "on shift" state. Override the title, hide the hamburger (keep the rep focused
+            // on accept/decline), and drop RepIdle's "· On shift" status suffix from the vehicle line
+            // so the subtitle shows the vehicle identity only. Restored in Dispose when we leave.
+            Shell.SetTitle("Incoming Job Offer");
+            Shell.SetMenuAffordanceVisible(false);
+            var vehicleLine = Shell.Menu?.VehicleContext;
+            if (!string.IsNullOrEmpty(vehicleLine))
+            {
+                Shell.SetVehicleContext(vehicleLine.Split(" · ", 2)[0]);
+            }
         }
     }
 
@@ -130,5 +145,10 @@
         {
             _viewModel.StateChanged -= OnViewModelStateChanged;
         }
+
+        // Restore the default app-bar chrome so the next route (active job / idle) is unaffected by
+        // the offer screen's title override and hidden hamburger (BUG-036).
+        Shell.SetTitle(null);
+        Shell.SetMenuAffordanceVisible(true);
     }
 }

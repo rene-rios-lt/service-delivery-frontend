@@ -130,6 +130,38 @@ public class PersonaShellComponentTests
     }
 
     [Fact]
+    public async Task GivenATitleOverride_WhenShellRenders_ThenAppBarShowsTheOverriddenTitle()
+    {
+        // Arrange
+        // BUG-036: a route (the job-offer screen) can override the app-bar title.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+        vm.SetTitle("Incoming Job Offer");
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.Equal("Incoming Job Offer", cut.Find("[data-testid='appbar-title']").TextContent.Trim());
+    }
+
+    [Fact]
+    public async Task GivenTheMenuAffordanceHidden_WhenShellRenders_ThenNoMenuAffordanceIsRendered()
+    {
+        // Arrange
+        // BUG-036: the offer screen hides the hamburger to match the mockup.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+        vm.SetMenuAffordanceVisible(false);
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.Empty(cut.FindAll("[data-testid='appbar-menu-affordance']"));
+    }
+
+    [Fact]
     public async Task GivenTheMenuAffordance_WhenClicked_ThenTheMenuStateToggles()
     {
         // Arrange

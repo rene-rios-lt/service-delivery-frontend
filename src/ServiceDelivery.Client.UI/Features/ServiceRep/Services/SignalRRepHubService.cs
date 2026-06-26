@@ -40,8 +40,13 @@ public sealed class SignalRRepHubService : IRepHubService, IAsyncDisposable
     /// </summary>
     public Task<string?> ProvideAccessTokenAsync() => _tokenStore.GetTokenAsync();
 
+    // The backend sends JobOfferReceived in its own field names/types (RequesterTier string,
+    // Latitude/Longitude, EtaMinutes double), so we deserialize into the matching wire DTO and map it
+    // to the clean JobOfferPayload before handing it to the subscriber. Binding the event straight to
+    // JobOfferPayload silently defaulted Tier (→ None, invisible badge), Lat, Lng and ETA (BUG-036).
     public void OnJobOfferReceived(Func<JobOfferPayload, Task> handler) =>
-        _connection.On(JobOfferReceivedEvent, handler);
+        _connection.On<JobOfferReceivedWirePayload>(
+            JobOfferReceivedEvent, wire => handler(wire.ToJobOfferPayload()));
 
     public void OnRedirectReceived(Func<RedirectPayload, Task> handler) =>
         _connection.On(RedirectReceivedEvent, handler);

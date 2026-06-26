@@ -4,6 +4,7 @@ using MudBlazor.Services;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
 using ServiceDelivery.Client.Core.Services;
+using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.UI.Features.ServiceRep.Pages;
 
 namespace ServiceDelivery.Client.Tests.ServiceRep;
@@ -15,6 +16,14 @@ public class JobOfferComponentTests : BunitContext
     private readonly Mock<IDeclineOfferService> _declineOfferService = new();
     private readonly InMemoryJobOfferStore _store = new();
 
+    // ShellViewModel collaborators — the page now drives the shared app-bar chrome (BUG-036), so the
+    // page test registers a real ShellViewModel with a loaded menu (mirrors RepIdleComponentTests).
+    private readonly Mock<ITokenStore> _tokenStore = new();
+    private readonly Mock<ILogoutSideEffect> _sideEffect = new();
+    private readonly Mock<IReleaseVehicleAction> _releaseAction = new();
+    private readonly Mock<IShellPresentation> _presentation = new();
+    private ShellViewModel _shell = default!;
+
     private static JobOfferPayload Offer(
         string requesterName = "Marcus",
         ServiceTier tier = ServiceTier.Gold,
@@ -25,7 +34,7 @@ public class JobOfferComponentTests : BunitContext
         double lng = -93.6) =>
         new(Guid.NewGuid(), requesterName, tier, dtcTitle, distanceMiles, etaMinutes, lat, lng);
 
-    private void RegisterPage(JobOfferPayload offer)
+    private void RegisterPage(JobOfferPayload offer, string? vehicleContext = null)
     {
         Services.AddMudServices();
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -33,6 +42,20 @@ public class JobOfferComponentTests : BunitContext
         Services.AddSingleton(_navigator.Object);
         Services.AddSingleton(_jobOfferService.Object);
         Services.AddSingleton(_declineOfferService.Object);
+
+        _presentation.SetupGet(p => p.MenuStyle).Returns(ShellMenuStyle.Drawer);
+        _shell = new ShellViewModel(
+            _tokenStore.Object, _navigator.Object, _sideEffect.Object,
+            _releaseAction.Object, _presentation.Object, new PersonaMenuFactory());
+        _shell.Load(new UserProfile(
+            Guid.NewGuid(), "Rosa Alvarez", UserRole.ServiceRep, ServiceTier.None, Guid.NewGuid()));
+        // Simulate the subtitle RepIdle leaves behind when the rep is on shift, so the offer screen's
+        // "drop · On shift" behaviour (AC-2) can be exercised.
+        if (vehicleContext is not null)
+        {
+            _shell.SetVehicleContext(vehicleContext);
+        }
+        Services.AddSingleton(_shell);
 
         // Default decline outcome so the Decline button is clickable in tests that do not exercise
         // the decline path (FE-010). Decline-path tests override this per scenario.
@@ -70,6 +93,113 @@ public class JobOfferComponentTests : BunitContext
         var badge = cut.Find("[data-testid='tier-badge']");
         Assert.Contains("GOLD", badge.TextContent);
         Assert.Contains("sd-badge--gold", badge.ClassList);
+    }
+
+    [Fact]
+    public void GivenASilverTierOffer_WhenJobOfferPageRendered_ThenSilverTierBadgeIsVisible()
+    {
+        // Arrange
+        RegisterPage(Offer(tier: ServiceTier.Silver));
+
+        // Act
+        var cut = Render<JobOffer>();
+
+        // Assert
+        var badge = cut.Find("[data-testid='tier-badge']");
+        Assert.Contains("SILVER", badge.TextContent);
+        Assert.Contains("sd-badge--silver", badge.ClassList);
+    }
+
+    [Fact]
+    public void GivenABronzeTierOffer_WhenJobOfferPageRendered_ThenBronzeTierBadgeIsVisible()
+    {
+        // Arrange
+        RegisterPage(Offer(tier: ServiceTier.Bronze));
+
+        // Act
+        var cut = Render<JobOffer>();
+
+        // Assert
+        var badge = cut.Find("[data-testid='tier-badge']");
+        Assert.Contains("BRONZE", badge.TextContent);
+        Assert.Contains("sd-badge--bronze", badge.ClassList);
+    }
+
+    [Fact]
+    public void GivenAJobOffer_WhenJobOfferPageRendered_ThenContentIsGroupedInAnElevatedCard()
+    {
+        // Arrange
+        // AC-3: the requester / tier / fault / metrics block sits inside a single elevated card.
+        RegisterPage(Offer());
+
+        // Act
+        var cut = Render<JobOffer>();
+
+        // Assert
+        var card = cut.Find("[data-testid='offer-card']");
+        Assert.Contains("sd-card", card.ClassList);
+        Assert.NotNull(card.QuerySelector("[data-testid='requester-name']"));
+        Assert.NotNull(card.QuerySelector("[data-testid='tier-badge']"));
+        Assert.NotNull(card.QuerySelector("[data-testid='eta-minutes']"));
+    }
+
+    [Fact]
+    public void GivenAJobOfferPage_WhenInitialized_ThenShellTitleIsIncomingJobOffer()
+    {
+        // Arrange
+        // AC-4: the offer route overrides the app-bar title to match the mockup.
+        RegisterPage(Offer());
+
+        // Act
+        Render<JobOffer>();
+
+        // Assert
+        Assert.Equal("Incoming Job Offer", _shell.Title);
+    }
+
+    [Fact]
+    public void GivenAJobOfferPage_WhenInitialized_ThenShellMenuAffordanceIsHidden()
+    {
+        // Arrange
+        // AC-4: the mockup shows no hamburger on the offer screen.
+        RegisterPage(Offer());
+
+        // Act
+        Render<JobOffer>();
+
+        // Assert
+        Assert.False(_shell.IsMenuAffordanceVisible);
+    }
+
+    [Fact]
+    public void GivenAnOnShiftSubtitle_WhenJobOfferPageInitialized_ThenSubtitleDropsTheOnShiftSuffix()
+    {
+        // Arrange
+        // AC-2: the offer screen must not show the stale "· On shift" subtitle left by the idle view.
+        RegisterPage(Offer(), vehicleContext: "Vehicle V-001 · On shift");
+
+        // Act
+        Render<JobOffer>();
+
+        // Assert
+        Assert.Equal("Vehicle V-001", _shell.Menu!.VehicleContext);
+        Assert.DoesNotContain("On shift", _shell.Menu!.VehicleContext);
+    }
+
+    [Fact]
+    public void GivenAJobOfferPage_WhenDisposed_ThenShellChromeIsRestored()
+    {
+        // Arrange
+        // Leaving the offer screen restores the default chrome so later routes are unaffected.
+        RegisterPage(Offer());
+        var cut = Render<JobOffer>();
+
+        // Act
+        cut.Instance.Dispose();
+
+        // Assert
+        Assert.Equal("Service Delivery", _shell.Title);
+        Assert.True(_shell.IsMenuAffordanceVisible);
     }
 
     [Fact]

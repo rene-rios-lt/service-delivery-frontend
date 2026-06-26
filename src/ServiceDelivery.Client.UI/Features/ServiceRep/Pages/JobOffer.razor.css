@@ -99,6 +99,19 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Elevated content card grouping requester / tier / fault / metrics (BUG-036).
+   Matches the white elevated card in the mockup; same elevation language as the
+   idle vehicle card (RepIdle.razor.css).
+--------------------------------------------------------------------------- */
+.sd-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(27, 29, 41, .08);
+    padding: 16px;
+    margin: 12px 0;
+}
+
+/* ---------------------------------------------------------------------------
    Requester card text.
 --------------------------------------------------------------------------- */
 .sd-card__title {
