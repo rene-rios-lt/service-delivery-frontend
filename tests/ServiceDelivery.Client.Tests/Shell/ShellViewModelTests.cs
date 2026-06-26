@@ -25,6 +25,66 @@ public class ShellViewModelTests
     }
 
     [Fact]
+    public void GivenANewShell_WhenTitleRead_ThenReturnsTheDefaultTitle()
+    {
+        // Arrange
+        var vm = CreateViewModel();
+
+        // Act & Assert
+        Assert.Equal("Service Delivery", vm.Title);
+    }
+
+    [Fact]
+    public void GivenATitleOverride_WhenTitleRead_ThenReturnsTheOverride()
+    {
+        // Arrange
+        var vm = CreateViewModel();
+
+        // Act
+        vm.SetTitle("Incoming Job Offer");
+
+        // Assert
+        Assert.Equal("Incoming Job Offer", vm.Title);
+    }
+
+    [Fact]
+    public void GivenATitleOverride_WhenClearedWithNull_ThenReturnsTheDefaultTitle()
+    {
+        // Arrange
+        var vm = CreateViewModel();
+        vm.SetTitle("Incoming Job Offer");
+
+        // Act
+        vm.SetTitle(null);
+
+        // Assert
+        Assert.Equal("Service Delivery", vm.Title);
+    }
+
+    [Fact]
+    public void GivenANewShell_WhenIsMenuAffordanceVisibleRead_ThenItIsTrueByDefault()
+    {
+        // Arrange
+        var vm = CreateViewModel();
+
+        // Act & Assert
+        Assert.True(vm.IsMenuAffordanceVisible);
+    }
+
+    [Fact]
+    public void GivenTheMenuAffordanceHidden_WhenIsMenuAffordanceVisibleRead_ThenItIsFalse()
+    {
+        // Arrange
+        var vm = CreateViewModel();
+
+        // Act
+        vm.SetMenuAffordanceVisible(false);
+
+        // Assert
+        Assert.False(vm.IsMenuAffordanceVisible);
+    }
+
+    [Fact]
     public async Task GivenAnAuthenticatedSession_WhenLogoutAsyncCalled_ThenTokenStoreIsCleared()
     {
         // Arrange

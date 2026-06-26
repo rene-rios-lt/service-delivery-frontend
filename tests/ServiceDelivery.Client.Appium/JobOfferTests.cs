@@ -36,6 +36,25 @@ public sealed class JobOfferTests : AppiumTestBase
     }
 
     [Test]
+    public void GivenRequesterSubmitsGoldRequest_WhenJobOfferArrives_ThenTierBadgeIsVisibleAndShowsGold()
+    {
+        // Arrange
+        // BUG-036: the backend sends the tier as RequesterTier (enum-name string); the offer must
+        // render a visible, gold-coloured tier pill (not the white-on-white badge that resulted from
+        // the field-name mismatch defaulting Tier to None). BackendApiHelper submits a Gold request.
+        TakeOverFirstIdleVehicle();
+        BackendApiHelper.SubmitServiceRequest(AppiumConfig.BackendBaseUrl);
+
+        // Act
+        var badge = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='tier-badge']")));
+
+        // Assert
+        Assert.That(badge.Displayed, Is.True);
+        Assert.That(badge.Text.ToUpperInvariant(), Does.Contain("GOLD"));
+        Assert.That(badge.GetAttribute("class"), Does.Contain("sd-badge--gold"));
+    }
+
+    [Test]
     public void GivenJobOfferScreenShown_WhenAcceptTapped_ThenActiveJobScreenIsShown()
     {
         // Arrange

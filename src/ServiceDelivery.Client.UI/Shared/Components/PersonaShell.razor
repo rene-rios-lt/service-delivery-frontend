@@ -11,17 +11,20 @@
     <MudAppBar Elevation="2" Class="sd-appbar" Fixed="false">
         <div class="sd-appbar__logo">🚐</div>
         <div>
-            <div data-testid="appbar-title" class="sd-appbar__title">Service Delivery</div>
+            <div data-testid="appbar-title" class="sd-appbar__title">@ViewModel.Title</div>
             <div data-testid="appbar-context" class="sd-appbar__sub">@ContextSubtitle</div>
         </div>
         <MudSpacer />
         <div class="sd-appbar__controls">
-            <MudIconButton data-testid="appbar-menu-affordance"
-                           id="appbar-menu-affordance"
-                           Icon="@MenuIcon"
-                           Color="Color.Inherit"
-                           OnClick="ViewModel.ToggleMenu"
-                           Class="sd-appbar__action" />
+            @if (ViewModel.IsMenuAffordanceVisible)
+            {
+                <MudIconButton data-testid="appbar-menu-affordance"
+                               id="appbar-menu-affordance"
+                               Icon="@MenuIcon"
+                               Color="Color.Inherit"
+                               OnClick="ViewModel.ToggleMenu"
+                               Class="sd-appbar__action" />
+            }
             @if (ViewModel.Menu is not null)
             {
                 <MudAvatar data-testid="appbar-avatar" Class="sd-avatar">@Initials</MudAvatar>
