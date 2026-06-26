@@ -130,6 +130,76 @@ public class PersonaShellComponentTests
     }
 
     [Fact]
+    public async Task GivenShellViewModelInFocusedMode_WhenPersonaShellRenders_ThenTitleIsOverride()
+    {
+        // Arrange
+        // AC-4: on the job-offer screen the shell enters focused mode — the app-bar title shows the
+        // supplied override ("Incoming Job Offer") instead of the default "Service Delivery".
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+        vm.SetFocusedMode("Incoming Job Offer", "Vehicle IA-4471");
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.Contains("Incoming Job Offer", cut.Find("[data-testid='appbar-title']").TextContent);
+    }
+
+    [Fact]
+    public async Task GivenShellViewModelInFocusedMode_WhenPersonaShellRenders_ThenMenuAffordanceIsAbsentButAvatarRemains()
+    {
+        // Arrange
+        // AC-4 (corrected to match the mockup exactly): focused mode hides ONLY the hamburger/menu
+        // affordance. The persona avatar ("RA") stays visible — it renders whenever a menu model is
+        // loaded, independent of the suppress flag.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+        vm.SetFocusedMode("Incoming Job Offer", "Vehicle IA-4471");
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.Empty(cut.FindAll("[data-testid='appbar-menu-affordance']"));
+        Assert.NotNull(cut.Find("[data-testid='appbar-avatar']"));
+    }
+
+    [Fact]
+    public async Task GivenShellInFocusedModeThenCleared_WhenPersonaShellRenders_ThenTitleIsServiceDelivery()
+    {
+        // Arrange
+        // Leaving the offer screen clears focused mode; the app bar reverts to the default title.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+        vm.SetFocusedMode("Incoming Job Offer", "Vehicle IA-4471");
+        vm.ClearFocusedMode();
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.Contains("Service Delivery", cut.Find("[data-testid='appbar-title']").TextContent);
+    }
+
+    [Fact]
+    public async Task GivenShellInFocusedModeThenCleared_WhenPersonaShellRenders_ThenMenuAffordanceAndAvatarArePresent()
+    {
+        // Arrange
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+        vm.SetFocusedMode("Incoming Job Offer", "Vehicle IA-4471");
+        vm.ClearFocusedMode();
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.NotNull(cut.Find("[data-testid='appbar-menu-affordance']"));
+        Assert.NotNull(cut.Find("[data-testid='appbar-avatar']"));
+    }
+
+    [Fact]
     public async Task GivenTheMenuAffordance_WhenClicked_ThenTheMenuStateToggles()
     {
         // Arrange

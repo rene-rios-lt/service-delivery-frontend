@@ -41,6 +41,18 @@ public class ShellViewModel
 
     public bool IsMenuOpen { get; private set; }
 
+    /// <summary>
+    /// When non-null, the app bar renders this string instead of the default "Service Delivery"
+    /// title. Set by <see cref="SetFocusedMode"/> for focused decision screens (e.g. the job offer).
+    /// </summary>
+    public string? TitleOverride { get; private set; }
+
+    /// <summary>
+    /// When <c>true</c>, the app bar hides both the menu (hamburger) affordance and the persona
+    /// avatar. Used on focused decision screens where the menu is irrelevant (BUG-036 AC-4).
+    /// </summary>
+    public bool SuppressMenuAffordance { get; private set; }
+
     public void Load(UserProfile profile)
     {
         Menu = _menuFactory.Build(profile);
@@ -64,6 +76,29 @@ public class ShellViewModel
         }
 
         Menu = Menu with { VehicleContext = vehicleContext };
+    }
+
+    /// <summary>
+    /// Enters focused mode: overrides the app-bar title, suppresses the menu affordance + avatar, and
+    /// sets the subtitle to <paramref name="subtitle"/>. The job-offer screen calls this on init so the
+    /// app bar reads "Incoming Job Offer" / "Vehicle IA-4471" with no menu chrome (BUG-036 AC-2, AC-4).
+    /// </summary>
+    public void SetFocusedMode(string titleOverride, string subtitle)
+    {
+        TitleOverride = titleOverride;
+        SuppressMenuAffordance = true;
+        SetVehicleContext(subtitle);
+    }
+
+    /// <summary>
+    /// Exits focused mode, restoring the default "Service Delivery" title and the menu affordance +
+    /// avatar. Called when leaving the focused screen (accept, decline, or offer expiry) so the normal
+    /// shell chrome returns. Leaves the vehicle context untouched — the underlying claim is unchanged.
+    /// </summary>
+    public void ClearFocusedMode()
+    {
+        TitleOverride = null;
+        SuppressMenuAffordance = false;
     }
 
     public async Task LogoutAsync()

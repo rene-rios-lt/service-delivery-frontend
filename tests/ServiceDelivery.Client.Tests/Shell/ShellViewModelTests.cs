@@ -130,6 +130,57 @@ public class ShellViewModelTests
     }
 
     [Fact]
+    public void GivenALoadedShell_WhenSetFocusedModeCalled_ThenTitleOverrideAndSuppressFlagAreSet()
+    {
+        // Arrange
+        // AC-4: the job-offer screen is a focused accept/decline decision — the app bar overrides its
+        // title and hides the menu affordance + avatar while the offer is on screen.
+        var profile = new UserProfile(Guid.NewGuid(), "Rosa Alvarez", UserRole.ServiceRep, ServiceTier.None, Guid.NewGuid());
+        var vm = CreateViewModel();
+        vm.Load(profile);
+
+        // Act
+        vm.SetFocusedMode("Incoming Job Offer", "Vehicle IA-4471");
+
+        // Assert
+        Assert.Equal("Incoming Job Offer", vm.TitleOverride);
+        Assert.True(vm.SuppressMenuAffordance);
+    }
+
+    [Fact]
+    public void GivenALoadedShell_WhenSetFocusedModeCalled_ThenSubtitleIsPassedToVehicleContext()
+    {
+        // Arrange
+        var profile = new UserProfile(Guid.NewGuid(), "Rosa Alvarez", UserRole.ServiceRep, ServiceTier.None, Guid.NewGuid());
+        var vm = CreateViewModel();
+        vm.Load(profile);
+
+        // Act
+        vm.SetFocusedMode("Incoming Job Offer", "Vehicle IA-4471");
+
+        // Assert
+        Assert.Equal("Vehicle IA-4471", vm.Menu!.VehicleContext);
+    }
+
+    [Fact]
+    public void GivenShellInFocusedMode_WhenClearFocusedModeCalled_ThenTitleOverrideIsNullAndSuppressFlagIsFalse()
+    {
+        // Arrange
+        // Navigating away from the offer screen (accept, decline, or expiry) restores normal chrome.
+        var profile = new UserProfile(Guid.NewGuid(), "Rosa Alvarez", UserRole.ServiceRep, ServiceTier.None, Guid.NewGuid());
+        var vm = CreateViewModel();
+        vm.Load(profile);
+        vm.SetFocusedMode("Incoming Job Offer", "Vehicle IA-4471");
+
+        // Act
+        vm.ClearFocusedMode();
+
+        // Assert
+        Assert.Null(vm.TitleOverride);
+        Assert.False(vm.SuppressMenuAffordance);
+    }
+
+    [Fact]
     public void GivenAnOpenMenu_WhenToggleMenuCalled_ThenMenuStateFlips()
     {
         // Arrange

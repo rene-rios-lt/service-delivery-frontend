@@ -10,6 +10,7 @@
 @inject IPersonaNavigator Navigator
 @inject IJobOfferService JobOfferService
 @inject IDeclineOfferService DeclineOfferService
+@inject ShellViewModel Shell
 
 <div data-testid="job-offer">
     @if (_viewModel is not null)
@@ -34,19 +35,24 @@
                      data-lng="@_viewModel.Lng.ToString(CultureInfo.InvariantCulture)"></div>
             </div>
         </div>
-        <div class="sd-card__title" data-testid="requester-name">@_viewModel.RequesterName</div>
-        <span class="sd-badge @TierBadgeClass" data-testid="tier-badge">
-            <span class="sd-badge__icon">★</span>@_viewModel.Tier.ToString().ToUpperInvariant()
-        </span>
-        <div class="sd-card__body sd-muted" data-testid="dtc-title">@_viewModel.DtcTitle</div>
-        <div class="sd-flex sd-gap12">
-            <div class="sd-eta" data-testid="distance-miles">
-                <span class="sd-eta__num">@_viewModel.DistanceMiles.ToString("0.0", CultureInfo.InvariantCulture)</span>
-                <span class="sd-eta__lbl">MILES</span>
-            </div>
-            <div class="sd-eta" data-testid="eta-minutes">
-                <span class="sd-eta__num">@_viewModel.EtaMinutes</span>
-                <span class="sd-eta__lbl">MIN ETA</span>
+        <div class="sd-card sd-card__body">
+            <div class="sd-card__title" data-testid="requester-name">@_viewModel.RequesterName</div>
+            <span class="sd-badge @TierBadgeClass" data-testid="tier-badge">
+                <span class="sd-badge__icon">★</span>@_viewModel.Tier.ToString().ToUpperInvariant()
+            </span>
+            @* AC-5: the mockup prefixes the fault with the technical DTC code ("P0700 · …") but
+               persona-views.md specifies human-readable fault titles with no technical codes — so the
+               page renders DtcTitle verbatim and the "P0700 ·" prefix in the mockup is non-authoritative. *@
+            <div class="sd-muted" data-testid="dtc-title">@_viewModel.DtcTitle</div>
+            <div class="sd-flex sd-gap12">
+                <div class="sd-eta" data-testid="distance-miles">
+                    <span class="sd-eta__num">@_viewModel.DistanceMiles.ToString("0.0", CultureInfo.InvariantCulture)</span>
+                    <span class="sd-eta__lbl">MILES</span>
+                </div>
+                <div class="sd-eta" data-testid="eta-minutes">
+                    <span class="sd-eta__num">@_viewModel.EtaMinutes</span>
+                    <span class="sd-eta__lbl">MIN ETA</span>
+                </div>
             </div>
         </div>
 
@@ -73,6 +79,7 @@
 
 @code {
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
+    private const string OnShiftSuffix = " · On shift";
 
     private JobOfferViewModel? _viewModel;
     private Timer? _countdownTimer;
@@ -100,6 +107,15 @@
             // dismisses does not re-show a stale offer (the navigator deposits a fresh one per event).
             JobOfferStore.ClearOffer();
         }
+
+        // Enter focused mode (BUG-036 AC-2, AC-4): the app bar reads "Incoming Job Offer" with the
+        // vehicle registration only (the idle screen's "· On shift" suffix is stripped) and no menu
+        // affordance or avatar — the offer is a focused accept/decline decision.
+        var existingContext = Shell.Menu?.VehicleContext ?? string.Empty;
+        var vehicleSubtitle = existingContext.EndsWith(OnShiftSuffix, StringComparison.Ordinal)
+            ? existingContext[..^OnShiftSuffix.Length]
+            : existingContext;
+        Shell.SetFocusedMode("Incoming Job Offer", vehicleSubtitle);
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -130,5 +146,8 @@
         {
             _viewModel.StateChanged -= OnViewModelStateChanged;
         }
+
+        // Leaving the offer screen (accept, decline, or expiry) restores the normal shell chrome.
+        Shell.ClearFocusedMode();
     }
 }

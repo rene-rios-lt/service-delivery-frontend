@@ -36,6 +36,24 @@ public sealed class JobOfferTests : AppiumTestBase
     }
 
     [Test]
+    public void GivenJobOfferArrives_WhenOfferScreenShown_ThenTierBadgeIsDisplayed()
+    {
+        // Arrange
+        // BUG-036 AC-1: the requester tier deserialized to ServiceTier.None (the backend sends the
+        // tier under the JSON key `requesterTier` as a string), so the tier badge rendered an empty
+        // modifier class and was invisible. Against the live system the badge must be visible on screen.
+        TakeOverFirstIdleVehicle();
+        BackendApiHelper.SubmitServiceRequest(AppiumConfig.BackendBaseUrl);
+
+        // Act
+        var tierBadge = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='tier-badge']")));
+
+        // Assert
+        Assert.That(tierBadge.Displayed, Is.True);
+        Assert.That(tierBadge.Text, Is.Not.Empty);
+    }
+
+    [Test]
     public void GivenJobOfferScreenShown_WhenAcceptTapped_ThenActiveJobScreenIsShown()
     {
         // Arrange

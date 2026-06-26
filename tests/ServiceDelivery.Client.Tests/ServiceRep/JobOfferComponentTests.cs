@@ -1,10 +1,13 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor.Services;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
 using ServiceDelivery.Client.Core.Services;
+using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.UI.Features.ServiceRep.Pages;
+using ServiceDelivery.Client.UI.Shared.Components;
 
 namespace ServiceDelivery.Client.Tests.ServiceRep;
 
@@ -14,6 +17,12 @@ public class JobOfferComponentTests : BunitContext
     private readonly Mock<IJobOfferService> _jobOfferService = new();
     private readonly Mock<IDeclineOfferService> _declineOfferService = new();
     private readonly InMemoryJobOfferStore _store = new();
+
+    private readonly Mock<ITokenStore> _tokenStore = new();
+    private readonly Mock<ILogoutSideEffect> _sideEffect = new();
+    private readonly Mock<IReleaseVehicleAction> _releaseAction = new();
+    private readonly Mock<IShellPresentation> _presentation = new();
+    private ShellViewModel _shell = default!;
 
     private static JobOfferPayload Offer(
         string requesterName = "Marcus",
@@ -25,7 +34,7 @@ public class JobOfferComponentTests : BunitContext
         double lng = -93.6) =>
         new(Guid.NewGuid(), requesterName, tier, dtcTitle, distanceMiles, etaMinutes, lat, lng);
 
-    private void RegisterPage(JobOfferPayload offer)
+    private void RegisterPage(JobOfferPayload offer, string? vehicleContext = null)
     {
         Services.AddMudServices();
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -34,6 +43,24 @@ public class JobOfferComponentTests : BunitContext
         Services.AddSingleton(_jobOfferService.Object);
         Services.AddSingleton(_declineOfferService.Object);
 
+        // A real ShellViewModel (concrete singleton, consistent with the app's wiring) so the page's
+        // OnInitialized SetFocusedMode call and Dispose ClearFocusedMode call are exercised end-to-end.
+        _presentation.SetupGet(p => p.MenuStyle).Returns(ShellMenuStyle.Drawer);
+        _shell = new ShellViewModel(
+            _tokenStore.Object,
+            _navigator.Object,
+            _sideEffect.Object,
+            _releaseAction.Object,
+            _presentation.Object,
+            new PersonaMenuFactory());
+        _shell.Load(new UserProfile(Guid.NewGuid(), "Rosa Alvarez", UserRole.ServiceRep, ServiceTier.None, Guid.NewGuid()));
+        if (vehicleContext is not null)
+        {
+            _shell.SetVehicleContext(vehicleContext);
+        }
+
+        Services.AddSingleton(_shell);
+
         // Default decline outcome so the Decline button is clickable in tests that do not exercise
         // the decline path (FE-010). Decline-path tests override this per scenario.
         _declineOfferService
@@ -41,6 +68,21 @@ public class JobOfferComponentTests : BunitContext
             .ReturnsAsync(DeclineOfferResult.Success);
 
         _store.SetOffer(offer);
+    }
+
+    // Renders the shared PersonaShell bound to the same ShellViewModel the page mutated, so the
+    // app-bar chrome (title override, suppressed menu/avatar, subtitle) can be asserted as rendered.
+    // PersonaShell pulls MudBlazor's PointerEventsNoneService (async-dispose only), so it renders in a
+    // dedicated `await using` context whose async disposal handles it cleanly — mirroring
+    // PersonaShellComponentTests. The page itself renders in the inherited context and mutates _shell.
+    private static IRenderedComponent<PersonaShell> RenderShell(BunitContext ctx, ShellViewModel shell)
+    {
+        ctx.Services.AddMudServices();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        RenderFragment body = builder => builder.AddMarkupContent(0, "<div data-testid='page-body'></div>");
+        return ctx.Render<PersonaShell>(p => p
+            .Add(c => c.ViewModel, shell)
+            .Add(c => c.Body, body));
     }
 
     [Fact]
@@ -70,6 +112,36 @@ public class JobOfferComponentTests : BunitContext
         var badge = cut.Find("[data-testid='tier-badge']");
         Assert.Contains("GOLD", badge.TextContent);
         Assert.Contains("sd-badge--gold", badge.ClassList);
+    }
+
+    [Fact]
+    public void GivenASilverTierOffer_WhenJobOfferPageRendered_ThenSilverBadgeHasModifierClassAndText()
+    {
+        // Arrange
+        RegisterPage(Offer(tier: ServiceTier.Silver));
+
+        // Act
+        var cut = Render<JobOffer>();
+
+        // Assert
+        var badge = cut.Find("[data-testid='tier-badge']");
+        Assert.Contains("SILVER", badge.TextContent);
+        Assert.Contains("sd-badge--silver", badge.ClassList);
+    }
+
+    [Fact]
+    public void GivenABronzeTierOffer_WhenJobOfferPageRendered_ThenBronzeBadgeHasModifierClassAndText()
+    {
+        // Arrange
+        RegisterPage(Offer(tier: ServiceTier.Bronze));
+
+        // Act
+        var cut = Render<JobOffer>();
+
+        // Assert
+        var badge = cut.Find("[data-testid='tier-badge']");
+        Assert.Contains("BRONZE", badge.TextContent);
+        Assert.Contains("sd-badge--bronze", badge.ClassList);
     }
 
     [Fact]
@@ -286,6 +358,116 @@ public class JobOfferComponentTests : BunitContext
         // Assert
         var message = cut.Find("[data-testid='offer-expired-message']");
         Assert.Contains("Offer expired", message.TextContent);
+    }
+
+    [Fact]
+    public void GivenAStoredOffer_WhenJobOfferPageRendered_ThenRequesterContentIsWrappedInSdCard()
+    {
+        // Arrange
+        // AC-3: the requester name, tier badge, DTC title and metric tiles must sit inside an elevated
+        // .sd-card surface (per the mockup) rather than floating flat on the page background.
+        RegisterPage(Offer());
+
+        // Act
+        var cut = Render<JobOffer>();
+
+        // Assert
+        var card = cut.Find(".sd-card");
+        Assert.NotNull(card.QuerySelector("[data-testid='requester-name']"));
+        Assert.NotNull(card.QuerySelector("[data-testid='tier-badge']"));
+        Assert.NotNull(card.QuerySelector("[data-testid='dtc-title']"));
+        Assert.NotNull(card.QuerySelector("[data-testid='distance-miles']"));
+        Assert.NotNull(card.QuerySelector("[data-testid='eta-minutes']"));
+    }
+
+    [Fact]
+    public async Task GivenJobOfferPageInitializes_WhenRendered_ThenAppBarTitleIsIncomingJobOffer()
+    {
+        // Arrange
+        // AC-4: the offer screen enters focused mode on init, overriding the app-bar title.
+        RegisterPage(Offer(), vehicleContext: "Vehicle IA-4471 · On shift");
+
+        // Act
+        Render<JobOffer>();
+        await using var shellCtx = new BunitContext();
+        var shell = RenderShell(shellCtx, _shell);
+
+        // Assert
+        Assert.Contains("Incoming Job Offer", shell.Find("[data-testid='appbar-title']").TextContent);
+    }
+
+    [Fact]
+    public async Task GivenRepIdleSetVehicleContextWithOnShift_WhenJobOfferPageInitializes_ThenSubtitleIsVehicleRegOnly()
+    {
+        // Arrange
+        // AC-2: the stale "· On shift" suffix from the idle screen's context is stripped — the offer
+        // subtitle reads the vehicle registration only.
+        RegisterPage(Offer(), vehicleContext: "Vehicle IA-4471 · On shift");
+
+        // Act
+        Render<JobOffer>();
+        await using var shellCtx = new BunitContext();
+        var shell = RenderShell(shellCtx, _shell);
+
+        // Assert
+        var subtitle = shell.Find("[data-testid='appbar-context']").TextContent;
+        Assert.Contains("Vehicle IA-4471", subtitle);
+        Assert.DoesNotContain("On shift", subtitle);
+    }
+
+    [Fact]
+    public async Task GivenJobOfferPageInitializes_WhenRendered_ThenMenuAffordanceIsNotPresent()
+    {
+        // Arrange
+        RegisterPage(Offer(), vehicleContext: "Vehicle IA-4471 · On shift");
+
+        // Act
+        Render<JobOffer>();
+        await using var shellCtx = new BunitContext();
+        var shell = RenderShell(shellCtx, _shell);
+
+        // Assert
+        Assert.Empty(shell.FindAll("[data-testid='appbar-menu-affordance']"));
+    }
+
+    [Fact]
+    public async Task GivenJobOfferPageInitializes_WhenRendered_ThenAvatarRemainsPresent()
+    {
+        // Arrange
+        // AC-4 (corrected): the persona avatar stays on the offer screen to match the mockup exactly —
+        // only the hamburger is suppressed in focused mode.
+        RegisterPage(Offer(), vehicleContext: "Vehicle IA-4471 · On shift");
+
+        // Act
+        Render<JobOffer>();
+        await using var shellCtx = new BunitContext();
+        var shell = RenderShell(shellCtx, _shell);
+
+        // Assert
+        Assert.NotNull(shell.Find("[data-testid='appbar-avatar']"));
+    }
+
+    [Fact]
+    public async Task GivenJobOfferPageDisposed_WhenLeavingOfferRoute_ThenShellChromeIsRestored()
+    {
+        // Arrange
+        // Leaving the offer screen (accept, decline, or expiry disposes the page) must restore the
+        // normal shell: default title and the menu affordance + avatar reappear. This proves
+        // ClearFocusedMode runs on dispose and the shell is not left stuck in focused mode (AC-4).
+        RegisterPage(Offer(), vehicleContext: "Vehicle IA-4471 · On shift");
+        var cut = Render<JobOffer>();
+
+        // Act
+        // Disposing the page is what the framework does when the rep navigates away from /rep/offer;
+        // the page's Dispose() must call Shell.ClearFocusedMode().
+        cut.Instance.Dispose();
+        await using var shellCtx = new BunitContext();
+        var shell = RenderShell(shellCtx, _shell);
+
+        // Assert
+        Assert.Contains("Service Delivery", shell.Find("[data-testid='appbar-title']").TextContent);
+        Assert.NotNull(shell.Find("[data-testid='appbar-menu-affordance']"));
+        Assert.NotNull(shell.Find("[data-testid='appbar-avatar']"));
     }
 
     [Fact]

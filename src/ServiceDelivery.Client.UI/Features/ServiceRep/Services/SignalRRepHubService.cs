@@ -1,4 +1,6 @@
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
 
@@ -28,6 +30,13 @@ public sealed class SignalRRepHubService : IRepHubService, IAsyncDisposable
         var hubUrl = new Uri(httpClient.BaseAddress!, RepHubPath);
         _connection = new HubConnectionBuilder()
             .WithUrl(hubUrl, options => options.AccessTokenProvider = ProvideAccessTokenAsync)
+            // The backend serializes JobOfferReceivedPayload.requesterTier as a string ("Gold"), so the
+            // RepHub connection must decode enums from their string form. This converter is scoped to
+            // this connection only — REST deserialization (integer-based ServiceTier on GET /users/me)
+            // is unaffected. Without it the tier deserialized to ServiceTier.None and the offer screen's
+            // tier badge rendered invisible (BUG-036 AC-1). Mirrors the JsonPropertyName on JobOfferPayload.
+            .AddJsonProtocol(options =>
+                options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
             .WithAutomaticReconnect()
             .Build();
     }
