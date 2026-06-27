@@ -130,7 +130,10 @@ public sealed class JobOfferTests : AppiumTestBase
         while (DateTime.UtcNow < deadline && availableIndicator is null)
         {
             countdownAtDismissal = Math.Min(countdownAtDismissal, ReadCountdown());
-            availableIndicator = WaitForSignalR(d =>
+            // BUG-040: non-throwing poll so this outer ~80 s loop governs the wait. The backend's
+            // JobOfferExpired sweep can take longer than a single 15 s SignalR budget; the throwing
+            // WaitForSignalR aborted the test on its first lap before the event ever arrived.
+            availableIndicator = TryWaitForSignalR(d =>
                 d.FindElements(By.CssSelector("[data-testid='available-indicator']")).FirstOrDefault());
         }
 

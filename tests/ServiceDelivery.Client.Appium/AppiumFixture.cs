@@ -247,6 +247,26 @@ public abstract class AppiumTestBase
     }
 
     /// <summary>
+    /// Non-throwing variant of <see cref="WaitForSignalR{TResult}"/> (BUG-040): returns
+    /// <c>default</c> (e.g. <c>null</c> for an element) instead of throwing
+    /// <see cref="OpenQA.Selenium.WebDriverTimeoutException"/> when the 15-second SignalR budget
+    /// elapses. This lets a caller's own outer retry loop govern the overall wait — e.g. waiting out
+    /// a server-pushed offer expiry that can take longer than a single budget — rather than aborting
+    /// the whole test on its first lap.
+    /// </summary>
+    protected TResult? TryWaitForSignalR<TResult>(Func<IOSDriver, TResult> condition)
+    {
+        try
+        {
+            return WaitForSignalR(condition);
+        }
+        catch (OpenQA.Selenium.WebDriverTimeoutException)
+        {
+            return default;
+        }
+    }
+
+    /// <summary>
     /// Logs in as a seeded rep account via the login screen and waits for the take-over screen to
     /// appear. Reused by every test class that needs an authenticated rep session as a precondition
     /// (AC-4 reuses the <c>rep1</c>–<c>rep8</c> seed accounts).
