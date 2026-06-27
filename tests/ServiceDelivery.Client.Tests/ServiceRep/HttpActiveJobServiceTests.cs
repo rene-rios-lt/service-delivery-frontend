@@ -6,24 +6,28 @@ namespace ServiceDelivery.Client.Tests.ServiceRep;
 
 public class HttpActiveJobServiceTests
 {
-    // Mirrors the REAL backend GET /service-requests/my-active response shape
-    // (ServiceDelivery.Application.Features.ServiceRequests.Queries.MyActiveServiceRequestDto):
-    // { requestId, tier, dtcTitle, status, repState, requesterLatitude, requesterLongitude, createdAt }.
-    // ASP.NET Core serializes property names as camelCase by default. `repState` (the rep's proximity:
-    // EnRoute/Within15Miles/OnSite) is DISTINCT from the request `status` and is what drives the
-    // "I've Arrived" enable rule — this fixture sets them to different values on purpose so a regression
-    // back to mapping RepState from `status` would fail the assertion below.
-    private const string MyActiveJson =
+    // Mirrors the REAL backend GET rep/active-job-state response shape (BE-030)
+    // (ServiceDelivery.Application.Features.ServiceRep.Queries.ActiveJobStateDto):
+    // { requestId, requesterName, dtcTitle, requesterLat, requesterLng, repLat, repLng, etaMinutes,
+    //   distanceMiles, tier, repState }. ASP.NET Core serializes property names as camelCase by default.
+    // Every field carries a DISTINCT, realistic value so a regression that faked rep position to the
+    // requester pin (old repLat==requesterLat), zeroed the ETA/distance, or dropped requesterName would
+    // fail the assertions below (anti-masking — BUG-016/036). `repState` (the rep's proximity:
+    // EnRoute/Within15Miles/OnSite) drives the "I've Arrived" enable rule.
+    private const string ActiveJobStateJson =
         """
         {
           "requestId": "a1111111-1111-1111-1111-111111111111",
-          "tier": "Gold",
+          "requesterName": "Marcus Webb",
           "dtcTitle": "P0700 · Transmission Control Fault",
-          "status": "Assigned",
-          "repState": "Within15Miles",
-          "requesterLatitude": 41.60,
-          "requesterLongitude": -93.60,
-          "createdAt": "2026-06-23T12:00:00Z"
+          "requesterLat": 41.60,
+          "requesterLng": -93.60,
+          "repLat": 41.72,
+          "repLng": -93.48,
+          "etaMinutes": 9,
+          "distanceMiles": 8.1,
+          "tier": "Gold",
+          "repState": "Within15Miles"
         }
         """;
 
@@ -55,11 +59,31 @@ public class HttpActiveJobServiceTests
         new(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
 
     [Fact]
-    public async Task GivenHttpActiveJobService_WhenGetActiveJobCalledAndSucceeds_ThenReturnsActiveJobContext()
+    public async Task GivenHttpActiveJobService_WhenGetActiveJobCalledAndSucceeds_ThenCallsActiveJobStateEndpoint()
     {
         // Arrange
-        // AC-5: the active-job view loads the rep's current job from GET /service-requests/my-active.
-        var handler = new StubHandler(HttpStatusCode.OK, MyActiveJson);
+        // BUG-039: the active-job view loads the rep's current job from the purpose-built
+        // GET rep/active-job-state endpoint (BE-030), NOT the old service-requests/my-active query
+        // (which carried no rep position, ETA, distance, or requester name).
+        var handler = new StubHandler(HttpStatusCode.OK, ActiveJobStateJson);
+        var service = CreateService(handler);
+
+        // Act
+        await service.GetActiveJobAsync();
+
+        // Assert
+        Assert.EndsWith("rep/active-job-state", handler.LastRequest!.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task GivenHttpActiveJobService_WhenGetActiveJobCalledAndSucceeds_ThenReturnsContextWithRealRepPositionEtaDistanceAndRequesterName()
+    {
+        // Arrange
+        // BUG-039: the rep/active-job-state payload carries the real rep position, server-computed ETA
+        // and distance, and the requester name. The fixture's repLat/repLng differ from
+        // requesterLat/requesterLng, and etaMinutes/distanceMiles are non-zero, so a regression back to
+        // faking rep position == requester pin or zeroing ETA/distance would fail these assertions.
+        var handler = new StubHandler(HttpStatusCode.OK, ActiveJobStateJson);
         var service = CreateService(handler);
 
         // Act
@@ -68,13 +92,19 @@ public class HttpActiveJobServiceTests
         // Assert
         Assert.NotNull(context);
         Assert.Equal(Guid.Parse("a1111111-1111-1111-1111-111111111111"), context!.RequestId);
+        Assert.Equal("Marcus Webb", context.RequesterName);
         Assert.Equal("P0700 · Transmission Control Fault", context.DtcTitle);
         Assert.Equal(41.60, context.RequesterLat);
         Assert.Equal(-93.60, context.RequesterLng);
-        // RepState must come from the payload's repState (proximity), NOT the request status — this is
-        // what enables "I've Arrived" once the rep is within 15 miles.
+        Assert.Equal(41.72, context.RepLat);
+        Assert.Equal(-93.48, context.RepLng);
+        Assert.NotEqual(context.RequesterLat, context.RepLat);
+        Assert.NotEqual(context.RequesterLng, context.RepLng);
+        Assert.Equal(9, context.EtaMinutes);
+        Assert.Equal(8.1, context.DistanceMiles);
+        Assert.Equal("Gold", context.Tier);
+        // RepState comes from the payload's repState (proximity) — drives the "I've Arrived" enable rule.
         Assert.Equal("Within15Miles", context.RepState);
-        Assert.EndsWith("service-requests/my-active", handler.LastRequest!.RequestUri!.AbsolutePath);
     }
 
     [Fact]

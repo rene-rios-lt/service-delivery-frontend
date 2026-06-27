@@ -16,6 +16,14 @@ public class ActiveJobComponentTests : BunitContext
     private readonly Mock<IArriveService> _arriveService = new();
     private ActiveJobViewModel _viewModel = null!;
 
+    // ShellViewModel collaborators — the active-job page drives the shared app-bar chrome (BUG-039),
+    // setting the title/subtitle on init, so the page test registers a real ShellViewModel.
+    private readonly Mock<ITokenStore> _tokenStore = new();
+    private readonly Mock<ILogoutSideEffect> _sideEffect = new();
+    private readonly Mock<IReleaseVehicleAction> _releaseAction = new();
+    private readonly Mock<IShellPresentation> _presentation = new();
+    private ShellViewModel _shell = null!;
+
     private static RedirectPayload Redirect(
         string requesterTier = "Gold",
         string dtcTitle = "P0420 · Catalyst Efficiency Low",
@@ -33,10 +41,11 @@ public class ActiveJobComponentTests : BunitContext
         double repLat = 41.70,
         double repLng = -93.50,
         int etaMinutes = 9,
+        double distanceMiles = 8.1,
         string repState = "EnRoute",
         string tier = "Gold") =>
         new(Guid.NewGuid(), requesterName, dtcTitle, requesterLat, requesterLng,
-            repLat, repLng, etaMinutes, repState, tier);
+            repLat, repLng, etaMinutes, distanceMiles, repState, tier);
 
     private void RegisterPage(ActiveJobContext context)
     {
@@ -48,7 +57,17 @@ public class ActiveJobComponentTests : BunitContext
         Services.AddSingleton(_arriveService.Object);
         _viewModel = new ActiveJobViewModel(_activeJobService.Object, _repHub.Object, _arriveService.Object);
         Services.AddSingleton(_viewModel);
+
+        _presentation.SetupGet(p => p.MenuStyle).Returns(ShellMenuStyle.Drawer);
+        _shell = new ShellViewModel(
+            _tokenStore.Object, _navigatorForShell.Object, _sideEffect.Object,
+            _releaseAction.Object, _presentation.Object, new PersonaMenuFactory());
+        _shell.Load(new UserProfile(
+            Guid.NewGuid(), "Rosa Alvarez", UserRole.ServiceRep, ServiceTier.None, Guid.NewGuid()));
+        Services.AddSingleton(_shell);
     }
+
+    private readonly Mock<IPersonaNavigator> _navigatorForShell = new();
 
     [Fact]
     public void GivenAnActiveJob_WhenInitialized_ThenRepMarkerAndRequesterPinAreRendered()
@@ -81,6 +100,120 @@ public class ActiveJobComponentTests : BunitContext
         // Assert
         var etaCard = cut.Find("[data-testid='eta-minutes']");
         Assert.Contains("6", etaCard.TextContent);
+    }
+
+    [Fact]
+    public void GivenAnActiveJobWithKnownDistance_WhenComponentRendered_ThenEtaCardShowsFormattedDistanceMiLabel()
+    {
+        // Arrange
+        // BUG-039: the ETA card shows a second line "ETA · {distance:F1} MI" below the minutes. The
+        // distance (23.7) is a controlled value carried through the context — the assertion checks the
+        // F1-formatted "23.7 MI" string, not a mockup literal.
+        RegisterPage(Context(distanceMiles: 23.7));
+
+        // Act
+        var cut = Render<ActiveJob>();
+
+        // Assert
+        var distance = cut.Find("[data-testid='eta-distance']");
+        Assert.Contains("ETA", distance.TextContent);
+        Assert.Contains("23.7 MI", distance.TextContent);
+    }
+
+    [Fact]
+    public void GivenActiveJobPage_WhenInitialized_ThenShellTitleIsSetToActiveJob()
+    {
+        // Arrange
+        // BUG-039: the active-job page sets the shared app-bar title to "Active Job" on init.
+        RegisterPage(Context());
+
+        // Act
+        Render<ActiveJob>();
+
+        // Assert
+        Assert.Equal("Active Job", _shell.Title);
+    }
+
+    [Fact]
+    public void GivenActiveJobPage_WhenInitialized_ThenShellSubtitleIsSetToNavigatingToRequester()
+    {
+        // Arrange
+        // BUG-039: the active-job page sets the app-bar subtitle to "Navigating to requester" on init.
+        RegisterPage(Context());
+
+        // Act
+        Render<ActiveJob>();
+
+        // Assert
+        Assert.Equal("Navigating to requester", _shell.Subtitle);
+    }
+
+    [Fact]
+    public void GivenActiveJobPage_WhenDisposed_ThenShellTitleAndSubtitleAreRestored()
+    {
+        // Arrange
+        // BUG-039: the page owns clearing its title/subtitle overrides when it leaves, so other routes
+        // fall back to the default chrome.
+        RegisterPage(Context());
+        var cut = Render<ActiveJob>();
+
+        // Act
+        cut.Instance.Dispose();
+
+        // Assert
+        Assert.Equal("Service Delivery", _shell.Title);
+        Assert.Null(_shell.Subtitle);
+    }
+
+    [Fact]
+    public async Task GivenActiveJobPage_WhenRepGoesOnSite_ThenShellSubtitleBecomesAtRequesterLocation()
+    {
+        // Arrange
+        // BUG-039: once the rep is on-site the subtitle becomes state-appropriate ("At requester
+        // location") rather than the en-route "Navigating to requester".
+        RegisterPage(Context(repState: "Within15Miles"));
+        var cut = Render<ActiveJob>();
+
+        // Act
+        await cut.InvokeAsync(() => _viewModel.ArriveAsync());
+
+        // Assert
+        Assert.Equal("At requester location", _shell.Subtitle);
+    }
+
+    [Fact]
+    public void GivenAnActiveJob_WhenComponentRendered_ThenEtaCardHasCenteredStyle()
+    {
+        // Arrange
+        // BUG-039: the ETA card carries the .sd-eta class, which centres it horizontally near the top
+        // of the map (left:50% / translateX in ActiveJob.razor.css) — not pinned to the left edge.
+        // The centring rule lives solely in the scoped CSS; bUnit ignores scoped CSS, so this asserts
+        // the class is applied (the rendered-fidelity gate verifies the pixel result against the mockup).
+        RegisterPage(Context());
+
+        // Act
+        var cut = Render<ActiveJob>();
+
+        // Assert
+        var etaCard = cut.Find("[data-testid='eta-card']");
+        var cssClass = etaCard.GetAttribute("class") ?? string.Empty;
+        Assert.Contains("sd-eta", cssClass);
+    }
+
+    [Fact]
+    public void GivenAnActiveJobInEnRouteState_WhenComponentRendered_ThenEnRouteChipHasEnRouteClass()
+    {
+        // Arrange
+        // BUG-039: the En Route chip carries the sd-chip--enroute modifier (the CSS for which is the
+        // soft-tinted blue pill in the mockup, not a solid fill).
+        RegisterPage(Context(repState: "EnRoute"));
+
+        // Act
+        var cut = Render<ActiveJob>();
+
+        // Assert
+        var chip = cut.Find("[data-testid='state-chip']");
+        Assert.Contains("sd-chip--enroute", chip.GetAttribute("class"));
     }
 
     [Fact]

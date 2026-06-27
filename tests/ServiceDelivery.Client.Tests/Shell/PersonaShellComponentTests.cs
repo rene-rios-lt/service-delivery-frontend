@@ -115,6 +115,24 @@ public class PersonaShellComponentTests
     }
 
     [Fact]
+    public async Task GivenASubtitleOverride_WhenShellRenders_ThenAppBarContextShowsOverrideText()
+    {
+        // Arrange
+        // BUG-039: a route (the active-job screen) can override the app-bar subtitle; the override
+        // takes precedence over the menu-derived vehicle/context line.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+        vm.SetVehicleContext("Vehicle IA-4471 · On shift");
+        vm.SetSubtitle("Navigating to requester");
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.Equal("Navigating to requester", cut.Find("[data-testid='appbar-context']").TextContent.Trim());
+    }
+
+    [Fact]
     public async Task GivenADrawerStyleShellWithVehicleContext_WhenRendered_ThenAppBarAvatarIsVisible()
     {
         // Arrange

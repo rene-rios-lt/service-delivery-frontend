@@ -18,10 +18,11 @@ public class ActiveJobViewModelTests
         double repLat = 41.70,
         double repLng = -93.50,
         int etaMinutes = 9,
+        double distanceMiles = 8.1,
         string repState = "EnRoute",
         string tier = "Gold") =>
         new(Guid.NewGuid(), requesterName, dtcTitle, requesterLat, requesterLng,
-            repLat, repLng, etaMinutes, repState, tier);
+            repLat, repLng, etaMinutes, distanceMiles, repState, tier);
 
     private ActiveJobViewModel CreateViewModel() =>
         new(_activeJobService.Object, _repHub.Object, _arriveService.Object);
@@ -155,6 +156,42 @@ public class ActiveJobViewModelTests
 
         // Assert
         Assert.Equal(6, vm.EtaMinutes);
+    }
+
+    [Fact]
+    public async Task GivenAnActiveJobContext_WhenApplyContextCalled_ThenDistanceMilesIsSetFromContext()
+    {
+        // Arrange
+        // BUG-039: the ETA card shows the server-computed distance to the requester. The ViewModel
+        // surfaces DistanceMiles straight from the active-job context (carried from rep/active-job-state).
+        // 23.7 is a controlled value distinct from the helper default (8.1) — the assertion proves the
+        // value is carried, not echoed from a coincidental default.
+        _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(Context(distanceMiles: 23.7));
+        var vm = CreateViewModel();
+
+        // Act
+        await vm.LoadAsync();
+
+        // Assert
+        Assert.Equal(23.7, vm.DistanceMiles);
+    }
+
+    [Fact]
+    public async Task GivenARedirectPayload_WhenOnRedirectReceivedHandlerCalled_ThenDistanceMilesUpdatesFromRedirectPayload()
+    {
+        // Arrange
+        // BUG-039: a redirect carries the distance to the new destination; the ETA card's distance
+        // line updates in-place from the redirect payload (parallels the EtaMinutes redirect behaviour).
+        // 17.4 is distinct from the load value (8.1 default) and from the redirect helper default (11.2).
+        _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(Context(distanceMiles: 8.1));
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+
+        // Act
+        await vm.OnRedirectReceivedAsync(Redirect(distanceMiles: 17.4));
+
+        // Assert
+        Assert.Equal(17.4, vm.DistanceMiles);
     }
 
     [Fact]
