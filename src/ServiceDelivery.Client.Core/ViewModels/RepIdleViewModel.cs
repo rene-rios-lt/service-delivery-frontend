@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
 
@@ -12,6 +13,7 @@ public class RepIdleViewModel
 {
     private readonly IRepHubService _repHub;
     private readonly IPersonaNavigator _navigator;
+    private readonly ILogger<RepIdleViewModel> _logger;
 
     // Rendered when the store is empty (direct navigation with no prior take-over): a neutral,
     // blank-but-safe vehicle so the card and app-bar subtitle render without a NullReferenceException.
@@ -21,7 +23,8 @@ public class RepIdleViewModel
     public RepIdleViewModel(
         IClaimedVehicleStore claimedVehicleStore,
         IRepHubService repHub,
-        IPersonaNavigator navigator)
+        IPersonaNavigator navigator,
+        ILogger<RepIdleViewModel> logger)
     {
         // Consume the hand-off once: read the vehicle the rep took over, then clear the store so a
         // later re-navigation does not resurrect a stale claim (mirrors IJobOfferStore consumption).
@@ -29,6 +32,7 @@ public class RepIdleViewModel
         claimedVehicleStore.ClearVehicle();
         _repHub = repHub;
         _navigator = navigator;
+        _logger = logger;
     }
 
     public ClaimedVehicle Vehicle { get; }
@@ -40,10 +44,27 @@ public class RepIdleViewModel
 
     public int JobsCompletedToday { get; }
 
+    // Reflects whether the RepHub connection is currently established. False while the service's
+    // initial-connect retry loop is still running (or after a connect failure), so the screen can
+    // show an unobtrusive "Reconnecting…" indicator instead of crashing (BUG-038).
+    public bool IsHubConnected => _repHub.IsConnected;
+
     public async Task StartAsync()
     {
         _repHub.OnJobOfferReceived(OnJobOfferReceivedAsync);
-        await _repHub.StartAsync();
+
+        // BUG-038: the hub's StartAsync retries internally, but if it still throws (backend
+        // unreachable for the whole retry budget) we swallow-and-log here so the idle screen never
+        // raises an unhandled-error banner. The reconnecting state is surfaced via IsHubConnected.
+        try
+        {
+            await _repHub.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex, "RepHub connection could not be established; idle screen will show reconnecting.");
+        }
     }
 
     public Task StopAsync() => _repHub.StopAsync();

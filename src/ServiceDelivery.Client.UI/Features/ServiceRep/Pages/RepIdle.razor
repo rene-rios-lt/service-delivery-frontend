@@ -1,11 +1,13 @@
 @page "/rep/idle"
 @using Microsoft.AspNetCore.Components
+@using Microsoft.Extensions.Logging
 @using MudBlazor
 @using ServiceDelivery.Client.Core.Models
 @using ServiceDelivery.Client.Core.ViewModels
 @implements IAsyncDisposable
 @inject RepIdleViewModel ViewModel
 @inject ShellViewModel Shell
+@inject ILogger<RepIdle> Logger
 
 @* Idle / waiting-for-offers view (FE-020). Mockup: rep-idle__mobile-390x844. The screen rests in
    the Available state until a JobOfferReceived event arrives over RepHub, which navigates away to
@@ -26,6 +28,16 @@
     <div data-testid="available-chip" class="sd-chip sd-chip--available mb-4">
         <span class="sd-chip__dot"></span>Available
     </div>
+
+    @* BUG-038: while the RepHub connection is being (re)established, surface an unobtrusive indicator
+       instead of letting a connect failure trip the unhandled-error banner. Rendered only when the
+       hub is not connected; it never blocks the idle body. *@
+    @if (!ViewModel.IsHubConnected)
+    {
+        <div data-testid="hub-status" class="sd-muted mb-4">
+            <MudText Typo="Typo.caption" Align="Align.Center">Reconnecting…</MudText>
+        </div>
+    }
 
     <div data-testid="claimed-vehicle-card" id="claimed-vehicle-card" class="sd-card sd-listitem">
         <div class="sd-listitem__icon">🚐</div>
@@ -65,7 +77,17 @@
         // context up rather than re-rendering chrome itself.
         Shell.SetVehicleContext($"Vehicle {ViewModel.Vehicle.Registration} · On shift");
 
-        await ViewModel.StartAsync();
+        // BUG-038: final safety net. ViewModel.StartAsync already swallows hub-connect failures, but
+        // wrap the call here too so that nothing reaching OnInitializedAsync can escape to Blazor's
+        // #blazor-error-ui banner. A connect failure leaves the screen in its reconnecting state.
+        try
+        {
+            await ViewModel.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "RepHub start failed on idle-screen init; staying in reconnecting state.");
+        }
     }
 
     public async ValueTask DisposeAsync()
