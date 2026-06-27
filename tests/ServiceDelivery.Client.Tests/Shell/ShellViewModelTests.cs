@@ -62,6 +62,43 @@ public class ShellViewModelTests
     }
 
     [Fact]
+    public void GivenANewShell_WhenSubtitleRead_ThenReturnsNull()
+    {
+        // Arrange
+        var vm = CreateViewModel();
+
+        // Act & Assert
+        Assert.Null(vm.Subtitle);
+    }
+
+    [Fact]
+    public void GivenASubtitleOverride_WhenSubtitleRead_ThenReturnsTheOverride()
+    {
+        // Arrange
+        var vm = CreateViewModel();
+
+        // Act
+        vm.SetSubtitle("Navigating to requester");
+
+        // Assert
+        Assert.Equal("Navigating to requester", vm.Subtitle);
+    }
+
+    [Fact]
+    public void GivenASubtitleOverride_WhenClearedWithNull_ThenSubtitleReturnsNull()
+    {
+        // Arrange
+        var vm = CreateViewModel();
+        vm.SetSubtitle("Navigating to requester");
+
+        // Act
+        vm.SetSubtitle(null);
+
+        // Assert
+        Assert.Null(vm.Subtitle);
+    }
+
+    [Fact]
     public void GivenANewShell_WhenIsMenuAffordanceVisibleRead_ThenItIsTrueByDefault()
     {
         // Arrange

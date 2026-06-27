@@ -53,7 +53,7 @@
     [Parameter]
     public int ShellVersion { get; set; }
 
-    private string ContextSubtitle => ViewModel.Menu?.VehicleContext ?? ViewModel.Menu?.ContextLine ?? string.Empty;
+    private string ContextSubtitle => ViewModel.Subtitle ?? ViewModel.Menu?.VehicleContext ?? ViewModel.Menu?.ContextLine ?? string.Empty;
 
     private string MenuIcon => ViewModel.IsMenuOpen ? Icons.Material.Filled.Close : Icons.Material.Filled.Menu;
 

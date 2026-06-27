@@ -4,6 +4,7 @@
 @using ServiceDelivery.Client.Core.ViewModels
 @implements IDisposable
 @inject ActiveJobViewModel ViewModel
+@inject ShellViewModel Shell
 
 <div class="sd-active-job" data-testid="active-job">
     @* App bar, hamburger menu, and avatar come from the shared PersonaShell (FE-021) that wraps every
@@ -12,7 +13,7 @@
     <div class="sd-map" data-testid="active-job-map">
         <div class="sd-eta" data-testid="eta-card" id="eta-card">
             <span class="sd-eta__num" data-testid="eta-minutes">@ViewModel.EtaMinutes min</span>
-            <span class="sd-eta__lbl">ETA</span>
+            <span class="sd-eta__lbl" data-testid="eta-distance">ETA · @ViewModel.DistanceMiles.ToString("F1", CultureInfo.InvariantCulture) MI</span>
         </div>
 
         @if (ViewModel.IsOnSite)
@@ -120,10 +121,19 @@
     private string ArrivedButtonLabel =>
         ViewModel.IsArrivedEnabled ? "I've Arrived" : "I've Arrived · enables within 15 mi";
 
+    // The en-route subtitle shown while the rep is navigating to the requester (BUG-039 / mockup).
+    private const string EnRouteSubtitle = "Navigating to requester";
+
+    // The state-appropriate subtitle once the rep has arrived on-site (BUG-039).
+    private const string OnSiteSubtitle = "At requester location";
+
     protected override async Task OnInitializedAsync()
     {
         ViewModel.StateChanged += OnViewModelStateChanged;
+        Shell.SetTitle("Active Job");
+        Shell.SetSubtitle(EnRouteSubtitle);
         await ViewModel.LoadAsync();
+        ApplyShellSubtitleForState();
         await ViewModel.StartAsync();
     }
 
@@ -142,11 +152,22 @@
 
     private Task OnArrivedClicked() => ViewModel.ArriveAsync();
 
-    private void OnViewModelStateChanged() => InvokeAsync(StateHasChanged);
+    private void OnViewModelStateChanged()
+    {
+        ApplyShellSubtitleForState();
+        InvokeAsync(StateHasChanged);
+    }
+
+    // Keeps the app-bar subtitle state-appropriate: "At requester location" once the rep is on-site,
+    // otherwise the en-route "Navigating to requester".
+    private void ApplyShellSubtitleForState() =>
+        Shell.SetSubtitle(ViewModel.IsOnSite ? OnSiteSubtitle : EnRouteSubtitle);
 
     public void Dispose()
     {
         _pollTimer?.Dispose();
         ViewModel.StateChanged -= OnViewModelStateChanged;
+        Shell.SetTitle(null);
+        Shell.SetSubtitle(null);
     }
 }

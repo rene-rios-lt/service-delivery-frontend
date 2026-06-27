@@ -21,6 +21,7 @@ public class ShellViewModel
 
     private const string DefaultTitle = "Service Delivery";
     private string? _titleOverride;
+    private string? _subtitleOverride;
 
     public ShellViewModel(
         ITokenStore tokenStore,
@@ -51,6 +52,13 @@ public class ShellViewModel
     public string Title => _titleOverride ?? DefaultTitle;
 
     /// <summary>
+    /// An app-bar subtitle override for the current route (e.g. "Navigating to requester" on the
+    /// active-job view — BUG-039). When non-<c>null</c>, <c>PersonaShell</c> prefers it over the
+    /// menu-derived vehicle/context line. Defaults to <c>null</c>, leaving the derived path in place.
+    /// </summary>
+    public string? Subtitle => _subtitleOverride;
+
+    /// <summary>
     /// Whether the app-bar menu affordance (the hamburger) is shown. The job-offer screen hides it so
     /// the rep stays focused on accept/decline, matching the mockup (BUG-036). Defaults to visible.
     /// </summary>
@@ -71,6 +79,12 @@ public class ShellViewModel
     /// ("Service Delivery"). The route that sets an override owns clearing it when it leaves.
     /// </summary>
     public void SetTitle(string? title) => _titleOverride = title;
+
+    /// <summary>
+    /// Overrides the app-bar subtitle for the current route. Pass <c>null</c> to fall back to the
+    /// menu-derived vehicle/context line. The route that sets an override owns clearing it on leave.
+    /// </summary>
+    public void SetSubtitle(string? subtitle) => _subtitleOverride = subtitle;
 
     /// <summary>
     /// Shows or hides the app-bar menu affordance (the hamburger) for the current route. Defaults to

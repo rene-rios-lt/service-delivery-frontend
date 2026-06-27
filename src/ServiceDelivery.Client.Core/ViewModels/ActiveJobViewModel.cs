@@ -39,6 +39,8 @@ public class ActiveJobViewModel
 
     public int EtaMinutes { get; private set; }
 
+    public double DistanceMiles { get; private set; }
+
     public bool IsArrivedEnabled { get; private set; }
 
     public bool IsOnSite { get; private set; }
@@ -83,6 +85,7 @@ public class ActiveJobViewModel
         RequesterLng = redirect.Longitude;
         DtcTitle = redirect.DtcTitle;
         EtaMinutes = (int)Math.Round(redirect.EtaMinutes);
+        DistanceMiles = redirect.DistanceMiles;
         StateChanged?.Invoke();
         return Task.CompletedTask;
     }
@@ -102,6 +105,7 @@ public class ActiveJobViewModel
         DtcTitle = context.DtcTitle;
         Tier = context.Tier;
         EtaMinutes = context.EtaMinutes;
+        DistanceMiles = context.DistanceMiles;
         IsOnSite = IsOnSite || context.RepState == OnSiteState;
         IsArrivedEnabled = IsOnSite || context.RepState == Within15MilesState;
     }
