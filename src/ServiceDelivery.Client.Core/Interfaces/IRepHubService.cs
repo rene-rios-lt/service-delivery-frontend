@@ -13,6 +13,13 @@ namespace ServiceDelivery.Client.Core.Interfaces;
 /// </summary>
 public interface IRepHubService
 {
+    /// <summary>
+    /// True when the underlying hub connection is in the Connected state. False during the
+    /// initial-connect retry loop (BUG-038) or after a disconnect. Lets the idle screen surface a
+    /// "reconnecting" indicator without coupling to SignalR connection-state types.
+    /// </summary>
+    bool IsConnected { get; }
+
     Task StartAsync();
 
     Task StopAsync();

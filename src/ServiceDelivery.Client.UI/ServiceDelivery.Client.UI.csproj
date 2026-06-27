@@ -21,4 +21,10 @@
     <ProjectReference Include="..\ServiceDelivery.Client.Core\ServiceDelivery.Client.Core.csproj" />
   </ItemGroup>
 
+  <!-- BUG-038: expose the internal test seam (the connect/delay-injecting constructor and
+       RetryConnectAsync) to the offline test suite so the bounded back-off loop is asserted directly. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="ServiceDelivery.Client.Tests" />
+  </ItemGroup>
+
 </Project>

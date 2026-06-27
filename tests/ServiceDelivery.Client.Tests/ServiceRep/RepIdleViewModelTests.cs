@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
 using ServiceDelivery.Client.Core.ViewModels;
@@ -23,7 +24,9 @@ public class RepIdleViewModelTests
     private RepIdleViewModel CreateViewModel(ClaimedVehicle? vehicle = null)
     {
         _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns(vehicle ?? Vehicle());
-        return new RepIdleViewModel(_claimedVehicleStore.Object, _repHub.Object, _navigator.Object);
+        return new RepIdleViewModel(
+            _claimedVehicleStore.Object, _repHub.Object, _navigator.Object,
+            NullLogger<RepIdleViewModel>.Instance);
     }
 
     [Fact]
@@ -34,7 +37,9 @@ public class RepIdleViewModelTests
         _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns(stored);
 
         // Act
-        var vm = new RepIdleViewModel(_claimedVehicleStore.Object, _repHub.Object, _navigator.Object);
+        var vm = new RepIdleViewModel(
+            _claimedVehicleStore.Object, _repHub.Object, _navigator.Object,
+            NullLogger<RepIdleViewModel>.Instance);
 
         // Assert
         Assert.Equal("V-001", vm.Vehicle.Registration);
@@ -48,7 +53,9 @@ public class RepIdleViewModelTests
         _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns(stored);
 
         // Act
-        var vm = new RepIdleViewModel(_claimedVehicleStore.Object, _repHub.Object, _navigator.Object);
+        var vm = new RepIdleViewModel(
+            _claimedVehicleStore.Object, _repHub.Object, _navigator.Object,
+            NullLogger<RepIdleViewModel>.Instance);
 
         // Assert
         Assert.Equal(new[] { "Hydraulics", "Coolant", "Diagnostics" }, vm.Vehicle.EquipmentTypes);
@@ -63,7 +70,9 @@ public class RepIdleViewModelTests
         _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns(Vehicle());
 
         // Act
-        _ = new RepIdleViewModel(_claimedVehicleStore.Object, _repHub.Object, _navigator.Object);
+        _ = new RepIdleViewModel(
+            _claimedVehicleStore.Object, _repHub.Object, _navigator.Object,
+            NullLogger<RepIdleViewModel>.Instance);
 
         // Assert
         _claimedVehicleStore.Verify(s => s.ClearVehicle(), Times.Once);
@@ -79,7 +88,9 @@ public class RepIdleViewModelTests
         _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns((ClaimedVehicle?)null);
 
         // Act
-        var vm = new RepIdleViewModel(_claimedVehicleStore.Object, _repHub.Object, _navigator.Object);
+        var vm = new RepIdleViewModel(
+            _claimedVehicleStore.Object, _repHub.Object, _navigator.Object,
+            NullLogger<RepIdleViewModel>.Instance);
 
         // Assert
         Assert.NotNull(vm.Vehicle);
@@ -200,5 +211,91 @@ public class RepIdleViewModelTests
 
         // Assert
         _repHub.Verify(h => h.StopAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenRepHubStartThrows_WhenRepIdleViewModelStartAsyncCalled_ThenExceptionIsSwallowedAndNotRethrown()
+    {
+        // Arrange — BUG-038: when RepHub is unreachable the connect throws. StartAsync must swallow
+        // and log it so the idle screen never trips Blazor's #blazor-error-ui banner.
+        _repHub.Setup(h => h.StartAsync()).ThrowsAsync(new InvalidOperationException("hub unreachable"));
+        var vm = CreateViewModel(Vehicle());
+
+        // Act
+        var exception = await Record.ExceptionAsync(() => vm.StartAsync());
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task GivenRepHubStartThrows_WhenRepIdleViewModelStartAsyncCalled_ThenIsHubConnectedIsFalse()
+    {
+        // Arrange — a failed connect leaves the screen in the reconnecting state, surfaced via the flag.
+        _repHub.Setup(h => h.StartAsync()).ThrowsAsync(new InvalidOperationException("hub unreachable"));
+        _repHub.SetupGet(h => h.IsConnected).Returns(false);
+        var vm = CreateViewModel(Vehicle());
+
+        // Act
+        await vm.StartAsync();
+
+        // Assert
+        Assert.False(vm.IsHubConnected);
+    }
+
+    [Fact]
+    public async Task GivenRepHubStartSucceeds_WhenRepIdleViewModelStartAsyncCalled_ThenIsHubConnectedIsTrue()
+    {
+        // Arrange — happy path: a successful connect reports the hub as connected.
+        _repHub.SetupGet(h => h.IsConnected).Returns(true);
+        var vm = CreateViewModel(Vehicle());
+
+        // Act
+        await vm.StartAsync();
+
+        // Assert
+        Assert.True(vm.IsHubConnected);
+    }
+
+    [Fact]
+    public async Task GivenRepHubStartThrowsThenHubReportsConnected_WhenStartAsyncCalled_ThenIsHubConnectedReflectsTheHubState()
+    {
+        // Arrange — ViewModel-level concern (NOT the retry itself; the bounded back-off retry is owned
+        // by SignalRRepHubService and asserted in SignalRRepHubServiceTests). Here: even when the first
+        // connect attempt throws, the ViewModel swallows it and IsHubConnected simply mirrors whatever
+        // the hub now reports — so once the service's own retry has reconnected, the screen sees it.
+        _repHub.Setup(h => h.StartAsync())
+            .ThrowsAsync(new InvalidOperationException("hub unreachable"));
+        _repHub.SetupGet(h => h.IsConnected).Returns(true);
+        var vm = CreateViewModel(Vehicle());
+
+        // Act
+        await vm.StartAsync();
+
+        // Assert
+        Assert.True(vm.IsHubConnected);
+    }
+
+    [Fact]
+    public async Task GivenRepHubStartThrows_WhenJobOfferReceivedEventFires_ThenTheHandlerStillNavigatesToTheOffer()
+    {
+        // Arrange — ViewModel-level concern: the JobOfferReceived handler is registered BEFORE the
+        // connect attempt, so a failing first connect does not unsubscribe the screen. When the offer
+        // later arrives (after the service's retry reconnects) the captured handler still navigates.
+        // The retry mechanism itself is asserted in SignalRRepHubServiceTests, not here.
+        Func<JobOfferPayload, Task>? capturedHandler = null;
+        _repHub.Setup(h => h.OnJobOfferReceived(It.IsAny<Func<JobOfferPayload, Task>>()))
+            .Callback<Func<JobOfferPayload, Task>>(h => capturedHandler = h);
+        _repHub.Setup(h => h.StartAsync())
+            .ThrowsAsync(new InvalidOperationException("hub unreachable"));
+        var vm = CreateViewModel(Vehicle());
+        await vm.StartAsync();
+        var offer = Offer();
+
+        // Act
+        await capturedHandler!.Invoke(offer);
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToJobOffer(offer), Times.Once);
     }
 }
