@@ -26,10 +26,12 @@ public class RepIdleViewModel
         IPersonaNavigator navigator,
         ILogger<RepIdleViewModel> logger)
     {
-        // Consume the hand-off once: read the vehicle the rep took over, then clear the store so a
-        // later re-navigation does not resurrect a stale claim (mirrors IJobOfferStore consumption).
+        // Read the vehicle the rep took over WITHOUT clearing the store: IClaimedVehicleStore is the
+        // durable source of truth for the session, shared with ReleaseVehicleAction (BUG-041). Clearing
+        // here wiped the claim before the release action could read it, so the confirmation dialog never
+        // opened. The store is durably cleared on the real exit path — ReleaseVehicleAction.ReleaseAsync
+        // calls ClearVehicle() on a successful release; a fresh take-over overwrites it via SetVehicle.
         Vehicle = claimedVehicleStore.CurrentVehicle ?? EmptyVehicle;
-        claimedVehicleStore.ClearVehicle();
         _repHub = repHub;
         _navigator = navigator;
         _logger = logger;
