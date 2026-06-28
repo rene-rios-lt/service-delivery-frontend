@@ -75,6 +75,11 @@ public static class MauiProgram
 		// so the card and app-bar subtitle reflect the real selection rather than a hardcoded truck.
 		builder.Services.AddScoped<IRepHubService, SignalRRepHubService>();
 		builder.Services.AddScoped<IClaimedVehicleStore, InMemoryClaimedVehicleStore>();
+		// On-duty heartbeat loop (FE-023). RepIdleViewModel.StartAsync starts it when the rep enters
+		// the idle view (post take-over); it POSTs /rep/heartbeat every 15s while a vehicle is claimed
+		// and self-terminates within one interval once the store is cleared (release). Mobile-only —
+		// ServiceRep is a Mobile persona (ADR-0008), so Desktop/Web never register it.
+		builder.Services.AddScoped<IHeartbeatService, HttpHeartbeatService>();
 		builder.Services.AddScoped<RepIdleViewModel>();
 
 		// Active job navigation view (FE-011). The HTTP active-job service backs
@@ -95,7 +100,10 @@ public static class MauiProgram
 		// Persona shell (FE-021). Mobile presents the menu as a slide-in drawer. The logout
 		// side-effect defaults to an honest null-object; FE-023 replaces it (Open/Closed — no shell change).
 		builder.Services.AddScoped<IShellPresentation, MobileShellPresentation>();
-		builder.Services.AddScoped<ILogoutSideEffect, NoOpLogoutSideEffect>();
+		// FE-023 + BUG-043: the real ServiceRep logout teardown replaces the No-Op here (Open/Closed —
+		// the shell is unchanged). On logout it stops the heartbeat loop then clears the claimed-vehicle
+		// store so no stale claim leaks into the next session. Mobile-only; Desktop/Web keep NoOp.
+		builder.Services.AddScoped<ILogoutSideEffect, ServiceRepLogoutSideEffect>();
 
 		// Release vehicle at end of shift (FE-014). Replaces the NoOpReleaseVehicleAction stub with the
 		// real flow: ReleaseVehicleAction confirms via the MudBlazor dialog (MudReleaseConfirmation),

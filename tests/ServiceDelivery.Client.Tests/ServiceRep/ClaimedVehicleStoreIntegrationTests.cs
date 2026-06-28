@@ -21,6 +21,7 @@ public class ClaimedVehicleStoreIntegrationTests
     private readonly Mock<IReleaseConfirmation> _confirmation = new();
     private readonly Mock<IReleaseVehicleService> _releaseService = new();
     private readonly Mock<IPersonaNavigator> _navigator = new();
+    private readonly Mock<IHeartbeatService> _heartbeatService = new();
 
     private static readonly Guid VehicleId = Guid.Parse("44444444-4444-4444-4444-444444444444");
 
@@ -39,7 +40,8 @@ public class ClaimedVehicleStoreIntegrationTests
         // Constructing the real idle view performs the hand-off read. Before the BUG-041 fix it also
         // cleared the store, which is exactly the failure this test reproduces.
         _ = new RepIdleViewModel(
-            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance);
+            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance,
+            _heartbeatService.Object);
 
         _confirmation.Setup(c => c.ConfirmAsync(It.IsAny<string>())).ReturnsAsync(true);
         _releaseService.Setup(s => s.ReleaseAsync(VehicleId)).ReturnsAsync(true);
@@ -64,7 +66,8 @@ public class ClaimedVehicleStoreIntegrationTests
         store.SetVehicle(ClaimedVehicle());
 
         _ = new RepIdleViewModel(
-            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance);
+            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance,
+            _heartbeatService.Object);
 
         _confirmation.Setup(c => c.ConfirmAsync(It.IsAny<string>())).ReturnsAsync(true);
         _releaseService.Setup(s => s.ReleaseAsync(VehicleId)).ReturnsAsync(true);
@@ -92,7 +95,8 @@ public class ClaimedVehicleStoreIntegrationTests
 
         // Act
         var vm = new RepIdleViewModel(
-            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance);
+            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance,
+            _heartbeatService.Object);
 
         // Assert
         Assert.Equal("IA-4471", vm.Vehicle.Registration);
@@ -118,7 +122,8 @@ public class ClaimedVehicleStoreIntegrationTests
         // First take-over: deposit V-001, enter idle (same scoped VM), confirm the idle display reads it.
         store.SetVehicle(firstVehicle);
         var viewModel = new RepIdleViewModel(
-            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance);
+            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance,
+            _heartbeatService.Object);
         var firstRead = viewModel.Vehicle.Registration;
 
         // Act — simulate release (store cleared by ReleaseVehicleAction) then a SECOND take-over of a
