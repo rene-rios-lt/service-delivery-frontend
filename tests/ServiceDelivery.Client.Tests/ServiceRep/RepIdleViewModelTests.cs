@@ -11,6 +11,7 @@ public class RepIdleViewModelTests
     private readonly Mock<IRepHubService> _repHub = new();
     private readonly Mock<IPersonaNavigator> _navigator = new();
     private readonly Mock<IClaimedVehicleStore> _claimedVehicleStore = new();
+    private readonly Mock<IHeartbeatService> _heartbeatService = new();
 
     private static ClaimedVehicle Vehicle(
         string registration = "IA-4471",
@@ -27,7 +28,7 @@ public class RepIdleViewModelTests
         _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns(vehicle ?? Vehicle());
         return new RepIdleViewModel(
             _claimedVehicleStore.Object, _repHub.Object, _navigator.Object,
-            NullLogger<RepIdleViewModel>.Instance);
+            NullLogger<RepIdleViewModel>.Instance, _heartbeatService.Object);
     }
 
     [Fact]
@@ -40,7 +41,7 @@ public class RepIdleViewModelTests
         // Act
         var vm = new RepIdleViewModel(
             _claimedVehicleStore.Object, _repHub.Object, _navigator.Object,
-            NullLogger<RepIdleViewModel>.Instance);
+            NullLogger<RepIdleViewModel>.Instance, _heartbeatService.Object);
 
         // Assert
         Assert.Equal("V-001", vm.Vehicle.Registration);
@@ -56,7 +57,7 @@ public class RepIdleViewModelTests
         // Act
         var vm = new RepIdleViewModel(
             _claimedVehicleStore.Object, _repHub.Object, _navigator.Object,
-            NullLogger<RepIdleViewModel>.Instance);
+            NullLogger<RepIdleViewModel>.Instance, _heartbeatService.Object);
 
         // Assert
         Assert.Equal(new[] { "Hydraulics", "Coolant", "Diagnostics" }, vm.Vehicle.EquipmentTypes);
@@ -75,7 +76,7 @@ public class RepIdleViewModelTests
         // Act
         _ = new RepIdleViewModel(
             _claimedVehicleStore.Object, _repHub.Object, _navigator.Object,
-            NullLogger<RepIdleViewModel>.Instance);
+            NullLogger<RepIdleViewModel>.Instance, _heartbeatService.Object);
 
         // Assert
         _claimedVehicleStore.Verify(s => s.ClearVehicle(), Times.Never);
@@ -93,7 +94,7 @@ public class RepIdleViewModelTests
         // Act
         var vm = new RepIdleViewModel(
             _claimedVehicleStore.Object, _repHub.Object, _navigator.Object,
-            NullLogger<RepIdleViewModel>.Instance);
+            NullLogger<RepIdleViewModel>.Instance, _heartbeatService.Object);
 
         // Assert
         Assert.NotNull(vm.Vehicle);
@@ -112,7 +113,8 @@ public class RepIdleViewModelTests
         store.SetVehicle(new ClaimedVehicle(
             Guid.NewGuid(), "V-001", "Transit 350", new[] { "Hydraulics" }));
         var vm = new RepIdleViewModel(
-            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance);
+            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance,
+            _heartbeatService.Object);
 
         // Act — the store changes after construction (release then a fresh take-over).
         store.ClearVehicle();
@@ -347,5 +349,39 @@ public class RepIdleViewModelTests
 
         // Assert
         _navigator.Verify(n => n.NavigateToJobOffer(offer), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenRepIdleViewModelWithHeartbeatService_WhenStartAsyncCalled_ThenHeartbeatServiceStarted()
+    {
+        // Arrange — FE-023 AC-3 (start trigger). Entering the idle view (post take-over) is the single
+        // "go on duty" moment: StartAsync must also start the heartbeat loop so the rep is marked
+        // human-controlled. StartAsync is idempotent, so re-entering /rep/idle after a job is safe.
+        var vm = CreateViewModel(Vehicle());
+
+        // Act
+        await vm.StartAsync();
+
+        // Assert
+        _heartbeatService.Verify(h => h.StartAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenRepIdleViewModelWithHeartbeatService_WhenStopAsyncCalled_ThenHeartbeatServiceIsNotStopped()
+    {
+        // Arrange — FE-023 AC-1 PERMANENT REGRESSION GUARD. RepIdle.razor calls StopAsync from
+        // DisposeAsync on EVERY navigation away from /rep/idle (idle → offer → job). The heartbeat is an
+        // on-duty-long concern spanning all rep pages; it must NOT be tied to the idle page's lifecycle.
+        // If anyone adds _heartbeatService.StopAsync() to RepIdleViewModel.StopAsync(), the heartbeat
+        // would die the instant a job offer arrives — exactly when the rep most needs to be marked
+        // human-controlled. This test goes red the moment that line is added.
+        var vm = CreateViewModel(Vehicle());
+
+        // Act
+        await vm.StopAsync();
+
+        // Assert
+        _heartbeatService.Verify(h => h.StopAsync(), Times.Never);
+        _repHub.Verify(r => r.StopAsync(), Times.Once);
     }
 }

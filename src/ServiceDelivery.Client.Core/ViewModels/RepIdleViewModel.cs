@@ -15,6 +15,7 @@ public class RepIdleViewModel
     private readonly IRepHubService _repHub;
     private readonly IPersonaNavigator _navigator;
     private readonly ILogger<RepIdleViewModel> _logger;
+    private readonly IHeartbeatService _heartbeatService;
 
     // Rendered when the store is empty (direct navigation with no prior take-over): a neutral,
     // blank-but-safe vehicle so the card and app-bar subtitle render without a NullReferenceException.
@@ -25,12 +26,14 @@ public class RepIdleViewModel
         IClaimedVehicleStore claimedVehicleStore,
         IRepHubService repHub,
         IPersonaNavigator navigator,
-        ILogger<RepIdleViewModel> logger)
+        ILogger<RepIdleViewModel> logger,
+        IHeartbeatService heartbeatService)
     {
         _claimedVehicleStore = claimedVehicleStore;
         _repHub = repHub;
         _navigator = navigator;
         _logger = logger;
+        _heartbeatService = heartbeatService;
 
         // BUG-042 (double-subscribe): register the job-offer handler exactly once per VM lifetime. The
         // VM is scoped (≈ singleton for the BlazorWebView session) and the page calls StartAsync on every
@@ -75,6 +78,15 @@ public class RepIdleViewModel
             _logger.LogWarning(
                 ex, "RepHub connection could not be established; idle screen will show reconnecting.");
         }
+
+        // FE-023: entering the idle view (post take-over) is the single "go on duty" moment, so the
+        // heartbeat loop is started here. StartAsync is idempotent, so re-entering /rep/idle after
+        // completing a job is safe — it never spawns a second loop. The heartbeat is started AFTER the
+        // hub-connect attempt and outside its try/catch: it is an independent on-duty concern that must
+        // run even if the hub is momentarily unreachable. It is deliberately NOT stopped in StopAsync —
+        // the loop spans every rep page (idle → offer → job) and is torn down only on explicit logout
+        // (ServiceRepLogoutSideEffect) or when the claimed-vehicle store is cleared (release path).
+        await _heartbeatService.StartAsync();
     }
 
     public Task StopAsync() => _repHub.StopAsync();

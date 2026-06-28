@@ -39,7 +39,7 @@ public class RepIdleComponentTests : BunitContext
         store.SetupGet(s => s.CurrentVehicle).Returns(vehicle);
         return new RepIdleViewModel(
             store.Object, repHub.Object, navigator.Object,
-            NullLogger<RepIdleViewModel>.Instance);
+            NullLogger<RepIdleViewModel>.Instance, Mock.Of<IHeartbeatService>());
     }
 
     private RepIdleViewModel RegisterPage(ClaimedVehicle? vehicle = null)
@@ -221,7 +221,8 @@ public class RepIdleComponentTests : BunitContext
         store.SetVehicle(new ClaimedVehicle(
             Guid.NewGuid(), "V-001", "Transit 350", new[] { "Hydraulics" }));
         var viewModel = new RepIdleViewModel(
-            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance);
+            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance,
+            Mock.Of<IHeartbeatService>());
         Services.AddMudServices();
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton(viewModel);
