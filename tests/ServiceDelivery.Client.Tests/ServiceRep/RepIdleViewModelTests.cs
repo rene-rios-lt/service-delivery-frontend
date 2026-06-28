@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
+using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 
 namespace ServiceDelivery.Client.Tests.ServiceRep;
@@ -99,6 +100,27 @@ public class RepIdleViewModelTests
         Assert.Equal(string.Empty, vm.Vehicle.Registration);
         Assert.Equal(string.Empty, vm.Vehicle.Model);
         Assert.Empty(vm.Vehicle.EquipmentTypes);
+    }
+
+    [Fact]
+    public void GivenRealStoreUpdatedAfterFirstConstruction_WhenVehiclePropertyRead_ThenReturnsUpdatedVehicle()
+    {
+        // Arrange — BUG-042. The VM is reused across navigations (AddScoped ≈ singleton for the session),
+        // so Vehicle must read the store on each access rather than caching the first value at construction.
+        // The same backing store returns a different vehicle after the second take-over.
+        var store = new InMemoryClaimedVehicleStore();
+        store.SetVehicle(new ClaimedVehicle(
+            Guid.NewGuid(), "V-001", "Transit 350", new[] { "Hydraulics" }));
+        var vm = new RepIdleViewModel(
+            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance);
+
+        // Act — the store changes after construction (release then a fresh take-over).
+        store.ClearVehicle();
+        store.SetVehicle(new ClaimedVehicle(
+            Guid.NewGuid(), "V-002", "Sprinter 250", new[] { "Coolant" }));
+
+        // Assert
+        Assert.Equal("V-002", vm.Vehicle.Registration);
     }
 
     [Fact]
@@ -276,6 +298,32 @@ public class RepIdleViewModelTests
 
         // Assert
         Assert.True(vm.IsHubConnected);
+    }
+
+    [Fact]
+    public async Task GivenRepIdleViewModelStartedTwice_WhenJobOfferArrives_ThenNavigationIsInvokedExactlyOnce()
+    {
+        // Arrange — BUG-042 (double-subscribe). The VM is scoped (reused across navigations) and the
+        // page calls StartAsync on every entry to /rep/idle. HubConnection.On(...) accumulates handlers,
+        // so registering OnJobOfferReceived inside StartAsync double-subscribes on the second navigation
+        // and fires NavigateToJobOffer twice per offer. The fix registers exactly once per VM lifetime
+        // (in the constructor), so a real registry must capture every distinct handler registered.
+        var registeredHandlers = new List<Func<JobOfferPayload, Task>>();
+        _repHub.Setup(h => h.OnJobOfferReceived(It.IsAny<Func<JobOfferPayload, Task>>()))
+            .Callback<Func<JobOfferPayload, Task>>(registeredHandlers.Add);
+        var vm = CreateViewModel(Vehicle());
+        await vm.StartAsync();
+        await vm.StartAsync();
+        var offer = Offer();
+
+        // Act — deliver the offer to every handler the hub has registered (what a real HubConnection does).
+        foreach (var handler in registeredHandlers)
+        {
+            await handler.Invoke(offer);
+        }
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToJobOffer(offer), Times.Once);
     }
 
     [Fact]

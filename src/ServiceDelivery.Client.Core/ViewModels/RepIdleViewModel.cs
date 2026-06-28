@@ -11,6 +11,7 @@ namespace ServiceDelivery.Client.Core.ViewModels;
 /// </summary>
 public class RepIdleViewModel
 {
+    private readonly IClaimedVehicleStore _claimedVehicleStore;
     private readonly IRepHubService _repHub;
     private readonly IPersonaNavigator _navigator;
     private readonly ILogger<RepIdleViewModel> _logger;
@@ -26,18 +27,25 @@ public class RepIdleViewModel
         IPersonaNavigator navigator,
         ILogger<RepIdleViewModel> logger)
     {
-        // Read the vehicle the rep took over WITHOUT clearing the store: IClaimedVehicleStore is the
-        // durable source of truth for the session, shared with ReleaseVehicleAction (BUG-041). Clearing
-        // here wiped the claim before the release action could read it, so the confirmation dialog never
-        // opened. The store is durably cleared on the real exit path — ReleaseVehicleAction.ReleaseAsync
-        // calls ClearVehicle() on a successful release; a fresh take-over overwrites it via SetVehicle.
-        Vehicle = claimedVehicleStore.CurrentVehicle ?? EmptyVehicle;
+        _claimedVehicleStore = claimedVehicleStore;
         _repHub = repHub;
         _navigator = navigator;
         _logger = logger;
+
+        // BUG-042 (double-subscribe): register the job-offer handler exactly once per VM lifetime. The
+        // VM is scoped (≈ singleton for the BlazorWebView session) and the page calls StartAsync on every
+        // re-entry to /rep/idle; registering inside StartAsync accumulated handlers on the same
+        // HubConnection and fired NavigateToJobOffer once per past navigation. The registration belongs
+        // here — it is independent of how many times the page is mounted. The handler survives the
+        // stop/start cycles StartAsync/DisposeAsync run on each page entry/teardown.
+        _repHub.OnJobOfferReceived(OnJobOfferReceivedAsync);
     }
 
-    public ClaimedVehicle Vehicle { get; }
+    // BUG-042 (stale display): read the claimed vehicle from the store on every access — do NOT cache it
+    // at construction. The VM is reused across navigations, so a release-then-take-over of a different
+    // vehicle in the same session must be reflected on the idle card and app-bar subtitle. The store is
+    // the durable source of truth (BUG-041): this read never clears it.
+    public ClaimedVehicle Vehicle => _claimedVehicleStore.CurrentVehicle ?? EmptyVehicle;
 
     // A rep only reaches this screen after a successful take-over, so the resting state is always
     // Available. The screen has no other visual state — the only change is navigating away to the
@@ -53,11 +61,11 @@ public class RepIdleViewModel
 
     public async Task StartAsync()
     {
-        _repHub.OnJobOfferReceived(OnJobOfferReceivedAsync);
-
         // BUG-038: the hub's StartAsync retries internally, but if it still throws (backend
         // unreachable for the whole retry budget) we swallow-and-log here so the idle screen never
         // raises an unhandled-error banner. The reconnecting state is surfaced via IsHubConnected.
+        // The job-offer handler is registered once in the constructor (BUG-042), so StartAsync only
+        // (re)connects the hub on each page entry.
         try
         {
             await _repHub.StartAsync();

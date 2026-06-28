@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using MudBlazor.Services;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
+using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.UI.Features.ServiceRep.Pages;
 using ServiceDelivery.Client.UI.Layout;
@@ -208,6 +209,41 @@ public class RepIdleComponentTests : BunitContext
 
         // Assert
         _navigator.Verify(n => n.NavigateToJobOffer(offer), Times.Once);
+    }
+
+    [Fact]
+    public void GivenStoreUpdatedBetweenNavigations_WhenRepIdleReInitialized_ThenShellSubtitleReflectsNewVehicle()
+    {
+        // Arrange — BUG-042. The VM is scoped (≈ singleton for the session), so the SAME instance is
+        // reused on every navigation back to /rep/idle. Build the page's VM over a REAL store so its
+        // Vehicle reads live state, register it, and render once for the first take-over (V-001).
+        var store = new InMemoryClaimedVehicleStore();
+        store.SetVehicle(new ClaimedVehicle(
+            Guid.NewGuid(), "V-001", "Transit 350", new[] { "Hydraulics" }));
+        var viewModel = new RepIdleViewModel(
+            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance);
+        Services.AddMudServices();
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddSingleton(viewModel);
+        Services.AddSingleton<ILogger<RepIdle>>(NullLogger<RepIdle>.Instance);
+        _presentation.SetupGet(p => p.MenuStyle).Returns(ShellMenuStyle.Drawer);
+        var shell = new ShellViewModel(
+            _tokenStore.Object, _navigator.Object, _sideEffect.Object,
+            _releaseAction.Object, _presentation.Object, new PersonaMenuFactory());
+        shell.Load(new UserProfile(
+            Guid.NewGuid(), "Rosa Alvarez", UserRole.ServiceRep, ServiceTier.None, Guid.NewGuid()));
+        Services.AddSingleton(shell);
+        Render<RepIdle>();
+
+        // Act — release then a second take-over of a DIFFERENT vehicle, then re-mount the page (the same
+        // scoped VM is reused) so OnInitializedAsync pushes the subtitle from the now-current vehicle.
+        store.ClearVehicle();
+        store.SetVehicle(new ClaimedVehicle(
+            Guid.NewGuid(), "V-002", "Sprinter 250", new[] { "Coolant" }));
+        Render<RepIdle>();
+
+        // Assert — the app-bar subtitle reflects the second vehicle, not the first.
+        Assert.Equal("Vehicle V-002 · On shift", shell.Menu!.VehicleContext);
     }
 
     [Fact]
