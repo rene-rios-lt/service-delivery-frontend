@@ -60,6 +60,15 @@ public static class BackendApiHelper
     /// <summary>Seeded <c>Simulator</c>-role account — the only role allowed to post vehicle positions.</summary>
     private const string SimulatorEmail = "simulator@system.internal";
 
+    /// <summary>Seeded Dispatcher account — used to read the fleet (<c>GET /dispatcher/fleet</c>).</summary>
+    private const string DispatcherEmail = "alex@dealer.com";
+
+    /// <summary>Seeded <c>rep1</c> account — the rep the Appium suite takes over (see <c>TakeOverFirstIdleVehicle</c>).</summary>
+    private const string Rep1Email = "rep1@dealer.com";
+
+    /// <summary>Seeded <c>rep1</c> RepId (deterministic seed GUID) — used to find rep1's row in the dispatcher fleet.</summary>
+    private static readonly Guid Rep1RepId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+
     /// <summary>Shared default password for all seeded accounts.</summary>
     private const string SeedPassword = "Password123!";
 
@@ -220,9 +229,85 @@ public static class BackendApiHelper
         return result.Token;
     }
 
+    /// <summary>
+    /// QUAL-009: reads rep1's current row from <c>GET /dispatcher/fleet</c> so a heartbeat / go-off-duty
+    /// scenario can assert backend-side state that has no UI surface (the heartbeat runs in the
+    /// background of the rep views with no on-screen indicator). Returns null if rep1 is not present in
+    /// the fleet. Throws on any login or fleet-read failure — never swallows an error.
+    /// </summary>
+    public static RepFleetState? GetRep1FleetState(string baseUrl)
+    {
+        return GetRep1FleetStateAsync(baseUrl).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// QUAL-009: true when vehicle <paramref name="vehicleId"/> appears in <c>GET /vehicles/available</c>
+    /// (the take-over dropdown). After a human-takeover rep is timed out and its vehicle is parked, the
+    /// vehicle reappears here for a fresh take-over — this lets a scenario assert that reappearance.
+    /// </summary>
+    public static bool IsVehicleTakeable(string baseUrl, Guid vehicleId)
+    {
+        return IsVehicleTakeableAsync(baseUrl, vehicleId).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// QUAL-009: polls until rep1 has been swept off duty (state <c>Offline</c>, <c>HumanControlled</c>
+    /// cleared) AND its vehicle has reappeared in the take-over list, or the timeout elapses. Returns
+    /// true if both held within <paramref name="timeout"/>. Used by the heartbeat-timeout scenario after
+    /// the app is closed so heartbeats stop — the backend's stale-heartbeat sweep should then fire.
+    /// </summary>
+    public static bool WaitUntilOffDutyAndTakeable(string baseUrl, Guid vehicleId, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var state = GetRep1FleetState(baseUrl);
+            if (state is { State: "Offline", HumanControlled: false } && IsVehicleTakeable(baseUrl, vehicleId))
+            {
+                return true;
+            }
+            Thread.Sleep(TimeSpan.FromSeconds(3));
+        }
+        return false;
+    }
+
+    private static async Task<RepFleetState?> GetRep1FleetStateAsync(string baseUrl)
+    {
+        using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var token = await LoginAsync(client, DispatcherEmail);
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var fleet = await client.GetFromJsonAsync<List<DispatcherFleetEntry>>("/dispatcher/fleet", JsonOptions)
+                    ?? new List<DispatcherFleetEntry>();
+        var row = fleet.FirstOrDefault(e => e.RepId == Rep1RepId);
+        return row is null ? null : new RepFleetState(row.State, row.HumanControlled, row.VehicleId);
+    }
+
+    private static async Task<bool> IsVehicleTakeableAsync(string baseUrl, Guid vehicleId)
+    {
+        using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var token = await LoginAsync(client, Rep1Email);
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var available = await client.GetFromJsonAsync<List<AvailableVehicle>>("/vehicles/available", JsonOptions)
+                        ?? new List<AvailableVehicle>();
+        return available.Any(v => v.VehicleId == vehicleId);
+    }
+
+    /// <summary>Rep state observed via the dispatcher fleet, for QUAL-009 backend-side assertions.</summary>
+    public sealed record RepFleetState(string State, bool HumanControlled, Guid VehicleId);
+
     /// <summary>Shape of the <c>POST /auth/login</c> response (<c>{ "token": "..." }</c>).</summary>
     private sealed record LoginResponse(string Token);
 
     /// <summary>Minimal projection of a <c>GET /simulator/fleet-state</c> entry — only the id is needed.</summary>
     private sealed record FleetEntry(Guid VehicleId);
+
+    /// <summary>Minimal projection of a <c>GET /dispatcher/fleet</c> entry for QUAL-009 assertions.</summary>
+    private sealed record DispatcherFleetEntry(Guid RepId, string State, Guid VehicleId, bool HumanControlled);
+
+    /// <summary>Minimal projection of a <c>GET /vehicles/available</c> entry — only the id is needed.</summary>
+    private sealed record AvailableVehicle(Guid VehicleId);
 }
