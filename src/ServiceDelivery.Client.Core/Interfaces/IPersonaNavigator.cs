@@ -20,4 +20,8 @@ public interface IPersonaNavigator
     // After a successful accept (FE-009/AC-2), the rep transitions to the active-job view (FE-011),
     // where they navigate to the requester. The destination route is reserved now; FE-011 builds the page.
     void NavigateToActiveJob();
+
+    // After releasing the claimed vehicle at end of shift (FE-014/AC-4), the rep returns to the
+    // take-over screen (FE-007) to pick another idle vehicle or hand the device back.
+    void NavigateToTakeOver();
 }

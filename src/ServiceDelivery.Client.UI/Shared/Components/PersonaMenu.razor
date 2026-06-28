@@ -32,6 +32,12 @@
             <MudNavMenu>
                 @foreach (var item in ViewModel.Menu.Items)
                 {
+                    @if (IsFirstDestructive(item))
+                    {
+                        @* Separator between the navigation items and the destructive group
+                           ("Release vehicle" / "Log out") — matches the rep-nav-drawer mockup. *@
+                        <MudDivider data-testid="menu-destructive-divider" Class="sd-menu-divider" />
+                    }
                     <MudNavLink data-testid="@TestId(item)"
                                 id="@TestId(item)"
                                 Class="@ItemClass(item)"
@@ -43,6 +49,15 @@
                     </MudNavLink>
                 }
             </MudNavMenu>
+            @if (HasReleaseItem)
+            {
+                @* Footer disclaimer — narrates the release action and the AC-2 disabled-while-in-progress
+                   rule (rep-nav-drawer mockup). The registration is interpolated from the vehicle context
+                   when known; otherwise a generic phrasing is used. *@
+                <MudText data-testid="release-disclaimer" Class="sd-persona-drawer__disclaimer" Typo="Typo.caption">
+                    @DisclaimerText
+                </MudText>
+            }
         </MudDrawer>
     }
     else
@@ -88,6 +103,43 @@
             .ToUpperInvariant();
 
     private static string TestId(PersonaMenuItem item) => $"menu-item-{item.ActionKey}";
+
+    // The release-area drawer footer only appears for a persona menu that actually offers release.
+    private bool HasReleaseItem =>
+        ViewModel.Menu?.Items.Any(i => i.ActionKey == PersonaMenuFactory.ReleaseActionKey) ?? false;
+
+    // True for the first destructive item in the list, so a single divider precedes the destructive
+    // group ("Release vehicle" / "Log out") without hardcoding which item that is.
+    private bool IsFirstDestructive(PersonaMenuItem item)
+    {
+        var firstDestructive = ViewModel.Menu?.Items.FirstOrDefault(i => i.IsDestructive);
+        return firstDestructive is not null && ReferenceEquals(firstDestructive, item);
+    }
+
+    // Narrates the release action and the AC-2 rule. Interpolates the vehicle registration when the
+    // vehicle context carries it (e.g. "Vehicle IA-4471 · On shift"); falls back to "your vehicle".
+    private string DisclaimerText
+    {
+        get
+        {
+            var vehicle = ExtractRegistration(ViewModel.Menu?.VehicleContext) ?? "your vehicle";
+            return $"Releasing returns {vehicle} to the fleet. Disabled while a job is in progress.";
+        }
+    }
+
+    private static string? ExtractRegistration(string? vehicleContext)
+    {
+        if (string.IsNullOrWhiteSpace(vehicleContext))
+        {
+            return null;
+        }
+
+        // VehicleContext is shaped "Vehicle <REG> · <state>"; pull the registration token out.
+        var withoutPrefix = vehicleContext.Replace("Vehicle ", string.Empty, StringComparison.OrdinalIgnoreCase);
+        var separatorIndex = withoutPrefix.IndexOf('·');
+        var registration = (separatorIndex >= 0 ? withoutPrefix[..separatorIndex] : withoutPrefix).Trim();
+        return string.IsNullOrWhiteSpace(registration) ? null : registration;
+    }
 
     private static string ItemClass(PersonaMenuItem item) =>
         item.IsDestructive ? "sd-menu-item sd-menu-item--destructive" : "sd-menu-item";

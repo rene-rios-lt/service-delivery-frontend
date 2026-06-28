@@ -40,4 +40,7 @@ public class BlazorPersonaNavigator : IPersonaNavigator
 
     public void NavigateToActiveJob() =>
         _navigation.NavigateTo(PersonaRouteMap.ServiceRepActiveJob);
+
+    public void NavigateToTakeOver() =>
+        _navigation.NavigateTo(PersonaRouteMap.ServiceRepTakeOver);
 }

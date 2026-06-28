@@ -107,6 +107,29 @@ public class ShellViewModel
         Menu = Menu with { VehicleContext = vehicleContext };
     }
 
+    /// <summary>
+    /// Gates the "Release vehicle" menu item's enabled state on the already-loaded menu, without a
+    /// profile re-load. The InProgress screen (<c>ActiveJob.razor</c>) is the production caller: it
+    /// passes <c>false</c> while a job is in progress so the rep cannot release mid-job (FE-014/AC-2),
+    /// and <c>true</c> when it leaves (job complete / idle) to re-enable release. No-op when no menu
+    /// has been loaded yet (mirrors <see cref="SetVehicleContext"/>).
+    /// </summary>
+    public void SetReleaseEnabled(bool releaseEnabled)
+    {
+        if (Menu is null)
+        {
+            return;
+        }
+
+        var items = Menu.Items
+            .Select(item => item.ActionKey == PersonaMenuFactory.ReleaseActionKey
+                ? item with { IsEnabled = releaseEnabled }
+                : item)
+            .ToList();
+
+        Menu = Menu with { Items = items };
+    }
+
     public async Task LogoutAsync()
     {
         await _logoutSideEffect.RunBeforeTokenClearedAsync();

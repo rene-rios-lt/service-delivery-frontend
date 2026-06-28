@@ -14,6 +14,12 @@ public class PersonaMenuFactory
     public const string LogoutActionKey = "logout";
     public const string ReleaseActionKey = "release";
 
+    /// <summary>
+    /// Builds the persona menu. The factory stays pure — it always builds the "Release vehicle" item
+    /// enabled and reaches for no state itself. The InProgress gate (FE-014/AC-2) is applied to the
+    /// loaded menu by the shell via <c>ShellViewModel.SetReleaseEnabled</c>, driven by the active-job
+    /// screen — the single orchestrator of release-enabled state.
+    /// </summary>
     public PersonaMenuModel Build(UserProfile profile)
     {
         var contextLine = ContextLineFor(profile.Role);
