@@ -99,4 +99,36 @@ public class ClaimedVehicleStoreIntegrationTests
         Assert.NotNull(store.CurrentVehicle);
         Assert.Equal(VehicleId, store.CurrentVehicle!.VehicleId);
     }
+
+    [Fact]
+    public void GivenTwoTakeOversWithDifferentVehicles_WhenRepIdleViewModelVehiclePropertyReadAfterSecondTakeOver_ThenShowsSecondVehicle()
+    {
+        // Arrange — BUG-042. Drive the REAL view-model lifecycle, not a one-shot construction. The VM is
+        // AddScoped (≈ singleton for the BlazorWebView session), so the SAME instance is reused across
+        // every navigation back to /rep/idle. The bug: the first take-over caches the vehicle in a
+        // read-only property and a second take-over of a DIFFERENT vehicle never updates the idle display.
+        var firstVehicle = new ClaimedVehicle(
+            Guid.Parse("11111111-1111-1111-1111-111111111111"), "V-001", "Transit 350",
+            new[] { "Hydraulics" });
+        var secondVehicle = new ClaimedVehicle(
+            Guid.Parse("22222222-2222-2222-2222-222222222222"), "V-002", "Sprinter 250",
+            new[] { "Coolant" });
+        var store = new InMemoryClaimedVehicleStore();
+
+        // First take-over: deposit V-001, enter idle (same scoped VM), confirm the idle display reads it.
+        store.SetVehicle(firstVehicle);
+        var viewModel = new RepIdleViewModel(
+            store, _repHub.Object, _navigator.Object, NullLogger<RepIdleViewModel>.Instance);
+        var firstRead = viewModel.Vehicle.Registration;
+
+        // Act — simulate release (store cleared by ReleaseVehicleAction) then a SECOND take-over of a
+        // DIFFERENT vehicle, and re-read Vehicle on the SAME reused VM instance.
+        store.ClearVehicle();
+        store.SetVehicle(secondVehicle);
+        var secondRead = viewModel.Vehicle.Registration;
+
+        // Assert — the idle display must reflect the second vehicle after the second take-over.
+        Assert.Equal("V-001", firstRead);
+        Assert.Equal("V-002", secondRead);
+    }
 }
