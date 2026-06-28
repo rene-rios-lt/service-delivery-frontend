@@ -227,6 +227,56 @@ public class ShellViewModelTests
     }
 
     [Fact]
+    public void GivenALoadedShell_WhenSetReleaseEnabledFalse_ThenReleaseMenuItemIsDisabled()
+    {
+        // Arrange
+        // FE-014/AC-2: the InProgress screen is the production caller that gates the release item.
+        // It calls SetReleaseEnabled(false) on the already-loaded shell — no profile re-load needed.
+        var profile = new UserProfile(Guid.NewGuid(), "Rosa Alvarez", UserRole.ServiceRep, ServiceTier.None, Guid.NewGuid());
+        var vm = CreateViewModel();
+        vm.Load(profile);
+
+        // Act
+        vm.SetReleaseEnabled(false);
+
+        // Assert
+        var releaseItem = vm.Menu!.Items.Single(i => i.ActionKey == PersonaMenuFactory.ReleaseActionKey);
+        Assert.False(releaseItem.IsEnabled);
+    }
+
+    [Fact]
+    public void GivenAReleaseGatedShell_WhenSetReleaseEnabledTrue_ThenReleaseMenuItemIsReEnabled()
+    {
+        // Arrange
+        // The InProgress screen re-enables the item on leave (Dispose): idle/complete → releasable again.
+        var profile = new UserProfile(Guid.NewGuid(), "Rosa Alvarez", UserRole.ServiceRep, ServiceTier.None, Guid.NewGuid());
+        var vm = CreateViewModel();
+        vm.Load(profile);
+        vm.SetReleaseEnabled(false);
+
+        // Act
+        vm.SetReleaseEnabled(true);
+
+        // Assert
+        var releaseItem = vm.Menu!.Items.Single(i => i.ActionKey == PersonaMenuFactory.ReleaseActionKey);
+        Assert.True(releaseItem.IsEnabled);
+    }
+
+    [Fact]
+    public void GivenNoMenuLoaded_WhenSetReleaseEnabledCalled_ThenItIsANoOp()
+    {
+        // Arrange
+        // Guard: a route may gate before the menu exists; this must not throw (mirrors SetVehicleContext).
+        var vm = CreateViewModel();
+
+        // Act
+        vm.SetReleaseEnabled(false);
+
+        // Assert
+        Assert.Null(vm.Menu);
+    }
+
+    [Fact]
     public void GivenAnOpenMenu_WhenToggleMenuCalled_ThenMenuStateFlips()
     {
         // Arrange

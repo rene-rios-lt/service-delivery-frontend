@@ -89,11 +89,17 @@ public static class MauiProgram
 		builder.Services.AddScoped<ActiveJobViewModel>();
 
 		// Persona shell (FE-021). Mobile presents the menu as a slide-in drawer. The logout
-		// side-effect and release-vehicle action default to honest null-objects; FE-023 and FE-014
-		// replace these registrations with their real implementations (Open/Closed — no shell change).
+		// side-effect defaults to an honest null-object; FE-023 replaces it (Open/Closed — no shell change).
 		builder.Services.AddScoped<IShellPresentation, MobileShellPresentation>();
 		builder.Services.AddScoped<ILogoutSideEffect, NoOpLogoutSideEffect>();
-		builder.Services.AddScoped<IReleaseVehicleAction, NoOpReleaseVehicleAction>();
+
+		// Release vehicle at end of shift (FE-014). Replaces the NoOpReleaseVehicleAction stub with the
+		// real flow: ReleaseVehicleAction confirms via the MudBlazor dialog (MudReleaseConfirmation),
+		// POSTs /vehicles/{id}/release (HttpReleaseVehicleService), clears the claimed vehicle, and
+		// navigates back to the take-over screen on success. Open/Closed — the shell is unchanged.
+		builder.Services.AddScoped<IReleaseVehicleService, HttpReleaseVehicleService>();
+		builder.Services.AddScoped<IReleaseConfirmation, MudReleaseConfirmation>();
+		builder.Services.AddScoped<IReleaseVehicleAction, ReleaseVehicleAction>();
 		builder.Services.AddScoped<PersonaMenuFactory>();
 		builder.Services.AddScoped<ShellViewModel>();
 

@@ -50,6 +50,21 @@
     color: #E5392F;
 }
 
+/* Separator between the navigation items and the destructive group (Release / Log out). */
+.sd-menu-divider {
+    margin: 8px 18px;
+    border-color: #E6E8EE;
+}
+
+/* Footer disclaimer narrating the release action + the AC-2 disabled-while-in-progress rule. */
+.sd-persona-drawer__disclaimer {
+    display: block;
+    padding: 18px 18px 22px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #8A8F9C;
+}
+
 .sd-persona-account {
     position: relative;
 }

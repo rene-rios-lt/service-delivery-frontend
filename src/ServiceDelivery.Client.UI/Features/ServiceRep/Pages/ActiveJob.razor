@@ -132,6 +132,10 @@
         ViewModel.StateChanged += OnViewModelStateChanged;
         Shell.SetTitle("Active Job");
         Shell.SetSubtitle(EnRouteSubtitle);
+        // FE-014/AC-2: a job is InProgress while this screen owns the view, so the rep must not be able
+        // to release the vehicle mid-job. This is the production caller that gates the "Release vehicle"
+        // nav item off; Dispose re-enables it when the rep leaves (job complete / idle).
+        Shell.SetReleaseEnabled(false);
         await ViewModel.LoadAsync();
         ApplyShellSubtitleForState();
         await ViewModel.StartAsync();
@@ -169,5 +173,8 @@
         ViewModel.StateChanged -= OnViewModelStateChanged;
         Shell.SetTitle(null);
         Shell.SetSubtitle(null);
+        // The job is no longer InProgress once this screen leaves — release becomes available again
+        // (FE-014/AC-2). The screen owns restoring the gate, mirroring how it restores title/subtitle.
+        Shell.SetReleaseEnabled(true);
     }
 }

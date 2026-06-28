@@ -149,6 +149,40 @@ public class ActiveJobComponentTests : BunitContext
     }
 
     [Fact]
+    public void GivenActiveJobPage_WhenInitialized_ThenReleaseVehicleMenuItemIsDisabled()
+    {
+        // Arrange
+        // FE-014/AC-2: the active-job (InProgress) screen is the production caller that gates the
+        // "Release vehicle" item. Rendering this screen must disable the item in the real shell — no
+        // bool is injected into the factory/VM; the gate is driven by the screen's own lifecycle.
+        RegisterPage(Context());
+
+        // Act
+        Render<ActiveJob>();
+
+        // Assert
+        var releaseItem = _shell.Menu!.Items.Single(i => i.ActionKey == PersonaMenuFactory.ReleaseActionKey);
+        Assert.False(releaseItem.IsEnabled);
+    }
+
+    [Fact]
+    public void GivenActiveJobPage_WhenDisposed_ThenReleaseVehicleMenuItemIsReEnabled()
+    {
+        // Arrange
+        // FE-014/AC-2: when the rep leaves the active job (complete / idle), release becomes available
+        // again. The page owns re-enabling the item on leave, mirroring how it restores title/subtitle.
+        RegisterPage(Context());
+        var cut = Render<ActiveJob>();
+
+        // Act
+        cut.Instance.Dispose();
+
+        // Assert
+        var releaseItem = _shell.Menu!.Items.Single(i => i.ActionKey == PersonaMenuFactory.ReleaseActionKey);
+        Assert.True(releaseItem.IsEnabled);
+    }
+
+    [Fact]
     public void GivenActiveJobPage_WhenDisposed_ThenShellTitleAndSubtitleAreRestored()
     {
         // Arrange

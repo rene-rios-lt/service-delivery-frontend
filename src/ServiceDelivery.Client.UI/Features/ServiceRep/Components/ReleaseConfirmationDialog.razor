@@ -1,0 +1,48 @@
+@using MudBlazor
+
+@* End-of-shift release confirmation (FE-014/AC-3). Matches rep-release-vehicle__mobile mockup:
+   title "Release vehicle <reg>?", explanatory body, and a Cancel (ghost) / Release (red danger)
+   action row. Returns true on Release and a cancelled result on Cancel; MudReleaseConfirmation
+   maps that to the bool the release action consumes. *@
+
+<MudDialog>
+    <TitleContent>
+        <MudText data-testid="release-dialog-title" Class="sd-dialog__head" Typo="Typo.h6">
+            Release vehicle @Registration?
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText data-testid="release-dialog-body" Class="sd-dialog__body">
+            The vehicle returns to the fleet and becomes available for another rep. You'll be returned
+            to vehicle selection.
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton data-testid="release-dialog-cancel"
+                   id="release-dialog-cancel"
+                   Class="sd-btn sd-btn--ghost"
+                   OnClick="Cancel">
+            Cancel
+        </MudButton>
+        <MudButton data-testid="release-dialog-confirm"
+                   id="release-dialog-confirm"
+                   Class="sd-btn sd-btn--danger"
+                   Variant="Variant.Filled"
+                   Color="Color.Error"
+                   OnClick="Confirm">
+            Release
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Registration { get; set; } = string.Empty;
+
+    private void Confirm() => MudDialog.Close(DialogResult.Ok(true));
+
+    private void Cancel() => MudDialog.Cancel();
+}
