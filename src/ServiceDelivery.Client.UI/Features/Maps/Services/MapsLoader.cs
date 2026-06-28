@@ -12,8 +12,10 @@ namespace ServiceDelivery.Client.UI.Features.Maps.Services;
 /// On a missing/blank key it injects nothing, logs a clear diagnostic, and returns an unavailable result —
 /// so the app never crashes and FE-024's <c>GoogleMap</c> can render its placeholder. The loader does not
 /// touch the DOM directly; all script injection lives in the JS module (single responsibility).
+/// Implements <see cref="IMapsLoader"/> (FE-024) so the <c>GoogleMap</c> component depends on the
+/// abstraction; the existing <see cref="LoadAsync"/> implementation is unchanged.
 /// </summary>
-public class MapsLoader
+public class MapsLoader : IMapsLoader
 {
     private const string ModulePath = "./_content/ServiceDelivery.Client.UI/Features/Maps/mapsLoader.js";
 
