@@ -318,4 +318,15 @@ public abstract class AppiumTestBase
         // The idle / available view is the post-take-over screen (FE-020 / AC-11).
         Driver.FindElement(By.CssSelector("[data-testid='available-indicator']"));
     }
+
+    /// <summary>
+    /// Closes (terminates) the app under test (QUAL-009). The FE-023 heartbeat runs on a background
+    /// timer inside the BlazorWebView; terminating the app stops it abruptly — the "app closed /
+    /// backgrounded" path of AC-2 — so the backend's stale-heartbeat sweep can then time the rep out.
+    /// No graceful teardown runs, which is exactly the case under test.
+    /// </summary>
+    protected void CloseAppUnderTest()
+    {
+        Driver.TerminateApp(AppBundleId);
+    }
 }
