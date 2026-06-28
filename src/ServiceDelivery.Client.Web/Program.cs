@@ -36,6 +36,10 @@ builder.Services.AddScoped<IDeclineOfferService, HttpDeclineOfferService>();
 // is registered in every host (same register-everywhere pattern as the offer services above) so the
 // dependency graph resolves regardless of which persona a host renders.
 builder.Services.AddScoped<IActiveJobService, HttpActiveJobService>();
+// Mark-complete action (FE-013). Web does not host the ServiceRep active-job screen, but the service
+// is registered in every host (same register-everywhere pattern as the active-job service above) so
+// the dependency graph resolves regardless of which persona a host renders.
+builder.Services.AddScoped<ICompleteJobService, HttpCompleteJobService>();
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 builder.Services.AddScoped<ISessionState, SessionState>();

@@ -1,10 +1,12 @@
 @page "/rep/job"
 @using System.Globalization
 @using System.Threading
+@using MudBlazor
 @using ServiceDelivery.Client.Core.ViewModels
 @implements IDisposable
 @inject ActiveJobViewModel ViewModel
 @inject ShellViewModel Shell
+@inject ISnackbar Snackbar
 
 <div class="sd-active-job" data-testid="active-job">
     @* App bar, hamburger menu, and avatar come from the shared PersonaShell (FE-021) that wraps every
@@ -84,7 +86,8 @@
         @if (ViewModel.IsOnSite)
         {
             <button type="button" class="sd-btn sd-btn--primary sd-btn--block sd-btn--lg"
-                    data-testid="complete-button" id="complete-button" disabled>
+                    data-testid="complete-button" id="complete-button"
+                    @onclick="OnCompleteClicked">
                 Mark Complete
             </button>
         }
@@ -151,6 +154,17 @@
     public Task PollOnceAsync() => ViewModel.PollPositionAsync();
 
     private Task OnArrivedClicked() => ViewModel.ArriveAsync();
+
+    // The confirmation toast (AC-3) is a presentation concern owned by the page, not the ViewModel.
+    // It is shown before CompleteAsync navigates away so the rep sees the confirmation as the screen
+    // transitions back to the idle waiting view.
+    private const string CompleteToastMessage = "Job marked complete";
+
+    private async Task OnCompleteClicked()
+    {
+        Snackbar.Add(CompleteToastMessage, Severity.Success);
+        await ViewModel.CompleteAsync();
+    }
 
     private void OnViewModelStateChanged()
     {

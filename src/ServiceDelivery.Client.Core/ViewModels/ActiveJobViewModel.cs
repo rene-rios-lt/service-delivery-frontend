@@ -16,12 +16,21 @@ public class ActiveJobViewModel
     private readonly IActiveJobService _activeJobService;
     private readonly IRepHubService _repHub;
     private readonly IArriveService _arriveService;
+    private readonly ICompleteJobService _completeJobService;
+    private readonly IPersonaNavigator _navigator;
 
-    public ActiveJobViewModel(IActiveJobService activeJobService, IRepHubService repHub, IArriveService arriveService)
+    public ActiveJobViewModel(
+        IActiveJobService activeJobService,
+        IRepHubService repHub,
+        IArriveService arriveService,
+        ICompleteJobService completeJobService,
+        IPersonaNavigator navigator)
     {
         _activeJobService = activeJobService;
         _repHub = repHub;
         _arriveService = arriveService;
+        _completeJobService = completeJobService;
+        _navigator = navigator;
     }
 
     // Raised after each position poll and after a redirect so the Razor page can re-render
@@ -70,6 +79,12 @@ public class ActiveJobViewModel
         await _arriveService.ArriveAsync();
         IsOnSite = true;
         StateChanged?.Invoke();
+    }
+
+    public async Task CompleteAsync()
+    {
+        await _completeJobService.CompleteAsync();
+        _navigator.NavigateToRepIdleView();
     }
 
     public async Task PollPositionAsync()

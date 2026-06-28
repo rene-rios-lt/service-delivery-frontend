@@ -86,6 +86,10 @@ public static class MauiProgram
 		// injects it and, on a successful arrive, transitions to OnSite — the page removes the route line
 		// and swaps "I've Arrived" for the "Mark Complete" primary action.
 		builder.Services.AddScoped<IArriveService, HttpArriveService>();
+		// Mark-complete action (FE-013). The HTTP complete service backs POST /rep/complete;
+		// ActiveJobViewModel injects it and, on a successful complete, navigates back to the idle
+		// waiting view via IPersonaNavigator.
+		builder.Services.AddScoped<ICompleteJobService, HttpCompleteJobService>();
 		builder.Services.AddScoped<ActiveJobViewModel>();
 
 		// Persona shell (FE-021). Mobile presents the menu as a slide-in drawer. The logout

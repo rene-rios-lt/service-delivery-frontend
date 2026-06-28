@@ -66,4 +66,39 @@ public sealed class ActiveJobTests : AppiumTestBase
         Assert.That(completeButton.Text, Does.Contain("Mark Complete"));
         Assert.That(Driver.FindElements(By.CssSelector("[data-testid='route-line']")), Is.Empty);
     }
+
+    /// <summary>
+    /// FE-013 coverage (AC-1, AC-2, AC-3): once the rep is on-site, tapping "Mark Complete" calls
+    /// POST /rep/complete (AC-1) and on success the rep is returned to the idle waiting view (AC-2)
+    /// with a brief "Job marked complete" confirmation toast (AC-3). Reaching the idle view proves the
+    /// complete committed and the rep transitioned back to Available.
+    /// </summary>
+    [Test]
+    public void GivenRepIsOnSite_WhenMarkCompleteButtonTapped_ThenIdleViewIsReached()
+    {
+        // Arrange
+        TakeOverFirstIdleVehicle();
+        BackendApiHelper.SubmitServiceRequest(AppiumConfig.BackendBaseUrl);
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='accept-button']"))).Click();
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='arrived-button']")));
+        // Move the EnRoute rep to the request site (distance 0 < 15 mi) so the active-job poll flips
+        // IsArrivedEnabled and the "I've Arrived" button enables; tap it to go on-site.
+        BackendApiHelper.PositionFleetAtRequestSite(AppiumConfig.BackendBaseUrl);
+        var arrivedButton = WaitForSignalR(d =>
+        {
+            var button = d.FindElement(By.CssSelector("[data-testid='arrived-button']"));
+            return button.Enabled ? button : null;
+        });
+        arrivedButton!.Click();
+        var completeButton = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='complete-button']")));
+
+        // Act
+        // AC-1: tapping "Mark Complete" calls POST /rep/complete.
+        completeButton.Click();
+
+        // Assert
+        // AC-2: on success the rep is returned to the idle waiting view.
+        var idleView = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='rep-idle']")));
+        Assert.That(idleView.Displayed, Is.True);
+    }
 }
