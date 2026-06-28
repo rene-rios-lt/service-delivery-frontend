@@ -40,7 +40,10 @@ public static class MauiProgram
 		// render the fleet/tracking map; the provider reads GoogleMaps:ApiKey and MapsLoader injects the SDK
 		// <script> only when a non-blank key is present (FE-024 consumes the MapsAvailability result).
 		builder.Services.AddScoped<IMapsKeyProvider, ConfigurationMapsKeyProvider>();
+		// FE-024: the GoogleMap component injects IMapsLoader (Dependency Inversion). Register the
+		// abstraction against the concrete, and keep the concrete resolvable for direct callers.
 		builder.Services.AddScoped<MapsLoader>();
+		builder.Services.AddScoped<IMapsLoader>(sp => sp.GetRequiredService<MapsLoader>());
 
 		builder.Services.AddScoped<ITokenStore, SecureStorageTokenStore>();
 		// BlazorPersonaNavigator now depends on IJobOfferStore (FE-008). Desktop does not host the

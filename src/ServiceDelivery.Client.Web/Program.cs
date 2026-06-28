@@ -46,7 +46,10 @@ builder.Services.AddScoped<ICompleteJobService, HttpCompleteJobService>();
 // gitignored wwwroot/appsettings.Local.json supplies the real key for local dev (see docs/maps-api-key.md).
 // MapsLoader injects the SDK <script> only when a non-blank key is present (FE-024 consumes the result).
 builder.Services.AddScoped<IMapsKeyProvider, ConfigurationMapsKeyProvider>();
+// FE-024: the GoogleMap component injects IMapsLoader (Dependency Inversion). Register the abstraction
+// against the concrete, and keep the concrete resolvable for any caller that still depends on it directly.
 builder.Services.AddScoped<MapsLoader>();
+builder.Services.AddScoped<IMapsLoader>(sp => sp.GetRequiredService<MapsLoader>());
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 builder.Services.AddScoped<ISessionState, SessionState>();

@@ -1,0 +1,18 @@
+@using ServiceDelivery.Client.Core.Models
+
+@* Reusable Google Maps component (FE-024). Renders a sized container the JS module turns into a real
+   google.maps.Map; all map mutations are delegated to googleMap.js via IJSObjectReference. When the SDK
+   is unavailable (FE-025 reports no key) it renders a labelled "map unavailable" placeholder instead of a
+   blank box. The live render is covered by E2E (QUAL-003/004); bUnit asserts the interop calls. The
+   imperative API and JS-interop lifecycle live in the GoogleMap.razor.cs code-behind. *@
+
+@if (ShowPlaceholder)
+{
+    <div data-testid="map-unavailable" class="sd-map sd-google-map sd-map-unavailable">
+        <span class="sd-map-unavailable__label">Map unavailable</span>
+    </div>
+}
+else
+{
+    <div data-testid="google-map" id="@ContainerId" class="sd-map sd-google-map"></div>
+}
