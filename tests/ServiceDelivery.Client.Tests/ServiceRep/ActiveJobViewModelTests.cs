@@ -9,6 +9,8 @@ public class ActiveJobViewModelTests
     private readonly Mock<IActiveJobService> _activeJobService = new();
     private readonly Mock<IRepHubService> _repHub = new();
     private readonly Mock<IArriveService> _arriveService = new();
+    private readonly Mock<ICompleteJobService> _completeJobService = new();
+    private readonly Mock<IPersonaNavigator> _navigator = new();
 
     private static ActiveJobContext Context(
         string requesterName = "Marcus Webb",
@@ -25,7 +27,8 @@ public class ActiveJobViewModelTests
             repLat, repLng, etaMinutes, distanceMiles, repState, tier);
 
     private ActiveJobViewModel CreateViewModel() =>
-        new(_activeJobService.Object, _repHub.Object, _arriveService.Object);
+        new(_activeJobService.Object, _repHub.Object, _arriveService.Object,
+            _completeJobService.Object, _navigator.Object);
 
     [Fact]
     public async Task GivenAnActiveJobWithTier_WhenViewModelLoads_ThenTierIsSurfacedFromContext()
@@ -58,6 +61,38 @@ public class ActiveJobViewModelTests
 
         // Assert
         _arriveService.Verify(s => s.ArriveAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenOnSiteState_WhenMarkCompleteClicked_ThenCompleteServiceIsInvoked()
+    {
+        // Arrange
+        // AC-1: tapping "Mark Complete" calls POST /rep/complete via ICompleteJobService.
+        _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(Context(repState: "OnSite"));
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+
+        // Act
+        await vm.CompleteAsync();
+
+        // Assert
+        _completeJobService.Verify(s => s.CompleteAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenCompleteSucceeds_WhenCompleteAsyncCalled_ThenNavigatorNavigatesToRepIdleView()
+    {
+        // Arrange
+        // AC-2: on a successful complete the rep returns to the idle waiting view.
+        _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(Context(repState: "OnSite"));
+        var vm = CreateViewModel();
+        await vm.LoadAsync();
+
+        // Act
+        await vm.CompleteAsync();
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToRepIdleView(), Times.Once);
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using MudBlazor;
 using MudBlazor.Services;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
@@ -14,6 +15,9 @@ public class ActiveJobComponentTests : BunitContext
     private readonly Mock<IActiveJobService> _activeJobService = new();
     private readonly Mock<IRepHubService> _repHub = new();
     private readonly Mock<IArriveService> _arriveService = new();
+    private readonly Mock<ICompleteJobService> _completeJobService = new();
+    private readonly Mock<IPersonaNavigator> _navigator = new();
+    private readonly Mock<ISnackbar> _snackbar = new();
     private ActiveJobViewModel _viewModel = null!;
 
     // ShellViewModel collaborators — the active-job page drives the shared app-bar chrome (BUG-039),
@@ -50,12 +54,18 @@ public class ActiveJobComponentTests : BunitContext
     private void RegisterPage(ActiveJobContext context)
     {
         Services.AddMudServices();
+        // Override MudBlazor's real ISnackbar with a mock so the toast (AC-3) can be verified without
+        // a live snackbar host. Registered after AddMudServices so this registration wins.
+        Services.AddSingleton(_snackbar.Object);
         JSInterop.Mode = JSRuntimeMode.Loose;
         _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(context);
         Services.AddSingleton(_activeJobService.Object);
         Services.AddSingleton(_repHub.Object);
         Services.AddSingleton(_arriveService.Object);
-        _viewModel = new ActiveJobViewModel(_activeJobService.Object, _repHub.Object, _arriveService.Object);
+        Services.AddSingleton(_completeJobService.Object);
+        _viewModel = new ActiveJobViewModel(
+            _activeJobService.Object, _repHub.Object, _arriveService.Object,
+            _completeJobService.Object, _navigator.Object);
         Services.AddSingleton(_viewModel);
 
         _presentation.SetupGet(p => p.MenuStyle).Returns(ShellMenuStyle.Drawer);
@@ -422,6 +432,58 @@ public class ActiveJobComponentTests : BunitContext
         var chip = cut.Find("[data-testid='state-chip']");
         Assert.Contains("On Site", chip.TextContent);
         Assert.Contains("sd-chip--onsite", chip.GetAttribute("class"));
+    }
+
+    [Fact]
+    public void GivenOnSiteState_WhenMarkCompleteButtonClicked_ThenCompleteJobServiceIsInvoked()
+    {
+        // Arrange
+        // AC-1: tapping the enabled "Mark Complete" button invokes the ViewModel's CompleteAsync, which
+        // calls POST /rep/complete via ICompleteJobService.
+        RegisterPage(Context(repState: "OnSite"));
+        var cut = Render<ActiveJob>();
+
+        // Act
+        cut.Find("[data-testid='complete-button']").Click();
+
+        // Assert
+        _completeJobService.Verify(s => s.CompleteAsync(), Times.Once);
+    }
+
+    [Fact]
+    public void GivenMarkCompleteSucceeds_WhenButtonClicked_ThenNavigationToRepIdleOccurs()
+    {
+        // Arrange
+        // AC-2: a successful complete returns the rep to the idle waiting view via the navigator.
+        RegisterPage(Context(repState: "OnSite"));
+        var cut = Render<ActiveJob>();
+
+        // Act
+        cut.Find("[data-testid='complete-button']").Click();
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToRepIdleView(), Times.Once);
+    }
+
+    [Fact]
+    public void GivenCompleteSucceeds_WhenMarkCompleteButtonClicked_ThenToastWithJobMarkedCompleteIsShown()
+    {
+        // Arrange
+        // AC-3: a confirmation toast "Job marked complete" is shown when the rep marks the job complete.
+        RegisterPage(Context(repState: "OnSite"));
+        var cut = Render<ActiveJob>();
+
+        // Act
+        cut.Find("[data-testid='complete-button']").Click();
+
+        // Assert
+        _snackbar.Verify(
+            s => s.Add(
+                "Job marked complete",
+                It.IsAny<Severity>(),
+                It.IsAny<Action<SnackbarOptions>>(),
+                It.IsAny<string>()),
+            Times.Once);
     }
 
     [Fact]
