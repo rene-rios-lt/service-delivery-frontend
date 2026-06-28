@@ -62,11 +62,13 @@ public class RepIdleViewModelTests
     }
 
     [Fact]
-    public void GivenAStoredClaimedVehicle_WhenRepIdleViewModelConstructed_ThenStoreIsClearedAfterReading()
+    public void GivenAStoredClaimedVehicle_WhenRepIdleViewModelConstructed_ThenStoreIsNotClearedAfterReading()
     {
         // Arrange
-        // The store hands the vehicle off once — the idle view consumes it on construction and clears
-        // it so a later re-navigation does not resurrect a stale claim (mirrors IJobOfferStore).
+        // BUG-041: IClaimedVehicleStore is the durable source of truth for the session — shared with
+        // ReleaseVehicleAction. The idle view must READ the claimed vehicle on construction but must NOT
+        // clear the store; clearing here wiped the claim before the release action could read it, so the
+        // confirmation dialog never opened. The store is cleared only on a successful release.
         _claimedVehicleStore.SetupGet(s => s.CurrentVehicle).Returns(Vehicle());
 
         // Act
@@ -75,7 +77,7 @@ public class RepIdleViewModelTests
             NullLogger<RepIdleViewModel>.Instance);
 
         // Assert
-        _claimedVehicleStore.Verify(s => s.ClearVehicle(), Times.Once);
+        _claimedVehicleStore.Verify(s => s.ClearVehicle(), Times.Never);
     }
 
     [Fact]
