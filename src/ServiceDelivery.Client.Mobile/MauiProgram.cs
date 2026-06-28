@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 using ServiceDelivery.Client.Core.Authentication;
 using ServiceDelivery.Client.Core.Interfaces;
@@ -6,6 +7,7 @@ using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.Mobile.Services;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
+using ServiceDelivery.Client.UI.Features.Maps.Services;
 using ServiceDelivery.Client.UI.Features.ServiceRep.Services;
 
 namespace ServiceDelivery.Client.Mobile;
@@ -26,6 +28,19 @@ public static class MauiProgram
 
 		builder.Services.AddMauiBlazorWebView();
 		builder.Services.AddMudServices();
+
+		// Maps key configuration (FE-025). MAUI hosts do not load appsettings.json by default, so we add it
+		// here: the committed Resources/Raw/appsettings.json carries an empty GoogleMaps:ApiKey placeholder;
+		// a gitignored Resources/Raw/appsettings.Local.json (when present) layers the real key on top.
+		// ConfigurationMapsKeyProvider then reads GoogleMaps:ApiKey from IConfiguration. (This only adds a
+		// maps-key config source; ApiBaseAddress stays the hardcoded const below.)
+		AddMapsConfiguration(builder.Configuration);
+
+		// Google Maps SDK loading + key provider (FE-025). The provider reads GoogleMaps:ApiKey from the
+		// IConfiguration populated above; MapsLoader injects the SDK <script> only when a non-blank key is
+		// present (FE-024 will consume the MapsAvailability result to render the map or its placeholder).
+		builder.Services.AddScoped<IMapsKeyProvider, ConfigurationMapsKeyProvider>();
+		builder.Services.AddScoped<MapsLoader>();
 
 		builder.Services.AddScoped<ITokenStore, SecureStorageTokenStore>();
 		// Job-offer handoff store (FE-008). The navigator deposits the in-flight JobOfferReceived
@@ -121,5 +136,31 @@ public static class MauiProgram
 #endif
 
 		return builder.Build();
+	}
+
+	// Loads the Google Maps key config for this MAUI host (FE-025). appsettings.json is shipped as a
+	// MauiAsset (Resources/Raw); it is read from the app package and added as a JSON config stream so
+	// GoogleMaps:ApiKey becomes available via IConfiguration. A gitignored appsettings.Local.json (also a
+	// MauiAsset when a developer drops one in) layers the real key on top. Reads run synchronously at
+	// startup — there is no usable IConfiguration value before the host is built.
+	private static void AddMapsConfiguration(IConfigurationManager configuration)
+	{
+		AddJsonAssetIfPresent(configuration, "appsettings.json");
+		AddJsonAssetIfPresent(configuration, "appsettings.Local.json");
+	}
+
+	private static void AddJsonAssetIfPresent(IConfigurationManager configuration, string fileName)
+	{
+		try
+		{
+			using var stream = FileSystem.OpenAppPackageFileAsync(fileName).GetAwaiter().GetResult();
+			configuration.AddJsonStream(stream);
+		}
+		catch (FileNotFoundException)
+		{
+			// Optional source (e.g. the gitignored appsettings.Local.json on a clean checkout). The
+			// committed placeholder keeps GoogleMaps:ApiKey present-but-empty, and MapsLoader's blank-key
+			// guard (FE-025 AC-3) handles the absent-key case without crashing.
+		}
 	}
 }

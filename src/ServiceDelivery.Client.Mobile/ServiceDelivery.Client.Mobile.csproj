@@ -62,6 +62,14 @@
         <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
     </ItemGroup>
 
+    <!-- FE-025: the maps-key appsettings.json ships as a MauiAsset (above) and is read via
+         FileSystem.OpenAppPackageFileAsync. Stop the Blazor Hybrid SDK from also sweeping it into static
+         web assets, which would emit an "outside the app bundle" warning and a duplicate copy. -->
+    <ItemGroup>
+        <Content Remove="Resources\Raw\appsettings.json" />
+        <Content Remove="Resources\Raw\appsettings.Local.json" />
+    </ItemGroup>
+
     <ItemGroup>
         <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />

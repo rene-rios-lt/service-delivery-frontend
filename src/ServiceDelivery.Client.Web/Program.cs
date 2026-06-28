@@ -7,6 +7,7 @@ using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
+using ServiceDelivery.Client.UI.Features.Maps.Services;
 using ServiceDelivery.Client.UI.Features.ServiceRep.Services;
 using ServiceDelivery.Client.Web;
 using ServiceDelivery.Client.Web.Services;
@@ -40,6 +41,12 @@ builder.Services.AddScoped<IActiveJobService, HttpActiveJobService>();
 // is registered in every host (same register-everywhere pattern as the active-job service above) so
 // the dependency graph resolves regardless of which persona a host renders.
 builder.Services.AddScoped<ICompleteJobService, HttpCompleteJobService>();
+// Google Maps SDK loading + key config (FE-025). The key is read from GoogleMaps:ApiKey in
+// IConfiguration — WASM auto-loads wwwroot/appsettings.json (committed placeholder, empty key); a
+// gitignored wwwroot/appsettings.Local.json supplies the real key for local dev (see docs/maps-api-key.md).
+// MapsLoader injects the SDK <script> only when a non-blank key is present (FE-024 consumes the result).
+builder.Services.AddScoped<IMapsKeyProvider, ConfigurationMapsKeyProvider>();
+builder.Services.AddScoped<MapsLoader>();
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 builder.Services.AddScoped<ISessionState, SessionState>();
