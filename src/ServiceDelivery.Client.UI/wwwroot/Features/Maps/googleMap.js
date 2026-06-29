@@ -9,25 +9,62 @@
 // overlay rather than stacking duplicates, and removal/disposal can find and detach them cleanly.
 const maps = new Map();
 
+// Resolves once google.maps.importLibrary is actually wired up, polling up to ~5 s. MapsLoader.loadSdk
+// resolves on the SDK bootstrap <script>'s onload, but with loading=async that onload can fire a tick
+// BEFORE the bootstrap finishes defining google.maps.importLibrary. Calling importLibrary in that gap
+// throws "google.maps.importLibrary is not a function" (a TypeError) — which surfaced INTERMITTENTLY as an
+// unhandled Blazor circuit error and a blank map (FE-027 cycle-1/2 finding). The race is timing-sensitive,
+// so it bit the read-only job-offer map more often than the active-job map, but it is not specific to
+// gestureHandling. Polling for readiness here closes the gap deterministically for every consumer without
+// swallowing a genuine failure: if the SDK never becomes ready within the budget we throw, so a real
+// load/key problem is still reported rather than masked.
+function whenImportLibraryReady() {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const tick = () => {
+      if (typeof google !== "undefined" && google.maps &&
+          typeof google.maps.importLibrary === "function") {
+        resolve();
+      } else if (Date.now() - start > 5000) {
+        reject(new Error("google.maps.importLibrary did not become available within 5s."));
+      } else {
+        setTimeout(tick, 50);
+      }
+    };
+    tick();
+  });
+}
+
 // Creates a google.maps.Map in the container div and registers it. mapId enables AdvancedMarkerElement,
 // which is required for DOM-hosting markers (so each marker can carry a data-testid — see addOrUpdateMarker).
-export async function initMap(containerId, lat, lng, zoom) {
+// gestureHandling (FE-027) is the google.maps option that governs interactivity: 'none' makes the map
+// read-only (the job-offer screen passes Interactive=false → 'none' so the rep cannot pan/zoom away from the
+// requester pin during the countdown); 'auto' (the default for interactive maps) keeps full pan/zoom.
+export async function initMap(containerId, lat, lng, zoom, gestureHandling) {
   const element = document.getElementById(containerId);
   if (element === null) {
     return;
   }
 
-  // With loading=async the SDK bootstrap's script onload does NOT guarantee the `maps` / `marker` classes
-  // are constructible yet — only awaiting google.maps.importLibrary(...) does. Awaiting both libraries here
-  // before `new google.maps.Map(...)` is what stops the map being constructed against an undefined class
-  // (which threw an unhandled Blazor error and left a collapsed grey box — FE-026 BLOCKED finding).
+  // Close the loading=async readiness gap (FE-027) BEFORE touching google.maps.importLibrary, then await
+  // both libraries. With loading=async the SDK bootstrap's script onload does NOT guarantee the `maps` /
+  // `marker` classes are constructible yet — only awaiting google.maps.importLibrary(...) does. Awaiting
+  // both libraries here before `new google.maps.Map(...)` is what stops the map being constructed against
+  // an undefined class (which threw an unhandled Blazor error and left a collapsed grey box — FE-026).
+  await whenImportLibraryReady();
   await google.maps.importLibrary("maps");
   await google.maps.importLibrary("marker");
 
+  // FE-027 read-only: gestureHandling 'none' makes the map read-only (no pan / pinch-zoom / scroll-zoom /
+  // double-click-zoom), which is exactly the approved checkpoint-#1 intent — the rep can't drag away from
+  // the requester pin during the countdown. We keep disableDefaultUI:false (matching the interactive
+  // active-job path) so gestureHandling is the only behavioural delta between the two maps; gestureHandling
+  // alone fully delivers the read-only requirement.
   const map = new google.maps.Map(element, {
     center: { lat, lng },
     zoom,
     mapId: "service-delivery-map",
+    gestureHandling: gestureHandling ?? "auto",
     disableDefaultUI: false,
   });
 

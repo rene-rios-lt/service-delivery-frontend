@@ -144,6 +144,28 @@ public sealed class JobOfferTests : AppiumTestBase
             "Screen cleared only when the local countdown hit zero — the server JobOfferExpired event was ignored.");
     }
 
+    [Test]
+    public void GivenJobOfferArrives_WhenMapLoads_ThenGoogleMapContainerAndRequesterPinAreVisible()
+    {
+        // Arrange
+        // FE-027 (AC-4): the job-offer screen now renders the real FE-024 Google map in place of the CSS
+        // placeholder. With the rep owning the only candidate vehicle, a single submitted request routes
+        // its offer deterministically to this rep, which pushes the offer screen over RepHub.
+        TakeOverFirstIdleVehicle();
+        BackendApiHelper.SubmitServiceRequest(AppiumConfig.BackendBaseUrl);
+
+        // Act
+        // Wait for the map container (the live map mounts once MapsLoader reports the SDK available and
+        // initMap runs), then for the requester pin overlay the page places via OnMapReady. Both waits use
+        // the SignalR budget because the offer screen itself only appears after the server-pushed offer.
+        var mapContainer = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='google-map']")));
+        var requesterPin = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='requester-pin']")));
+
+        // Assert
+        Assert.That(mapContainer.Displayed, Is.True);
+        Assert.That(requesterPin.Displayed, Is.True);
+    }
+
     private int ReadCountdown()
     {
         var text = Driver.FindElement(By.CssSelector("[data-testid='countdown-ring']")).Text;

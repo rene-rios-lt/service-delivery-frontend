@@ -58,44 +58,21 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Static map panel + destination pin. The panel gives .sd-map (height: 100%) a
-   fixed box to fill; the pin is centred over the offer's lat/lng.
+   Map panel wrapping the real Google map (FE-027). The panel gives the embedded
+   <GoogleMap> a definite, rounded, elevated box for the offer screen. The
+   GoogleMap component owns its own height (GoogleMap.razor.css: .sd-google-map
+   { height:100%; min-height:320px }), so the panel must give it a sized box that
+   does not collapse below that floor — height:320px matches the map's min-height
+   so the rounded panel frames the whole map tile area exactly.
 --------------------------------------------------------------------------- */
 .sd-map-panel {
     width: 100%;
-    height: 180px;
+    height: 320px;
     border-radius: 14px;
     overflow: hidden;
     border: 1px solid #E4E6EC;
     box-shadow: 0 1px 2px rgba(20, 22, 40, .06), 0 1px 3px rgba(20, 22, 40, .08);
     margin: 12px 0;
-}
-
-.sd-map {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(135deg, #E8EEE6 0%, #E3EAEF 100%);
-    overflow: hidden;
-}
-
-.sd-pin-dest {
-    position: absolute;
-    transform: translate(-50%, -50%);
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #2B2F3A;
-    border: 4px solid #fff;
-    box-shadow: 0 2px 6px rgba(20, 22, 40, .08), 0 3px 12px rgba(20, 22, 40, .08);
-}
-
-.sd-pin-dest::after {
-    content: "";
-    position: absolute;
-    inset: -10px;
-    border-radius: 50%;
-    border: 2px solid rgba(43, 47, 58, .25);
 }
 
 /* ---------------------------------------------------------------------------

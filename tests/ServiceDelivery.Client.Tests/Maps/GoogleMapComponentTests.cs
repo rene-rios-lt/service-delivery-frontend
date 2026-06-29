@@ -133,6 +133,44 @@ public class GoogleMapComponentTests : BunitContext
         Assert.Contains("min-height", css);
     }
 
+    [Fact]
+    public void GivenInteractiveFalse_WhenGoogleMapInitialised_ThenInitMapReceivesGestureHandlingNone()
+    {
+        // Arrange — FE-027 (checkpoint #1 decision A): a read-only map (the job-offer screen) must lock out
+        // panning/zooming so the rep cannot drag away from the requester pin during the countdown. The
+        // component threads Interactive=false into initMap as the gestureHandling option 'none'.
+        MapsAvailable();
+
+        // Act
+        Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12)
+            .Add(c => c.Interactive, false));
+
+        // Assert
+        var invocation = _module.VerifyInvoke("initMap");
+        Assert.Equal("none", invocation.Arguments[4]);
+    }
+
+    [Fact]
+    public void GivenInteractiveDefault_WhenGoogleMapInitialised_ThenInitMapDoesNotReceiveGestureHandlingNone()
+    {
+        // Arrange — FE-027: the default map (ActiveJob / Dispatcher) stays interactive (backwards-compatible).
+        // With Interactive unset (defaulting to true) the gestureHandling option must NOT be 'none'.
+        MapsAvailable();
+
+        // Act
+        Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12));
+
+        // Assert
+        var invocation = _module.VerifyInvoke("initMap");
+        Assert.NotEqual("none", invocation.Arguments[4]);
+    }
+
     private IRenderedComponent<GoogleMap> RenderAvailableMap()
     {
         MapsAvailable();

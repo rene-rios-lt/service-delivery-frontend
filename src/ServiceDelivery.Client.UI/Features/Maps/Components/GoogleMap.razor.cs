@@ -28,6 +28,11 @@ public partial class GoogleMap : IAsyncDisposable
 
     [Parameter] public int Zoom { get; set; }
 
+    // FE-027 (checkpoint #1 decision A): when false the map is read-only — initMap receives the
+    // gestureHandling 'none' option so panning/pinch-zoom/street-view entry are locked out. Defaults to
+    // true so existing consumers (ActiveJob / Dispatcher) keep their interactive map unchanged.
+    [Parameter] public bool Interactive { get; set; } = true;
+
     // Fired once the map has been initialised (the JS module is imported and initMap has run). Consumers
     // (FE-026) place their overlays in this callback rather than in their own OnAfterRenderAsync, because a
     // parent's OnAfterRenderAsync runs before this child's async module import completes — the callback is
@@ -41,6 +46,10 @@ public partial class GoogleMap : IAsyncDisposable
     private bool _mapsUnavailable;
 
     protected string ContainerId => _containerId;
+
+    // The google.maps gestureHandling option threaded into initMap (FE-027). Read-only maps (Interactive
+    // false) lock out all gestures with 'none'; interactive maps use 'auto' (the SDK default, full pan/zoom).
+    private string GestureHandling => Interactive ? "auto" : "none";
 
     protected bool ShowPlaceholder => _mapsUnavailable;
 
@@ -60,7 +69,7 @@ public partial class GoogleMap : IAsyncDisposable
         }
 
         _module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", ModulePath);
-        await _module.InvokeVoidAsync("initMap", _containerId, Lat, Lng, Zoom);
+        await _module.InvokeVoidAsync("initMap", _containerId, Lat, Lng, Zoom, GestureHandling);
         await OnMapReady.InvokeAsync();
     }
 
