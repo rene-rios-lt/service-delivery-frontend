@@ -28,6 +28,12 @@ public partial class GoogleMap : IAsyncDisposable
 
     [Parameter] public int Zoom { get; set; }
 
+    // Fired once the map has been initialised (the JS module is imported and initMap has run). Consumers
+    // (FE-026) place their overlays in this callback rather than in their own OnAfterRenderAsync, because a
+    // parent's OnAfterRenderAsync runs before this child's async module import completes — the callback is
+    // the deterministic ready signal. Not fired when the SDK is unavailable (no map to draw on).
+    [Parameter] public EventCallback OnMapReady { get; set; }
+
     private readonly string _containerId = $"sd-map-{Guid.NewGuid():N}";
 
     private IJSObjectReference? _module;
@@ -55,6 +61,7 @@ public partial class GoogleMap : IAsyncDisposable
 
         _module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", ModulePath);
         await _module.InvokeVoidAsync("initMap", _containerId, Lat, Lng, Zoom);
+        await OnMapReady.InvokeAsync();
     }
 
     public Task AddOrUpdateMarkerAsync(string id, double lat, double lng, string colour, string testId) =>

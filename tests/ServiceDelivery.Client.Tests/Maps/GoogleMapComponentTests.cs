@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
@@ -73,6 +74,63 @@ public class GoogleMapComponentTests : BunitContext
 
         // Assert
         Assert.NotNull(cut.Find("[data-testid='google-map']"));
+    }
+
+    [Fact]
+    public void GivenGoogleMapRendered_WhenAvailable_ThenContainerCarriesSdGoogleMapSizingClass()
+    {
+        // Arrange — cycle-3 BLOCKED fix (FE-026): the map div must carry the sd-google-map class, which the
+        // component's own scoped CSS (GoogleMap.razor.css) sizes (width/height/min-height). FE-026 moved the
+        // map div into this child component, so it no longer inherits the consuming page's scoped .sd-map
+        // height rule — without sd-google-map sizing the container collapses to 0px and google.maps paints
+        // into a flat grey box (map.Displayed == False, no tiles).
+        MapsAvailable();
+
+        // Act
+        var cut = Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12));
+
+        // Assert
+        Assert.Contains("sd-google-map", cut.Find("[data-testid='google-map']").GetAttribute("class"));
+    }
+
+    [Fact]
+    public void GivenMapsUnavailable_WhenGoogleMapRendered_ThenPlaceholderCarriesSdGoogleMapSizingClass()
+    {
+        // Arrange — cycle-3 BLOCKED fix (FE-026): the FE-025 'map unavailable' placeholder must be sized
+        // too (it shares the sd-google-map sizing hook) so it stays visible rather than collapsing to 0px.
+        MapsUnavailable();
+
+        // Act
+        var cut = Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12));
+
+        // Assert
+        Assert.Contains("sd-google-map", cut.Find("[data-testid='map-unavailable']").GetAttribute("class"));
+    }
+
+    [Fact]
+    public void GivenTheGoogleMapComponent_WhenItsScopedCssIsRead_ThenSdGoogleMapHasAHeightRule()
+    {
+        // Arrange — cycle-3 BLOCKED fix (FE-026): GoogleMap must carry its OWN height (GoogleMap.razor.css)
+        // independent of any host page's scoped CSS, so FE-024's map is self-sizing for every consumer. The
+        // bUnit renderer ignores scoped CSS, so this source-read guard asserts the rule exists and sizes the
+        // sd-google-map div with a real height (the live Appium render is the ultimate proof).
+        var cssPath = RepoRoot.Combine(
+            "src", "ServiceDelivery.Client.UI", "Features", "Maps", "Components", "GoogleMap.razor.css");
+
+        // Act
+        Assert.True(File.Exists(cssPath), $"Expected GoogleMap.razor.css at '{cssPath}'.");
+        var css = File.ReadAllText(cssPath);
+
+        // Assert
+        Assert.Contains(".sd-google-map", css);
+        Assert.Contains("height", css);
+        Assert.Contains("min-height", css);
     }
 
     private IRenderedComponent<GoogleMap> RenderAvailableMap()
@@ -279,6 +337,47 @@ public class GoogleMapComponentTests : BunitContext
     }
 
     [Fact]
+    public void GivenAnOnMapReadyCallback_WhenMapInitialised_ThenCallbackIsInvokedAfterInitMap()
+    {
+        // Arrange — FE-026 needs a deterministic signal that the map is ready before it places overlays
+        // (the parent's OnAfterRenderAsync runs before this child's async module import completes). The
+        // OnMapReady callback fires once initMap has been invoked, so the consumer can place its
+        // markers/polyline knowing the JS module is live.
+        MapsAvailable();
+        var initialised = false;
+
+        // Act
+        Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12)
+            .Add(c => c.OnMapReady, EventCallback.Factory.Create(this, () => initialised = true)));
+
+        // Assert
+        _module.VerifyInvoke("initMap");
+        Assert.True(initialised);
+    }
+
+    [Fact]
+    public void GivenMapsUnavailable_WhenOnMapReadyCallbackSupplied_ThenCallbackIsNotInvoked()
+    {
+        // Arrange — with no SDK the module never imports, so there is no ready signal. The callback must
+        // not fire (a consumer must not place overlays against a map that was never initialised).
+        MapsUnavailable();
+        var initialised = false;
+
+        // Act
+        Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12)
+            .Add(c => c.OnMapReady, EventCallback.Factory.Create(this, () => initialised = true)));
+
+        // Assert
+        Assert.False(initialised);
+    }
+
+    [Fact]
     public void GivenMapsUnavailable_WhenGoogleMapRendered_ThenPlaceholderIsRendered()
     {
         // Arrange — AC-6: the SDK is unavailable (no key). The component must degrade to a labelled
@@ -343,8 +442,9 @@ public class GoogleMapComponentTests : BunitContext
         // Act
         var module = File.ReadAllText(modulePath);
 
-        // Assert
-        Assert.Contains("export function initMap", module);
+        // Assert — initMap is exported async (it awaits importLibrary before constructing the map), so the
+        // export is matched without pinning the sync/async modifier; the rest are synchronous exports.
+        Assert.Contains("export async function initMap", module);
         Assert.Contains("export function disposeMap", module);
         Assert.Contains("export function addOrUpdateMarker", module);
         Assert.Contains("export function removeMarker", module);
@@ -371,5 +471,51 @@ public class GoogleMapComponentTests : BunitContext
         Assert.Contains("AdvancedMarkerElement", module);
         Assert.Contains("data-testid", module);
         Assert.Contains("LatLngBounds", module);
+    }
+
+    [Fact]
+    public void GivenTheGoogleMapModule_WhenItsSourceIsRead_ThenPolylineTestIdIsADomAttribute()
+    {
+        // Arrange — FE-026 AC-6: a google.maps.Polyline cannot host a DOM element the way an
+        // AdvancedMarkerElement can, so its testId was only stored as a Maps property
+        // (polyline.set("testId", ...)) — invisible to the CSS selectors Appium/Playwright use. The fix
+        // attaches an invisible <div> carrying the data-testid attribute to the map container when the
+        // polyline is created, and removes it on removePolyline / disposeMap. This guards the committed
+        // source: the polyline path must stamp the testId as a real DOM data-testid attribute, not only as
+        // a Maps property.
+        var modulePath = RepoRoot.Combine(
+            "src", "ServiceDelivery.Client.UI", "wwwroot", "Features", "Maps", "googleMap.js");
+
+        // Act
+        var module = File.ReadAllText(modulePath);
+        var polylineBody = module[module.IndexOf("export function addOrUpdatePolyline")..module.IndexOf("export function removePolyline")];
+
+        // Assert
+        Assert.Contains("setAttribute(\"data-testid\"", polylineBody);
+        Assert.DoesNotContain("polyline.set(\"testId\"", polylineBody);
+    }
+
+    [Fact]
+    public void GivenTheGoogleMapModule_WhenItsSourceIsRead_ThenInitMapAwaitsImportLibraryBeforeConstructingTheMap()
+    {
+        // Arrange — BLOCKED finding (FE-026): with loading=async the SDK bootstrap script's onload does not
+        // guarantee the `maps` / `marker` classes are usable yet; only `google.maps.importLibrary(...)`
+        // resolving does. initMap must await importLibrary for both libraries BEFORE `new google.maps.Map`,
+        // so the map is never constructed against an undefined class (which threw the unhandled Blazor
+        // error / collapsed grey box). This guards the committed source: the importLibrary awaits must
+        // appear ahead of the Map construction.
+        var modulePath = RepoRoot.Combine(
+            "src", "ServiceDelivery.Client.UI", "wwwroot", "Features", "Maps", "googleMap.js");
+
+        // Act
+        var module = File.ReadAllText(modulePath);
+        var initMapBody = module[module.IndexOf("function initMap")..module.IndexOf("export function disposeMap")];
+
+        // Assert
+        Assert.Contains("await google.maps.importLibrary(\"maps\")", initMapBody);
+        Assert.Contains("await google.maps.importLibrary(\"marker\")", initMapBody);
+        Assert.True(
+            initMapBody.IndexOf("importLibrary") < initMapBody.IndexOf("new google.maps.Map"),
+            "initMap must await importLibrary before constructing the google.maps.Map.");
     }
 }

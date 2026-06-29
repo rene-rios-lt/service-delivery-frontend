@@ -42,6 +42,26 @@ public class MapsLoaderTests
         Assert.Equal("AIza-valid-key", invocation.Arguments[0]);
     }
 
+    [Fact]
+    public async Task GivenLoadSdkRejects_WhenLoadAsyncCalled_ThenIsAvailableIsFalseAndNoExceptionThrown()
+    {
+        // Arrange — BLOCKED finding (FE-026): loadSdk now returns a Promise that rejects on the SDK
+        // script's onerror (e.g. a bad/failed key or a network failure). LoadAsync must surface that as an
+        // unavailable result so GoogleMap shows the FE-025 'map unavailable' placeholder — it must NOT let
+        // the rejection propagate as an unhandled exception (which would crash the page).
+        _keyProvider.Setup(p => p.GetMapsApiKey()).Returns("AIza-bad-key");
+        _module.SetupVoid("loadSdk", _ => true)
+            .SetException(new InvalidOperationException("Failed to load the Google Maps SDK script."));
+        var loader = CreateLoader();
+
+        // Act
+        var result = await loader.LoadAsync();
+
+        // Assert
+        Assert.False(result.IsAvailable);
+        Assert.False(string.IsNullOrWhiteSpace(result.DiagnosticMessage));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -126,5 +146,28 @@ public class MapsLoaderTests
         Assert.Contains("libraries=maps,marker", module);
         Assert.Contains("loading=async", module);
         Assert.Contains("key=", module);
+    }
+
+    [Fact]
+    public void GivenTheMapsLoaderModule_WhenItsSourceIsRead_ThenLoadSdkResolvesOnScriptOnloadAndRejectsOnError()
+    {
+        // Arrange — BLOCKED finding (FE-026): loadSdk previously returned synchronously the moment the
+        // <script async> tag was appended, so LoadAsync reported the SDK available before google.maps
+        // actually existed — GoogleMap then called `new google.maps.Map(...)` against an undefined SDK and
+        // threw an unhandled Blazor error (collapsed grey box, no overlays). The fix makes loadSdk return a
+        // Promise that resolves on the script tag's onload (and rejects on onerror), so the awaiting
+        // LoadAsync only reports available once the SDK bootstrap is actually loaded. This guards the
+        // committed source against a regression back to fire-and-forget injection (the bUnit mock cannot
+        // exercise a real onload).
+        var modulePath = RepoRoot.Combine(
+            "src", "ServiceDelivery.Client.UI", "wwwroot", "Features", "Maps", "mapsLoader.js");
+
+        // Act
+        var module = File.ReadAllText(modulePath);
+
+        // Assert
+        Assert.Contains("return new Promise", module);
+        Assert.Contains("script.onload", module);
+        Assert.Contains("script.onerror", module);
     }
 }

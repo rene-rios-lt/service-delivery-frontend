@@ -51,6 +51,11 @@ public class ActiveJobComponentTests : BunitContext
         new(Guid.NewGuid(), requesterName, dtcTitle, requesterLat, requesterLng,
             repLat, repLng, etaMinutes, distanceMiles, repState, tier);
 
+    // The embedded GoogleMap component (FE-024) asks IMapsLoader whether the SDK is available on first
+    // render. The page tests register an available loader so the real <GoogleMap> container renders
+    // (data-testid='google-map') rather than the unavailable placeholder.
+    private readonly Mock<IMapsLoader> _mapsLoader = new();
+
     private void RegisterPage(ActiveJobContext context)
     {
         Services.AddMudServices();
@@ -58,6 +63,8 @@ public class ActiveJobComponentTests : BunitContext
         // a live snackbar host. Registered after AddMudServices so this registration wins.
         Services.AddSingleton(_snackbar.Object);
         JSInterop.Mode = JSRuntimeMode.Loose;
+        _mapsLoader.Setup(l => l.LoadAsync()).ReturnsAsync(new MapsAvailability(true, null));
+        Services.AddSingleton(_mapsLoader.Object);
         _activeJobService.Setup(s => s.GetActiveJobAsync()).ReturnsAsync(context);
         Services.AddSingleton(_activeJobService.Object);
         Services.AddSingleton(_repHub.Object);
@@ -80,18 +87,37 @@ public class ActiveJobComponentTests : BunitContext
     private readonly Mock<IPersonaNavigator> _navigatorForShell = new();
 
     [Fact]
-    public void GivenAnActiveJob_WhenInitialized_ThenRepMarkerAndRequesterPinAreRendered()
+    public void GivenActiveJobPage_WhenRendered_ThenGoogleMapComponentIsPresent()
     {
         // Arrange
-        // AC-1: the map shows the rep's moving marker and the requester's fixed pin.
+        // AC-1: the page renders the real FE-024 GoogleMap component (its available-SDK container carries
+        // data-testid='google-map') in place of the old CSS/SVG placeholder.
         RegisterPage(Context());
 
         // Act
         var cut = Render<ActiveJob>();
 
         // Assert
-        Assert.NotNull(cut.Find("[data-testid='rep-marker']"));
-        Assert.NotNull(cut.Find("[data-testid='requester-pin']"));
+        Assert.NotNull(cut.Find("[data-testid='google-map']"));
+    }
+
+    [Fact]
+    public void GivenActiveJobPage_WhenRendered_ThenPlaceholderMarkupIsAbsent()
+    {
+        // Arrange
+        // AC-1: the old CSS/SVG placeholder elements (road grid, route line, marker/pin divs) are removed
+        // entirely now that the real Google map renders the rep marker, requester pin, and route line.
+        RegisterPage(Context());
+
+        // Act
+        var cut = Render<ActiveJob>();
+
+        // Assert
+        Assert.Empty(cut.FindAll("[data-testid='road-grid']"));
+        Assert.Empty(cut.FindAll(".sd-roadgrid"));
+        Assert.Empty(cut.FindAll(".sd-routeline"));
+        Assert.Empty(cut.FindAll(".sd-marker"));
+        Assert.Empty(cut.FindAll(".sd-pin-dest"));
     }
 
     [Fact]
@@ -335,11 +361,13 @@ public class ActiveJobComponentTests : BunitContext
     }
 
     [Fact]
-    public async Task GivenARedirect_WhenComponentReceivesUpdate_ThenMapPinMovesToNewCoordinatesWithoutNavigation()
+    public async Task GivenARedirect_WhenComponentReceivesUpdate_ThenRequesterCoordinatesMoveWithoutNavigation()
     {
         // Arrange
-        // AC-6: a RedirectReceived event moves the requester pin to the new destination in-place — the
-        // page re-renders the new coordinates and never navigates away.
+        // AC-6 (FE-011): a RedirectReceived event moves the requester to the new destination in-place — the
+        // ViewModel coordinates update and the page never navigates away (the requester pin is now a real
+        // map overlay re-placed via the interop API; the overlay re-placement is asserted in the interop
+        // suite, while this test guards the preserved no-navigation behaviour).
         RegisterPage(Context(requesterLat: 41.60, requesterLng: -93.60));
         var cut = Render<ActiveJob>();
         var nav = Services.GetRequiredService<NavigationManager>();
@@ -349,26 +377,9 @@ public class ActiveJobComponentTests : BunitContext
         await cut.InvokeAsync(() => _viewModel.OnRedirectReceivedAsync(Redirect(latitude: 41.85, longitude: -93.35)));
 
         // Assert
-        var pin = cut.Find("[data-testid='requester-pin']");
-        Assert.Equal("41.85", pin.GetAttribute("data-lat"));
-        Assert.Equal("-93.35", pin.GetAttribute("data-lng"));
+        Assert.Equal(41.85, _viewModel.RequesterLat);
+        Assert.Equal(-93.35, _viewModel.RequesterLng);
         Assert.Equal(uriBeforeRedirect, nav.Uri);
-    }
-
-    [Fact]
-    public void GivenAnActiveJob_WhenInitialized_ThenStraightRouteLineIsRendered()
-    {
-        // Arrange
-        // AC-1: the map draws a straight route line between the rep marker and the requester pin.
-        RegisterPage(Context(
-            requesterLat: 41.60, requesterLng: -93.60,
-            repLat: 41.70, repLng: -93.50));
-
-        // Act
-        var cut = Render<ActiveJob>();
-
-        // Assert
-        Assert.NotNull(cut.Find("[data-testid='route-line']"));
     }
 
     [Fact]
@@ -400,22 +411,6 @@ public class ActiveJobComponentTests : BunitContext
 
         // Assert
         _arriveService.Verify(s => s.ArriveAsync(), Times.Once);
-    }
-
-    [Fact]
-    public async Task GivenIsOnSiteTrue_WhenComponentRendered_ThenRouteLineIsHidden()
-    {
-        // Arrange
-        // AC-2: once the rep arrives the highlighted navigation route polyline is removed (only the
-        // faint background road grid remains). The route-line SVG must no longer be in the DOM.
-        RegisterPage(Context(repState: "Within15Miles"));
-        var cut = Render<ActiveJob>();
-
-        // Act
-        await cut.InvokeAsync(() => _viewModel.ArriveAsync());
-
-        // Assert
-        Assert.Empty(cut.FindAll("[data-testid='route-line']"));
     }
 
     [Fact]

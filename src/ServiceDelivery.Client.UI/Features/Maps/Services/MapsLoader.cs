@@ -23,6 +23,10 @@ public class MapsLoader : IMapsLoader
         "Google Maps API key is missing or blank. Set GoogleMaps:ApiKey in appsettings.Local.json " +
         "(see docs/maps-api-key.md). The map will not load; the 'map unavailable' placeholder is shown instead.";
 
+    private const string LoadFailedDiagnostic =
+        "The Google Maps SDK script failed to load (check the API key is valid and the network is " +
+        "reachable). The 'map unavailable' placeholder is shown instead.";
+
     private readonly IMapsKeyProvider _keyProvider;
     private readonly IJSRuntime _jsRuntime;
     private readonly ILogger<MapsLoader> _logger;
@@ -44,8 +48,20 @@ public class MapsLoader : IMapsLoader
             return new MapsAvailability(false, MissingKeyDiagnostic);
         }
 
-        var module = await _jsRuntime.InvokeAsync<IJSObjectReference>("import", ModulePath);
-        await module.InvokeVoidAsync("loadSdk", apiKey);
-        return new MapsAvailability(true, null);
+        try
+        {
+            var module = await _jsRuntime.InvokeAsync<IJSObjectReference>("import", ModulePath);
+            // loadSdk resolves on the SDK script's onload and rejects on onerror, so awaiting it here means
+            // we only report the SDK available once it is genuinely loaded (FE-026 BLOCKED finding). A
+            // rejection (bad/failed key, network failure) is surfaced as an unavailable result so GoogleMap
+            // shows the placeholder rather than letting the exception crash the page.
+            await module.InvokeVoidAsync("loadSdk", apiKey);
+            return new MapsAvailability(true, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, LoadFailedDiagnostic);
+            return new MapsAvailability(false, LoadFailedDiagnostic);
+        }
     }
 }

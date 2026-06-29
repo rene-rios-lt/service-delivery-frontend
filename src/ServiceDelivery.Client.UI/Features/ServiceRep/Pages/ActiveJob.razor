@@ -2,7 +2,9 @@
 @using System.Globalization
 @using System.Threading
 @using MudBlazor
+@using ServiceDelivery.Client.Core.Models
 @using ServiceDelivery.Client.Core.ViewModels
+@using ServiceDelivery.Client.UI.Features.Maps.Components
 @implements IDisposable
 @inject ActiveJobViewModel ViewModel
 @inject ShellViewModel Shell
@@ -29,45 +31,12 @@
             <span class="sd-chip__dot"></span>@StateLabel
         </div>
 
-        <svg class="sd-roadgrid" data-testid="road-grid">
-            <line x1="48%" y1="0" x2="48%" y2="100%" />
-            <line x1="0" y1="48%" x2="100%" y2="48%" />
-            <line x1="10%" y1="20%" x2="72%" y2="30%" />
-        </svg>
-
-        @if (!ViewModel.IsOnSite)
-        {
-            <svg class="sd-routeline" data-testid="route-line">
-                <line x1="65%" y1="32%" x2="30%" y2="60%" />
-            </svg>
-        }
-
-        @if (ViewModel.IsOnSite)
-        {
-            <div class="sd-marker sd-marker--onsite" data-testid="rep-marker"
-                 style="left:50%; top:50%"
-                 data-lat="@ViewModel.RepLat.ToString(CultureInfo.InvariantCulture)"
-                 data-lng="@ViewModel.RepLng.ToString(CultureInfo.InvariantCulture)">
-                <div class="sd-marker__pin"></div>
-            </div>
-        }
-        else
-        {
-            <div class="sd-pin-dest" data-testid="rep-marker"
-                 style="left:65%; top:32%"
-                 data-lat="@ViewModel.RepLat.ToString(CultureInfo.InvariantCulture)"
-                 data-lng="@ViewModel.RepLng.ToString(CultureInfo.InvariantCulture)"></div>
-        }
-
-        @if (!ViewModel.IsOnSite)
-        {
-            <div class="sd-marker sd-marker--enroute" data-testid="requester-pin"
-                 style="left:30%; top:60%"
-                 data-lat="@ViewModel.RequesterLat.ToString(CultureInfo.InvariantCulture)"
-                 data-lng="@ViewModel.RequesterLng.ToString(CultureInfo.InvariantCulture)">
-                <div class="sd-marker__pin"></div>
-            </div>
-        }
+        @* FE-026: the real Google map (FE-024 GoogleMap component) replaces the former CSS/SVG placeholder.
+           The rep marker, requester pin, and route polyline are now real map overlays placed via the
+           imperative interop API in UpdateMapOverlaysAsync — not DOM elements in this markup. The map
+           centres on the requester at a city-level zoom initially; FitBoundsAsync then frames both points. *@
+        <GoogleMap @ref="_map" Lat="@ViewModel.RequesterLat" Lng="@ViewModel.RequesterLng" Zoom="13"
+                   OnMapReady="UpdateMapOverlaysAsync" />
     </div>
 
     <div class="sd-sheet" data-testid="bottom-sheet">
@@ -106,6 +75,10 @@
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
 
     private Timer? _pollTimer;
+
+    // Captures the embedded GoogleMap (FE-024) so the page can drive its imperative overlay API
+    // (markers / polyline / pan / zoom / fitBounds) from OnAfterRenderAsync and each poll/state change.
+    private GoogleMap? _map;
 
     // Maps the request tier (Gold/Silver/Bronze) to its design-system badge modifier generically —
     // no per-tier hardcoding, so a new tier needs only its design-system class, not a code branch.
@@ -148,14 +121,82 @@
     {
         // Poll the rep's simulator-driven position every ~3 seconds (AC-1). The timer fires on a pool
         // thread; each tick marshals back onto the renderer via InvokeAsync. Tests call PollOnceAsync
-        // directly so no real-time delay is needed.
+        // directly so no real-time delay is needed. The initial map overlays (rep marker, requester pin,
+        // route polyline) are placed from the GoogleMap's OnMapReady callback (FE-026) — not here — because
+        // this OnAfterRender runs before the embedded map has imported its JS module.
         if (firstRender)
         {
             _pollTimer = new Timer(_ => _ = InvokeAsync(PollOnceAsync), null, PollInterval, PollInterval);
         }
     }
 
+    // Polls the rep's live position; PollPositionAsync raises StateChanged, which refreshes the map
+    // overlays (and re-renders) via OnViewModelStateChanged — so no explicit overlay call is needed here.
     public Task PollOnceAsync() => ViewModel.PollPositionAsync();
+
+    // Drives the real Google map overlays (FE-026) from the current ViewModel state. The rep marker tracks
+    // the rep's live position and recolours per state. While the rep is still travelling (not on-site) the
+    // requester pin is shown so both ends of the trip are visible.
+    private async Task UpdateMapOverlaysAsync()
+    {
+        if (_map is null)
+        {
+            return;
+        }
+
+        await _map.AddOrUpdateMarkerAsync(
+            RepMarkerId, ViewModel.RepLat, ViewModel.RepLng, RepStateColour.ForState(MapRepState), RepMarkerTestId);
+
+        if (!ViewModel.IsOnSite)
+        {
+            await _map.AddOrUpdateMarkerAsync(
+                RequesterMarkerId, ViewModel.RequesterLat, ViewModel.RequesterLng, RequesterPinColour, RequesterMarkerTestId);
+            await _map.AddOrUpdatePolylineAsync(RouteId, RoutePoints(), RouteTestId);
+            // En route / within 15 mi: frame both ends of the trip so the rep and requester stay visible
+            // regardless of distance (fitBounds auto-fits the zoom).
+            await _map.FitBoundsAsync(RoutePoints());
+        }
+        else
+        {
+            // On-site: the trip is over — drop the route polyline and the requester pin so only the
+            // single combined rep+requester marker remains over the work site (mockup: rep-on-site), then
+            // recentre on the rep at a street-level zoom for the close-up work.
+            await _map.RemovePolylineAsync(RouteId);
+            await _map.RemoveMarkerAsync(RequesterMarkerId);
+            await _map.PanToAsync(ViewModel.RepLat, ViewModel.RepLng);
+            await _map.SetZoomAsync(OnSiteZoom);
+        }
+    }
+
+    // Street-level zoom used once the rep is on-site (the requester pin is gone; a close-up view is most
+    // useful for the work). En route / within 15 mi rely on fitBounds, which manages zoom automatically.
+    private const int OnSiteZoom = 15;
+
+    // The rep→requester trip points for the route polyline (ordered rep first, requester second).
+    private GpsPoint[] RoutePoints() =>
+    [
+        new GpsPoint(ViewModel.RepLat, ViewModel.RepLng),
+        new GpsPoint(ViewModel.RequesterLat, ViewModel.RequesterLng),
+    ];
+
+    private const string RepMarkerId = "rep";
+    private const string RepMarkerTestId = "rep-marker";
+    private const string RequesterMarkerId = "requester";
+    private const string RequesterMarkerTestId = "requester-pin";
+    private const string RouteId = "route";
+    private const string RouteTestId = "route-line";
+
+    // The requester pin's neutral-dark colour (design-system sd-pin-dest token) — the destination dot in
+    // the en-route mockup, distinct from the state-coloured rep marker.
+    private const string RequesterPinColour = "#2B2F3A";
+
+    // The rep state used to colour the rep marker, mirroring the StateLabel/StateChipClass computed
+    // properties so the marker colour, state chip, and label all stay in lock-step (OnSite → red,
+    // Within15Miles → yellow, otherwise EnRoute → blue).
+    private string MapRepState =>
+        ViewModel.IsOnSite ? "OnSite"
+        : ViewModel.IsArrivedEnabled ? "Within15Miles"
+        : "EnRoute";
 
     private Task OnArrivedClicked() => ViewModel.ArriveAsync();
 
@@ -173,7 +214,13 @@
     private void OnViewModelStateChanged()
     {
         ApplyShellSubtitleForState();
-        InvokeAsync(StateHasChanged);
+        // A state change (arrival, redirect, poll) can move/recolour markers, redraw or drop the route
+        // polyline, and reframe the map — so refresh the overlays alongside the Razor re-render (FE-026).
+        InvokeAsync(async () =>
+        {
+            await UpdateMapOverlaysAsync();
+            StateHasChanged();
+        });
     }
 
     // Keeps the app-bar subtitle state-appropriate: "At requester location" once the rep is on-site,

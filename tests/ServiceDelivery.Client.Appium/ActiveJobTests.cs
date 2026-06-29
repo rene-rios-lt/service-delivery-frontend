@@ -68,6 +68,39 @@ public sealed class ActiveJobTests : AppiumTestBase
     }
 
     /// <summary>
+    /// FE-026 coverage (AC-6): after accepting a job the active-job screen renders the real Google map
+    /// (FE-024 GoogleMap component) in place of the former CSS/SVG placeholder. The map container
+    /// (data-testid='google-map') is present, and the rep marker, requester pin, and route line are real
+    /// map overlays locatable by their data-testid attributes — the route line relies on the FE-026
+    /// googleMap.js fix that stamps the polyline's testId onto an invisible DOM div (a google.maps.Polyline
+    /// cannot host a DOM element). Requires a valid Maps API key in the test environment so the SDK loads;
+    /// without one the component degrades to the [data-testid='map-unavailable'] placeholder.
+    /// </summary>
+    [Test]
+    public void GivenRep1AcceptedJob_WhenActiveJobScreenLoads_ThenGoogleMapContainerIsPresentWithOverlayTestIds()
+    {
+        // Arrange
+        TakeOverFirstIdleVehicle();
+        BackendApiHelper.PositionFleetAtRequestSite(AppiumConfig.BackendBaseUrl);
+        BackendApiHelper.SubmitServiceRequest(AppiumConfig.BackendBaseUrl);
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='accept-button']"))).Click();
+
+        // Act
+        // The map and its overlays are placed once the embedded GoogleMap imports its JS module and the
+        // page's OnMapReady callback runs — poll for each rather than assuming they are present on first paint.
+        var map = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='google-map']")));
+        var repMarker = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='rep-marker']")));
+        var requesterPin = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='requester-pin']")));
+        var routeLine = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='route-line']")));
+
+        // Assert
+        Assert.That(map.Displayed, Is.True);
+        Assert.That(repMarker, Is.Not.Null);
+        Assert.That(requesterPin, Is.Not.Null);
+        Assert.That(routeLine, Is.Not.Null);
+    }
+
+    /// <summary>
     /// FE-013 coverage (AC-1, AC-2, AC-3): once the rep is on-site, tapping "Mark Complete" calls
     /// POST /rep/complete (AC-1) and on success the rep is returned to the idle waiting view (AC-2)
     /// with a brief "Job marked complete" confirmation toast (AC-3). Reaching the idle view proves the

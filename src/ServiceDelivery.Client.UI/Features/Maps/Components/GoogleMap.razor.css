@@ -1,0 +1,15 @@
+/* FE-024 GoogleMap self-sizing (FE-026 cycle-3 fix). The map div used to inherit its height from the
+   consuming page's scoped .sd-map rule, but FE-026 moved the div into this child component — Blazor CSS
+   isolation scopes each component's rules to its own markup, so a host page's scoped .sd-map[b-...] rule
+   never reaches this div. Without a height the container collapses to 0px and google.maps paints into a
+   flat grey box (no tiles, map.Displayed == False). Giving the component its own height makes FE-024's map
+   self-sizing for every consumer (ActiveJob / RepIdle / Dispatcher) rather than relying on each page.
+
+   width/height:100% fills a sized flex parent (e.g. ActiveJob's .sd-map { flex:1; min-height:320px }); the
+   min-height is the backstop so the map still has a visible box even where the parent has no definite
+   height. The same class sizes the 'map unavailable' placeholder so the fallback (FE-025) stays visible. */
+.sd-google-map {
+    width: 100%;
+    height: 100%;
+    min-height: 320px;
+}
