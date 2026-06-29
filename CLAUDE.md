@@ -218,3 +218,8 @@ Any code that would require violating this graph belongs in a different layer.
 - View models → `Core/ViewModels/`
 - Native service implementations → `Desktop/Services/`, `Mobile/Services/`, or `Web/Services/`
 - Register services in `MauiProgram.cs` (Desktop/Mobile) or `Program.cs` (Web) — never in Core or UI
+
+### Wire Contract
+
+- A wire enum (REST DTO or SignalR event payload) that arrives **unmapped or missing** must **throw**, never silently default to a fallback member such as `ServiceTier.None`. Silent defaulting hides backend↔frontend contract drift behind a degraded UI (e.g. an invisible tier badge) instead of surfacing it. Fail loud at the mapping boundary (`ToJobOfferPayload()` / equivalent) with an `InvalidOperationException` naming the drifted value. See ADR-0011 (wire-contract integrity) and BUG-036.
+- Back every wire DTO with a captured-payload deserialization test that round-trips a **real** JSON string through the same System.Text.Json path the client uses (`JsonSerializerDefaults.Web`), using distinct values per field so a field-name drift cannot pass coincidentally.

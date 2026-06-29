@@ -26,15 +26,20 @@ public record JobOfferReceivedWirePayload(
 {
     /// <summary>
     /// Projects the wire payload onto the domain-facing <see cref="JobOfferPayload"/>: parses the tier
-    /// name case-insensitively (falling back to <see cref="ServiceTier.None"/> if unrecognised), rounds
-    /// the ETA to whole minutes, and maps <c>Latitude</c>/<c>Longitude</c> onto <c>Lat</c>/<c>Lng</c>.
+    /// name case-insensitively and <b>throws</b> <see cref="InvalidOperationException"/> if the tier is
+    /// unrecognised or missing — failing loud on wire-contract drift rather than silently defaulting to
+    /// <see cref="ServiceTier.None"/> (which rendered an invisible badge — ADR-0011 / BUG-036). Rounds the
+    /// ETA to whole minutes, and maps <c>Latitude</c>/<c>Longitude</c> onto <c>Lat</c>/<c>Lng</c>.
     /// <c>RequestId</c> is intentionally not surfaced — the UI keys off the offer id.
     /// </summary>
     public JobOfferPayload ToJobOfferPayload() =>
         new(
             OfferId,
             RequesterName,
-            Enum.TryParse<ServiceTier>(RequesterTier, ignoreCase: true, out var tier) ? tier : ServiceTier.None,
+            Enum.TryParse<ServiceTier>(RequesterTier, ignoreCase: true, out var tier)
+                ? tier
+                : throw new InvalidOperationException(
+                    $"Unrecognised ServiceTier '{RequesterTier}' on JobOfferReceived — wire contract drift (ADR-0011 / BUG-036)."),
             DtcTitle,
             DistanceMiles,
             (int)Math.Round(EtaMinutes, MidpointRounding.AwayFromZero),
