@@ -11,11 +11,18 @@ const maps = new Map();
 
 // Creates a google.maps.Map in the container div and registers it. mapId enables AdvancedMarkerElement,
 // which is required for DOM-hosting markers (so each marker can carry a data-testid — see addOrUpdateMarker).
-export function initMap(containerId, lat, lng, zoom) {
+export async function initMap(containerId, lat, lng, zoom) {
   const element = document.getElementById(containerId);
   if (element === null) {
     return;
   }
+
+  // With loading=async the SDK bootstrap's script onload does NOT guarantee the `maps` / `marker` classes
+  // are constructible yet — only awaiting google.maps.importLibrary(...) does. Awaiting both libraries here
+  // before `new google.maps.Map(...)` is what stops the map being constructed against an undefined class
+  // (which threw an unhandled Blazor error and left a collapsed grey box — FE-026 BLOCKED finding).
+  await google.maps.importLibrary("maps");
+  await google.maps.importLibrary("marker");
 
   const map = new google.maps.Map(element, {
     center: { lat, lng },
@@ -36,7 +43,10 @@ export function disposeMap(containerId) {
   }
 
   entry.markers.forEach((marker) => (marker.map = null));
-  entry.polylines.forEach((polyline) => polyline.setMap(null));
+  entry.polylines.forEach((overlay) => {
+    overlay.polyline.setMap(null);
+    overlay.testIdElement.remove();
+  });
   entry.markers.clear();
   entry.polylines.clear();
   maps.delete(containerId);
@@ -96,8 +106,13 @@ export function removeMarker(containerId, id) {
   }
 }
 
-// Adds or replaces a polyline overlay (keyed by id) drawn through the ordered points. The polyline's DOM
-// element carries the data-testid hook (AC-5). Replacing an existing polyline detaches the old one first.
+// Adds or replaces a polyline overlay (keyed by id) drawn through the ordered points. A google.maps.Polyline
+// cannot host a DOM element the way an AdvancedMarkerElement can, so — unlike markers — its testId cannot
+// live on the polyline itself. Instead an invisible <div> carrying the data-testid attribute is attached to
+// the map container so Playwright/Appium CSS selectors (e.g. [data-testid='route-line']) can find the route
+// without touching the SVG tile layer (FE-026 AC-6). The div is paired with the polyline in the registry so
+// removePolyline / disposeMap can detach both. Replacing an existing polyline reuses its div and just
+// repaths the line.
 export function addOrUpdatePolyline(containerId, id, points, testId) {
   const entry = maps.get(containerId);
   if (entry === undefined) {
@@ -107,7 +122,7 @@ export function addOrUpdatePolyline(containerId, id, points, testId) {
   const path = points.map((p) => ({ lat: p.lat, lng: p.lng }));
   const existing = entry.polylines.get(id);
   if (existing !== undefined) {
-    existing.setPath(path);
+    existing.polyline.setPath(path);
     return;
   }
 
@@ -119,20 +134,29 @@ export function addOrUpdatePolyline(containerId, id, points, testId) {
     strokeOpacity: 0.85,
     strokeWeight: 4,
   });
-  polyline.set("testId", testId);
-  entry.polylines.set(id, polyline);
+
+  const testIdElement = document.createElement("div");
+  testIdElement.setAttribute("data-testid", testId);
+  testIdElement.style.display = "none";
+  const container = document.getElementById(containerId);
+  if (container !== null) {
+    container.appendChild(testIdElement);
+  }
+
+  entry.polylines.set(id, { polyline, testIdElement });
 }
 
-// Removes the named polyline overlay from the map and the registry.
+// Removes the named polyline overlay from the map and the registry, detaching its testId div too.
 export function removePolyline(containerId, id) {
   const entry = maps.get(containerId);
   if (entry === undefined) {
     return;
   }
 
-  const polyline = entry.polylines.get(id);
-  if (polyline !== undefined) {
-    polyline.setMap(null);
+  const overlay = entry.polylines.get(id);
+  if (overlay !== undefined) {
+    overlay.polyline.setMap(null);
+    overlay.testIdElement.remove();
     entry.polylines.delete(id);
   }
 }
