@@ -35,10 +35,17 @@ public class JobOfferComponentTests : BunitContext
         double lng = -93.6) =>
         new(Guid.NewGuid(), requesterName, tier, dtcTitle, distanceMiles, etaMinutes, lat, lng);
 
+    // The embedded GoogleMap component (FE-027/FE-024) asks IMapsLoader whether the SDK is available on
+    // first render. The page tests register an available loader so the real <GoogleMap> container renders
+    // (data-testid='google-map') rather than the unavailable placeholder (mirrors ActiveJobComponentTests).
+    private readonly Mock<IMapsLoader> _mapsLoader = new();
+
     private void RegisterPage(JobOfferPayload offer, string? vehicleContext = null)
     {
         Services.AddMudServices();
         JSInterop.Mode = JSRuntimeMode.Loose;
+        _mapsLoader.Setup(l => l.LoadAsync()).ReturnsAsync(new MapsAvailability(true, null));
+        Services.AddSingleton(_mapsLoader.Object);
         Services.AddSingleton<IJobOfferStore>(_store);
         Services.AddSingleton(_navigator.Object);
         Services.AddSingleton(_jobOfferService.Object);
@@ -249,17 +256,34 @@ public class JobOfferComponentTests : BunitContext
     }
 
     [Fact]
-    public void GivenAJobOfferPayload_WhenJobOfferPageRendered_ThenMapPinIsVisible()
+    public void GivenAStoredOffer_WhenJobOfferPageRendered_ThenGoogleMapContainerIsVisible()
     {
         // Arrange
+        // AC-1: the offer screen renders the real FE-024 GoogleMap component (its available-SDK container
+        // carries data-testid='google-map') in place of the old CSS placeholder map.
         RegisterPage(Offer(lat: 41.6, lng: -93.6));
 
         // Act
         var cut = Render<JobOffer>();
 
         // Assert
-        var pin = cut.Find("[data-testid='map-pin']");
-        Assert.Contains("sd-pin-dest", pin.ClassList);
+        Assert.NotNull(cut.Find("[data-testid='google-map']"));
+    }
+
+    [Fact]
+    public void GivenAStoredOffer_WhenJobOfferPageRendered_ThenPlaceholderPinIsAbsent()
+    {
+        // Arrange
+        // AC-1: the old CSS placeholder elements (sd-map / sd-pin-dest static dot, data-testid='map-pin')
+        // are removed entirely now that the real Google map renders the requester pin as a JS overlay.
+        RegisterPage(Offer(lat: 41.6, lng: -93.6));
+
+        // Act
+        var cut = Render<JobOffer>();
+
+        // Assert
+        Assert.Empty(cut.FindAll("[data-testid='map-pin']"));
+        Assert.Empty(cut.FindAll(".sd-pin-dest"));
     }
 
     [Fact]

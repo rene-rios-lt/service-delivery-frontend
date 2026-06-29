@@ -5,6 +5,7 @@
 @using ServiceDelivery.Client.Core.Interfaces
 @using ServiceDelivery.Client.Core.Models
 @using ServiceDelivery.Client.Core.ViewModels
+@using ServiceDelivery.Client.UI.Features.Maps.Components
 @implements IDisposable
 @inject IJobOfferStore JobOfferStore
 @inject IPersonaNavigator Navigator
@@ -28,13 +29,14 @@
             </div>
         }
 
+        @* FE-027: the real Google map (FE-024 GoogleMap component) replaces the former CSS placeholder
+           map. The requester pin is now a real map overlay placed via the imperative interop API in
+           PlaceRequesterPinAsync (from the OnMapReady callback) — not a static DOM dot in this markup.
+           Interactive=false makes the map read-only so the rep cannot pan/zoom away from the pin while the
+           offer countdown is running (checkpoint #1 decision A). *@
         <div class="sd-map-panel" data-testid="offer-map">
-            <div class="sd-map">
-                <div class="sd-pin-dest" data-testid="map-pin"
-                     style="left:50%; top:50%"
-                     data-lat="@_viewModel.Lat.ToString(CultureInfo.InvariantCulture)"
-                     data-lng="@_viewModel.Lng.ToString(CultureInfo.InvariantCulture)"></div>
-            </div>
+            <GoogleMap @ref="_map" Lat="@_viewModel.Lat" Lng="@_viewModel.Lng" Zoom="14"
+                       Interactive="false" OnMapReady="PlaceRequesterPinAsync" />
         </div>
         <div class="sd-card" data-testid="offer-card">
             <div class="sd-card__title" data-testid="requester-name">@_viewModel.RequesterName</div>
@@ -80,6 +82,17 @@
 
     private JobOfferViewModel? _viewModel;
     private Timer? _countdownTimer;
+
+    // Captures the embedded GoogleMap (FE-024) so the page can place the requester pin via the imperative
+    // overlay API once the map signals it is ready (OnMapReady) — FE-027.
+    private GoogleMap? _map;
+
+    private const string RequesterMarkerId = "requester";
+    private const string RequesterMarkerTestId = "requester-pin";
+
+    // The requester pin's neutral-dark colour (design-system sd-pin-dest token) — mirrors ActiveJob's
+    // RequesterPinColour so the destination pin looks identical across the offer and active-job screens.
+    private const string RequesterPinColour = "#2B2F3A";
 
     private string TierBadgeClass => _viewModel?.Tier switch
     {
@@ -131,6 +144,20 @@
         {
             _countdownTimer = new Timer(_ => _ = InvokeAsync(TickAsync), null, TickInterval, TickInterval);
         }
+    }
+
+    // Places the requester pin on the real Google map (FE-027) at the offer's Lat/Lng. Driven from the
+    // GoogleMap's OnMapReady callback rather than this page's OnAfterRender, because the embedded map
+    // imports its JS module asynchronously and is only ready to receive overlays once it raises OnMapReady.
+    private async Task PlaceRequesterPinAsync()
+    {
+        if (_map is null || _viewModel is null)
+        {
+            return;
+        }
+
+        await _map.AddOrUpdateMarkerAsync(
+            RequesterMarkerId, _viewModel.Lat, _viewModel.Lng, RequesterPinColour, RequesterMarkerTestId);
     }
 
     // Single tick entry point. The production timer calls this every second; component tests call it
