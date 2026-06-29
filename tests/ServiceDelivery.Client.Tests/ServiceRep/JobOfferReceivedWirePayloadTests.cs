@@ -80,16 +80,29 @@ public class JobOfferReceivedWirePayloadTests
     }
 
     [Fact]
-    public void GivenAnUnrecognisedTierName_WhenMappedToJobOfferPayload_ThenTierFallsBackToNone()
+    public void GivenAnUnrecognisedTierName_WhenMappedToJobOfferPayload_ThenThrows()
     {
         // Arrange
         var wire = Wire(requesterTier: "Platinum");
 
         // Act
-        var payload = wire.ToJobOfferPayload();
+        var act = () => wire.ToJobOfferPayload();
 
         // Assert
-        Assert.Equal(ServiceTier.None, payload.Tier);
+        Assert.Throws<InvalidOperationException>(act);
+    }
+
+    [Fact]
+    public void GivenAMissingTierName_WhenMappedToJobOfferPayload_ThenThrows()
+    {
+        // Arrange
+        var wire = Wire(requesterTier: "");
+
+        // Act
+        var act = () => wire.ToJobOfferPayload();
+
+        // Assert
+        Assert.Throws<InvalidOperationException>(act);
     }
 
     [Fact]
