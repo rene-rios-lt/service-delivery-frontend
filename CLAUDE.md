@@ -223,3 +223,16 @@ Any code that would require violating this graph belongs in a different layer.
 
 - A wire enum (REST DTO or SignalR event payload) that arrives **unmapped or missing** must **throw**, never silently default to a fallback member such as `ServiceTier.None`. Silent defaulting hides backend↔frontend contract drift behind a degraded UI (e.g. an invisible tier badge) instead of surfacing it. Fail loud at the mapping boundary (`ToJobOfferPayload()` / equivalent) with an `InvalidOperationException` naming the drifted value. See ADR-0011 (wire-contract integrity) and BUG-036.
 - Back every wire DTO with a captured-payload deserialization test that round-trips a **real** JSON string through the same System.Text.Json path the client uses (`JsonSerializerDefaults.Web`), using distinct values per field so a field-name drift cannot pass coincidentally.
+
+### Host parity
+
+The Web, Desktop, and Mobile hosts each ship their **own** bootstrapping — a separate `wwwroot/index.html` (the BlazorWebView `HostPage` on Desktop/Mobile, the WASM host page on Web) **and** a separate service / `HttpClient` / DI registration in `Program.cs` (Web) or `MauiProgram.cs` (Desktop/Mobile). **Any change to host-bootstrapping config must be applied to all three hosts in the same change, with an explicit per-host verification step.** A fix that lands on one host silently misses the other two.
+
+This generalises the MudBlazor asset rule above (BUG-020 fixed Web's `index.html`; the identical defect then shipped as BUG-022 on Desktop + Mobile — one defect, three hosts, two PRs). It is not MudBlazor-specific; it applies to every shared bootstrapping concern, e.g.:
+- static assets / `<script>` / `<link>` in `wwwroot/index.html` (MudBlazor CSS+JS, the Roboto font);
+- the outbound `HttpClient` `DelegatingHandler` pipeline and its order (`SessionExpiryHttpHandler → AuthTokenHttpHandler → network`, BUG-024/028);
+- DI service registrations a shared UI component depends on (the register-in-every-host pattern already used for `IJobOfferStore`, `IClaimedVehicleStore`, …).
+
+It does **not** apply to genuinely host-specific code — a native Desktop/Mobile service implementation with no Web equivalent is expected to differ.
+
+**Verification (per runtime).** After a bootstrapping change, confirm all three host project files were updated **and** the behaviour holds in each runtime that the change affects — the browser/WASM path via `scripts/local/smoke-web.sh`, and the MAUI WKWebView path via `scripts/local/smoke-mobile.sh` (the QUAL-008 per-runtime smokes). `story-ai-reviewer` enforces this (Check 11 — Host Parity) for any frontend story whose diff touches host-bootstrapping config.
