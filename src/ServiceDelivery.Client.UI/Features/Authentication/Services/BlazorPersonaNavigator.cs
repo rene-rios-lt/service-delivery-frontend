@@ -46,4 +46,7 @@ public class BlazorPersonaNavigator : IPersonaNavigator
 
     public void NavigateToRequesterPending() =>
         _navigation.NavigateTo(PersonaRouteMap.RequesterPending);
+
+    public void NavigateToRequesterTracking() =>
+        _navigation.NavigateTo(PersonaRouteMap.RequesterTracking);
 }

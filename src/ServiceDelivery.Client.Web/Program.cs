@@ -59,6 +59,12 @@ builder.Services.AddScoped<IDtcService, HttpDtcService>();
 builder.Services.AddScoped<IServiceRequestService, HttpServiceRequestService>();
 builder.Services.AddScoped<IGeolocationService, BrowserGeolocationService>();
 builder.Services.AddScoped<SubmitRequestViewModel>();
+// Requester pending / "finding your technician" view (FE-016). Web hosts the Requester persona. The
+// RequesterHub client is push-driven (no polling); RequesterPendingViewModel sources the requester's
+// real tier from IAuthService and navigates to the tracking view on RepAssigned. Registered in every
+// host for parity (the Requester persona is supported on Web, Desktop, and Mobile).
+builder.Services.AddScoped<IRequesterHubService, SignalRRequesterHubService>();
+builder.Services.AddScoped<RequesterPendingViewModel>();
 builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 builder.Services.AddScoped<ISessionState, SessionState>();
 builder.Services.AddScoped<SessionExpiryHttpHandler>();

@@ -1,12 +1,72 @@
 @page "/requester/pending"
 @using MudBlazor
+@using ServiceDelivery.Client.Core.Models
 
-@* Requester pending view — forward-reference stub (FE-015). NavigateToRequesterPending (AC-4) lands
-   here after a successful submit. FE-016 replaces this body with the real pending / rep-tracking /
-   RequesterHub-subscription implementation; for now it is a spinner + status line so the post-submit
-   navigation target is valid and meaningful. *@
+@* Requester pending / "finding your technician" view (FE-016). Mockup: requester-finding__mobile-390x844.
+   The screen rests in the searching state — an indeterminate spinner, the "Finding your technician…"
+   heading, a sub-message, and a tier badge card reflecting the requester's REAL tier — until a
+   RepAssigned event arrives over RequesterHub, which navigates away to the rep-tracking view (FE-017).
+   There are no buttons or refresh controls — the transition is fully push-driven (AC-4). The app bar,
+   hamburger menu, and avatar come from the shared PersonaShell (FE-021) that wraps every authenticated
+   route. Code-behind: RequesterPending.razor.cs. *@
 
-<div class="d-flex flex-column align-center justify-center pa-8" data-testid="requester-pending">
-    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
-    <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-4">Finding your technician…</MudText>
+<div data-testid="requester-pending" class="d-flex flex-column align-center justify-center pa-8">
+    <MudProgressCircular data-testid="pending-spinner" Color="Color.Primary" Indeterminate="true"
+                         Size="Size.Large" Class="mb-2" />
+
+    <MudText data-testid="pending-heading" Typo="Typo.h5" Align="Align.Center" Class="font-weight-bold mt-4">
+        Finding your technician…
+    </MudText>
+    <MudText data-testid="pending-submessage" Typo="Typo.body1" Align="Align.Center" Class="sd-muted mt-1">
+        We're locating the nearest qualified rep for your fault. This usually takes a moment.
+    </MudText>
+
+    @* BUG-038: while the RequesterHub connection is being (re)established, surface an unobtrusive
+       indicator instead of letting a connect failure trip the unhandled-error banner. Rendered only when
+       the hub is not connected; it never blocks the pending body. *@
+    @if (!ViewModel.IsHubConnected)
+    {
+        <div data-testid="hub-status" class="sd-muted mt-3">
+            <MudText Typo="Typo.caption" Align="Align.Center">Reconnecting…</MudText>
+        </div>
+    }
+
+    @* Tier info card — reflects the authenticated requester's REAL tier (UserProfile.Tier), never a
+       hardcoded GOLD (the BUG-034 masking guard). Omitted entirely when the tier is unresolved (None). *@
+    @if (ViewModel.Tier != ServiceTier.None)
+    {
+        <MudCard data-testid="tier-card" Class="sd-card mt-6" Elevation="1">
+            <MudCardContent Class="d-flex align-center ga-4">
+                <span data-testid="tier-badge" class="sd-badge @TierBadgeClass">
+                    <span class="sd-badge__icon">★</span>@TierLabel
+                </span>
+                <div>
+                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Priority service</MudText>
+                    <MudText data-testid="tier-message" Typo="Typo.body2" Class="sd-muted">
+                        @TierMessage
+                    </MudText>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    }
 </div>
+
+@code {
+    private string TierLabel => ViewModel.Tier.ToString().ToUpperInvariant();
+
+    private string TierBadgeClass => ViewModel.Tier switch
+    {
+        ServiceTier.Gold => "sd-badge--gold",
+        ServiceTier.Silver => "sd-badge--silver",
+        ServiceTier.Bronze => "sd-badge--bronze",
+        _ => string.Empty
+    };
+
+    private string TierMessage => ViewModel.Tier switch
+    {
+        ServiceTier.Gold => "Gold requests are matched first.",
+        ServiceTier.Silver => "Silver requests are prioritised.",
+        ServiceTier.Bronze => "We're matching you with the nearest rep.",
+        _ => string.Empty
+    };
+}
