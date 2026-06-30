@@ -16,6 +16,8 @@ public static class PersonaRouteMap
     public const string ServiceRepJobOffer = "/rep/offer";
     public const string ServiceRepActiveJob = "/rep/job";
     public const string RequesterHome = "/requester";
+    public const string RequesterSubmit = "/requester/submit";
+    public const string RequesterPending = "/requester/pending";
 
     public static string RouteFor(UserRole role) => role switch
     {

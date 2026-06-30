@@ -1,0 +1,155 @@
+/* Submit-request form (mockup: requester-submit__web-1280x800 / requester-submit__mobile-390x844).
+   Co-located scoped CSS redefining every sd-* class this page renders. Blazor scoped CSS is locked to
+   its own component via the generated b-<hash> attribute, so the sd-btn* rules in JobOffer.razor.css /
+   ActiveJob.razor.css do NOT reach this page, and sd-banner / sd-select / sd-field are defined nowhere
+   global — each page must redefine the classes it uses. Colours are the literal design-system tokens
+   inlined as hex (the repo bundles hex into scoped CSS rather than relying on a :root token block — see
+   JobOffer.razor.css / RepIdle.razor.css). Primary = --sd-primary #5B4AE2. */
+
+/* ---------------------------------------------------------------------------
+   Page layout. Single-column stack on every platform; web/desktop constrain
+   the column width via MudContainer MaxWidth="Small" (the container hook
+   centres it), mobile renders the same stack full-bleed (AC-6).
+--------------------------------------------------------------------------- */
+.sd-submit {
+    padding: 16px 0 32px;
+}
+
+.sd-submit__container {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---------------------------------------------------------------------------
+   Map panel wrapping the real Google map. Gives the embedded <GoogleMap> a
+   definite, rounded, framed box (the GoogleMap component owns its own height
+   via .sd-google-map; this sizes and frames the panel around it).
+--------------------------------------------------------------------------- */
+.sd-map-panel {
+    width: 100%;
+    height: 240px;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid #E4E6EC;
+    box-shadow: 0 1px 2px rgba(20, 22, 40, .06), 0 1px 3px rgba(20, 22, 40, .08);
+}
+
+/* The "📍 Pin set · lat, lng" confirmation line shown once a location is set. */
+.sd-pin-label {
+    margin-top: 10px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #5A5F6E;
+}
+
+/* ---------------------------------------------------------------------------
+   Subdued / secondary text (the "Drop a pin…" subheading).
+--------------------------------------------------------------------------- */
+.sd-muted {
+    color: #5A5F6E;
+}
+
+/* ---------------------------------------------------------------------------
+   Field group + label above the DTC dropdown ("What's the fault?").
+--------------------------------------------------------------------------- */
+.sd-field {
+    margin-bottom: 14px;
+}
+
+.sd-field__label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12.5px;
+    font-weight: 650;
+    color: #5A5F6E;
+}
+
+/* ---------------------------------------------------------------------------
+   DTC dropdown — bordered field matching the mockup's native select.
+--------------------------------------------------------------------------- */
+.sd-select {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    border: 1.5px solid #D2D5DE;
+    border-radius: 10px;
+    background: #fff;
+    color: #1C1E26;
+}
+
+.sd-select:focus {
+    outline: none;
+    border-color: #5B4AE2;
+    box-shadow: 0 0 0 3px #ECEAFB;
+}
+
+/* ---------------------------------------------------------------------------
+   Inline error band (AC-5) — error-severity styling matching the design system.
+--------------------------------------------------------------------------- */
+.sd-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: rgba(229, 57, 47, .10);
+    border: 1px solid rgba(229, 57, 47, .30);
+    color: #B5281F;
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.sd-banner__icon {
+    font-size: 17px;
+}
+
+/* ---------------------------------------------------------------------------
+   Buttons. "Request Service" = filled primary, full-width (block), large.
+   "Use my current location" = outlined. Disabled state matches the design
+   system. No auto-uppercase (the labels are sentence-case in the mockup).
+--------------------------------------------------------------------------- */
+.sd-btn {
+    appearance: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 650;
+    padding: 11px 18px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: filter .12s;
+    text-transform: none;
+}
+
+.sd-btn--primary {
+    background: #5B4AE2;
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(20, 22, 40, .10), 0 1px 3px rgba(20, 22, 40, .12);
+}
+
+.sd-btn--outline {
+    background: transparent;
+    color: #5B4AE2;
+    border: 1.5px solid #D2D5DE;
+}
+
+.sd-btn--block {
+    width: 100%;
+}
+
+.sd-btn--lg {
+    padding: 15px 20px;
+    font-size: 15.5px;
+}
+
+.sd-btn:disabled {
+    background: #E7E9EF;
+    color: #8B90A0;
+    box-shadow: none;
+    cursor: default;
+}

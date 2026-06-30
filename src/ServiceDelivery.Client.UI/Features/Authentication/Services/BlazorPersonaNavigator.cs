@@ -43,4 +43,7 @@ public class BlazorPersonaNavigator : IPersonaNavigator
 
     public void NavigateToTakeOver() =>
         _navigation.NavigateTo(PersonaRouteMap.ServiceRepTakeOver);
+
+    public void NavigateToRequesterPending() =>
+        _navigation.NavigateTo(PersonaRouteMap.RequesterPending);
 }
