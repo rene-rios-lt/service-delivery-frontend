@@ -28,4 +28,9 @@ public interface IPersonaNavigator
     // After a successful service-request submit (FE-015/AC-4), the requester transitions to the pending
     // / "finding your technician" view (FE-016 owns that route; this story navigates to its stub).
     void NavigateToRequesterPending();
+
+    // When a RepAssigned event arrives on RequesterHub, the pending / "finding your technician" view
+    // (FE-016/AC-3) transitions to the rep-tracking view (FE-017 owns that route; this story navigates
+    // to its stub).
+    void NavigateToRequesterTracking();
 }

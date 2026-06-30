@@ -60,6 +60,12 @@ public static class MauiProgram
 		builder.Services.AddScoped<IServiceRequestService, HttpServiceRequestService>();
 		builder.Services.AddScoped<IGeolocationService, MauiGeolocationService>();
 		builder.Services.AddScoped<SubmitRequestViewModel>();
+		// Requester pending / "finding your technician" view (FE-016). Mobile hosts the Requester
+		// persona too. The RequesterHub client is push-driven (no polling); RequesterPendingViewModel
+		// sources the requester's real tier from IAuthService and navigates to the tracking view on
+		// RepAssigned. Registered in every host for parity (Requester is supported on Web/Desktop/Mobile).
+		builder.Services.AddScoped<IRequesterHubService, SignalRRequesterHubService>();
+		builder.Services.AddScoped<RequesterPendingViewModel>();
 		builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 		builder.Services.AddScoped<ISessionState, SessionState>();
 		builder.Services.AddScoped<SessionExpiryHttpHandler>();
