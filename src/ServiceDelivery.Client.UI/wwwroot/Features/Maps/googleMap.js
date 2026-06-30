@@ -68,7 +68,33 @@ export async function initMap(containerId, lat, lng, zoom, gestureHandling) {
     disableDefaultUI: false,
   });
 
-  maps.set(containerId, { map, markers: new Map(), polylines: new Map() });
+  maps.set(containerId, { map, markers: new Map(), polylines: new Map(), clickListener: null });
+}
+
+// FE-015 (tap-to-place-pin): registers a google.maps 'click' listener on the named map. Each click
+// forwards the tapped lat/lng back into .NET via dotNetRef.invokeMethodAsync('OnMapClickedAsync', ...),
+// where the GoogleMap component raises its OnMapClicked EventCallback. The listener handle is kept on the
+// map entry so removeClickListener / disposeMap can detach it (no leaked handler across navigation).
+export function addClickListener(containerId, dotNetRef) {
+  const entry = maps.get(containerId);
+  if (entry === undefined) {
+    return;
+  }
+
+  entry.clickListener = entry.map.addListener("click", (event) => {
+    dotNetRef.invokeMethodAsync("OnMapClickedAsync", event.latLng.lat(), event.latLng.lng());
+  });
+}
+
+// FE-015: detaches the map-click listener registered by addClickListener, if any.
+export function removeClickListener(containerId) {
+  const entry = maps.get(containerId);
+  if (entry === undefined || entry.clickListener === null) {
+    return;
+  }
+
+  google.maps.event.removeListener(entry.clickListener);
+  entry.clickListener = null;
 }
 
 // Removes every overlay and drops the map entry so its handlers and DOM references are released — called
@@ -77,6 +103,12 @@ export function disposeMap(containerId) {
   const entry = maps.get(containerId);
   if (entry === undefined) {
     return;
+  }
+
+  // FE-015: detach the map-click listener too (if one was registered) so its handler is released.
+  if (entry.clickListener !== null && entry.clickListener !== undefined) {
+    google.maps.event.removeListener(entry.clickListener);
+    entry.clickListener = null;
   }
 
   entry.markers.forEach((marker) => (marker.map = null));

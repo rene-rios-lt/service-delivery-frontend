@@ -1,0 +1,66 @@
+@page "/requester/submit"
+@using System.Globalization
+@using MudBlazor
+@using ServiceDelivery.Client.UI.Features.Maps.Components
+@implements IDisposable
+
+@* Requester submit-request form (FE-015). Mockup: requester-submit__web / requester-submit__mobile.
+   Single-column stack: heading → map (tap-to-pin) → "Use my current location" → DTC dropdown →
+   "Request Service". The app bar, avatar, and menu come from the shared PersonaShell (FE-021); this
+   page renders only the form body and drives the app-bar title/subtitle. Web/desktop constrain + centre
+   the column with MudContainer MaxWidth="Small"; mobile uses the same stack full-bleed. All interaction
+   is delegated to SubmitRequestViewModel — the page is display-only. Code-behind: SubmitRequest.razor.cs. *@
+
+<div class="sd-submit" data-testid="submit-request">
+    <MudContainer MaxWidth="MaxWidth.Small" Class="sd-submit__container" data-testid="submit-container">
+        <MudText Typo="Typo.h5" Class="font-weight-bold">Where are you?</MudText>
+        <MudText Typo="Typo.body2" Class="sd-muted mb-4">
+            Drop a pin or use your device location, then tell us what's wrong.
+        </MudText>
+
+        <div class="sd-map-panel" data-testid="submit-map">
+            <GoogleMap @ref="_map" Lat="@MapLat" Lng="@MapLng" Zoom="13" OnMapClicked="OnMapClickedAsync" />
+        </div>
+
+        @if (ViewModel.SelectedLocation is { } location)
+        {
+            <div class="sd-pin-label" data-testid="pin-set-label">
+                📍 Pin set ·
+                @location.Lat.ToString("0.###", CultureInfo.InvariantCulture),
+                @location.Lng.ToString("0.###", CultureInfo.InvariantCulture)
+            </div>
+        }
+
+        <button type="button" class="sd-btn sd-btn--outline sd-btn--block mt-3"
+                data-testid="use-my-location-button" id="use-my-location-button"
+                @onclick="OnUseMyLocationAsync">
+            🛰 Use my current location
+        </button>
+
+        <div class="sd-field mt-4">
+            <label class="sd-field__label" for="dtc-select">What's the fault?</label>
+            <select class="sd-select" data-testid="dtc-select" id="dtc-select" @onchange="OnDtcChanged">
+                <option value="" selected="@(ViewModel.SelectedDtcId is null)" disabled>Select a fault…</option>
+                @foreach (var dtc in ViewModel.Dtcs)
+                {
+                    <option value="@dtc.Id" selected="@(ViewModel.SelectedDtcId == dtc.Id)">@dtc.Code · @dtc.Title</option>
+                }
+            </select>
+        </div>
+
+        @if (ViewModel.ErrorMessage is not null)
+        {
+            <div class="sd-banner mt-3" data-testid="submit-error">
+                <span class="sd-banner__icon">⚠️</span>
+                <span>@ViewModel.ErrorMessage</span>
+            </div>
+        }
+
+        <button type="button" class="sd-btn sd-btn--primary sd-btn--block sd-btn--lg mt-4"
+                data-testid="request-service-button" id="request-service-button"
+                disabled="@(!ViewModel.IsSubmitEnabled || ViewModel.IsLoading)"
+                @onclick="OnSubmitAsync">
+            Request Service
+        </button>
+    </MudContainer>
+</div>

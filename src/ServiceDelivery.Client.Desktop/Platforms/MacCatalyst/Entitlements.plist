@@ -9,6 +9,13 @@
         <!-- When App Sandbox is enabled, this value is required to open outgoing network connections. -->
         <key>com.apple.security.network.client</key>
         <true/>
+        <!-- FE-015: App Sandbox is enabled above, so CoreLocation (MauiGeolocationService, used by the
+             Requester submit form's "Use my current location") requires this location entitlement IN
+             ADDITION to NSLocationWhenInUseUsageDescription in Info.plist. Without it the sandbox blocks
+             location regardless of the usage string. (The Mobile host is not sandboxed, so it needs only
+             the usage description — this entitlement is the maccatalyst-specific half of the same fix.) -->
+        <key>com.apple.security.personal-information.location</key>
+        <true/>
     </dict>
 </plist>
 

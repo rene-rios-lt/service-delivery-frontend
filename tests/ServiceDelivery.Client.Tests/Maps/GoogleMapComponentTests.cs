@@ -451,6 +451,83 @@ public class GoogleMapComponentTests : BunitContext
     }
 
     [Fact]
+    public void GivenAnOnMapClickedCallback_WhenMapInitialised_ThenAddClickListenerInvokedAfterInitMap()
+    {
+        // Arrange — FE-015 AC-1: the submit form needs tap-to-place-pin. When a consumer supplies an
+        // OnMapClicked callback, the component registers a JS click listener on the map (addClickListener)
+        // so a map tap calls back into .NET. Registration happens after initMap (the map must exist first).
+        MapsAvailable();
+
+        // Act
+        Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12)
+            .Add(c => c.OnMapClicked, EventCallback.Factory.Create<GpsPoint>(this, _ => { })));
+
+        // Assert
+        _module.VerifyInvoke("initMap");
+        _module.VerifyInvoke("addClickListener");
+    }
+
+    [Fact]
+    public void GivenNoOnMapClickedCallback_WhenMapInitialised_ThenAddClickListenerIsNotInvoked()
+    {
+        // Arrange — FE-015: existing map consumers (ActiveJob / JobOffer / Dispatcher) supply no
+        // OnMapClicked callback, so the component must NOT register a click listener for them
+        // (backwards-compatible — no behaviour change for read/track maps).
+        MapsAvailable();
+
+        // Act
+        Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12));
+
+        // Assert
+        _module.VerifyInvoke("initMap");
+        _module.VerifyNotInvoke("addClickListener");
+    }
+
+    [Fact]
+    public async Task GivenAnOnMapClickedCallback_WhenOnMapClickedAsyncInvoked_ThenCallbackReceivesTheTappedPoint()
+    {
+        // Arrange — FE-015 AC-1: a map tap flows from JS into the [JSInvokable] OnMapClickedAsync, which
+        // raises the OnMapClicked EventCallback carrying the tapped coordinate as a GpsPoint.
+        MapsAvailable();
+        GpsPoint? received = null;
+        var cut = Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12)
+            .Add(c => c.OnMapClicked, EventCallback.Factory.Create<GpsPoint>(this, point => received = point)));
+
+        // Act
+        await cut.InvokeAsync(() => cut.Instance.OnMapClickedAsync(41.587, -93.624));
+
+        // Assert
+        Assert.Equal(new GpsPoint(41.587, -93.624), received);
+    }
+
+    [Fact]
+    public void GivenTheGoogleMapModule_WhenItsSourceIsRead_ThenItExportsClickListenerFunctions()
+    {
+        // Arrange — FE-015: the mocked JS module hides a renamed/missing export, so guard the committed
+        // source: googleMap.js must export the addClickListener / removeClickListener functions the
+        // component invokes for tap-to-place-pin.
+        var modulePath = RepoRoot.Combine(
+            "src", "ServiceDelivery.Client.UI", "wwwroot", "Features", "Maps", "googleMap.js");
+
+        // Act
+        var module = File.ReadAllText(modulePath);
+
+        // Assert
+        Assert.Contains("export function addClickListener", module);
+        Assert.Contains("export function removeClickListener", module);
+        Assert.Contains("OnMapClickedAsync", module);
+    }
+
+    [Fact]
     public void GivenMapsUnavailable_WhenGoogleMapRendered_ThenPlaceholderHasMapUnavailableTestId()
     {
         // Arrange — AC-6: the placeholder carries a data-testid so E2E (QUAL-003/004) can assert the

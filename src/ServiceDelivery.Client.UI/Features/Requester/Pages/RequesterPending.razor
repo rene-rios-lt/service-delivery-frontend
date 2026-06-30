@@ -1,0 +1,12 @@
+@page "/requester/pending"
+@using MudBlazor
+
+@* Requester pending view — forward-reference stub (FE-015). NavigateToRequesterPending (AC-4) lands
+   here after a successful submit. FE-016 replaces this body with the real pending / rep-tracking /
+   RequesterHub-subscription implementation; for now it is a spinner + status line so the post-submit
+   navigation target is valid and meaningful. *@
+
+<div class="d-flex flex-column align-center justify-center pa-8" data-testid="requester-pending">
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+    <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-4">Finding your technician…</MudText>
+</div>

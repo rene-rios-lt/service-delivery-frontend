@@ -24,4 +24,8 @@ public interface IPersonaNavigator
     // After releasing the claimed vehicle at end of shift (FE-014/AC-4), the rep returns to the
     // take-over screen (FE-007) to pick another idle vehicle or hand the device back.
     void NavigateToTakeOver();
+
+    // After a successful service-request submit (FE-015/AC-4), the requester transitions to the pending
+    // / "finding your technician" view (FE-016 owns that route; this story navigates to its stub).
+    void NavigateToRequesterPending();
 }

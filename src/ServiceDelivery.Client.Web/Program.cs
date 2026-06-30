@@ -8,6 +8,7 @@ using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
 using ServiceDelivery.Client.UI.Features.Maps.Services;
+using ServiceDelivery.Client.UI.Features.Requester.Services;
 using ServiceDelivery.Client.UI.Features.ServiceRep.Services;
 using ServiceDelivery.Client.Web;
 using ServiceDelivery.Client.Web.Services;
@@ -51,6 +52,13 @@ builder.Services.AddScoped<IMapsKeyProvider, ConfigurationMapsKeyProvider>();
 builder.Services.AddScoped<MapsLoader>();
 builder.Services.AddScoped<IMapsLoader>(sp => sp.GetRequiredService<MapsLoader>());
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
+// Requester submit form (FE-015). Web hosts the Requester persona, so these are live here. The DTC and
+// service-request services are Blazor-generic (HttpClient); the geolocation service is the browser/WASM
+// implementation. SubmitRequestViewModel orchestrates the form. Registered in every host for parity.
+builder.Services.AddScoped<IDtcService, HttpDtcService>();
+builder.Services.AddScoped<IServiceRequestService, HttpServiceRequestService>();
+builder.Services.AddScoped<IGeolocationService, BrowserGeolocationService>();
+builder.Services.AddScoped<SubmitRequestViewModel>();
 builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 builder.Services.AddScoped<ISessionState, SessionState>();
 builder.Services.AddScoped<SessionExpiryHttpHandler>();

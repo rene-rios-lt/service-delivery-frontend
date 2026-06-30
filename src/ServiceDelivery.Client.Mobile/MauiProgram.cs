@@ -8,6 +8,7 @@ using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.Mobile.Services;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
 using ServiceDelivery.Client.UI.Features.Maps.Services;
+using ServiceDelivery.Client.UI.Features.Requester.Services;
 using ServiceDelivery.Client.UI.Features.ServiceRep.Services;
 
 namespace ServiceDelivery.Client.Mobile;
@@ -51,6 +52,14 @@ public static class MauiProgram
 		// navigator and the page share one instance within a session.
 		builder.Services.AddScoped<IJobOfferStore, InMemoryJobOfferStore>();
 		builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
+		// Requester submit form (FE-015). Mobile hosts the Requester persona too, so these are live here.
+		// The DTC and service-request services are Blazor-generic (HttpClient); the geolocation service is
+		// the MAUI sensor implementation. SubmitRequestViewModel orchestrates the form. Registered in every
+		// host for parity.
+		builder.Services.AddScoped<IDtcService, HttpDtcService>();
+		builder.Services.AddScoped<IServiceRequestService, HttpServiceRequestService>();
+		builder.Services.AddScoped<IGeolocationService, MauiGeolocationService>();
+		builder.Services.AddScoped<SubmitRequestViewModel>();
 		builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 		builder.Services.AddScoped<ISessionState, SessionState>();
 		builder.Services.AddScoped<SessionExpiryHttpHandler>();

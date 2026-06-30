@@ -28,5 +28,12 @@
     </array>
     <key>XSAppIconAssets</key>
     <string>Assets.xcassets/appicon.appiconset</string>
+    <!-- FE-015: the Requester submit form's "Use my current location" reads the device GPS via
+         MauiGeolocationService (CoreLocation). iOS denies location at runtime unless the app declares a
+         usage description, so without this key Geolocation.GetLocationAsync() returns no fix and the
+         feature is broken on the real device — a gap only the live mobile pass can catch (bUnit mocks
+         IGeolocationService). -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Your location is used to set the service-request pin so we can dispatch a technician to you.</string>
 </dict>
 </plist>

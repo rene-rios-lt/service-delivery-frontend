@@ -8,6 +8,7 @@ using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.Desktop.Services;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
 using ServiceDelivery.Client.UI.Features.Maps.Services;
+using ServiceDelivery.Client.UI.Features.Requester.Services;
 using ServiceDelivery.Client.UI.Features.ServiceRep.Services;
 
 namespace ServiceDelivery.Client.Desktop;
@@ -71,6 +72,14 @@ public static class MauiProgram
 		// above) so the dependency graph resolves regardless of which persona a host renders.
 		builder.Services.AddScoped<ICompleteJobService, HttpCompleteJobService>();
 		builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
+		// Requester submit form (FE-015). Desktop hosts the Requester persona, so these are live here.
+		// The DTC and service-request services are Blazor-generic (HttpClient); the geolocation service is
+		// the MAUI sensor implementation. SubmitRequestViewModel orchestrates the form. Registered in every
+		// host for parity.
+		builder.Services.AddScoped<IDtcService, HttpDtcService>();
+		builder.Services.AddScoped<IServiceRequestService, HttpServiceRequestService>();
+		builder.Services.AddScoped<IGeolocationService, MauiGeolocationService>();
+		builder.Services.AddScoped<SubmitRequestViewModel>();
 		builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 		builder.Services.AddScoped<ISessionState, SessionState>();
 		builder.Services.AddScoped<SessionExpiryHttpHandler>();
