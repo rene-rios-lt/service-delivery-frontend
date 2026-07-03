@@ -22,6 +22,7 @@ public class RequesterPendingComponentTests : BunitContext
     private readonly Mock<IRequesterHubService> _hub = new();
     private readonly Mock<IPersonaNavigator> _navigator = new();
     private readonly Mock<IAuthService> _authService = new();
+    private readonly Mock<IRepAssignedStore> _repAssignedStore = new();
     private readonly Mock<ITokenStore> _tokenStore = new();
     private readonly Mock<ILogoutSideEffect> _sideEffect = new();
     private readonly Mock<IReleaseVehicleAction> _releaseAction = new();
@@ -34,7 +35,7 @@ public class RequesterPendingComponentTests : BunitContext
             .ReturnsAsync(new UserProfile(Guid.NewGuid(), "Marcus Wright", UserRole.Requester, tier, Guid.NewGuid()));
 
         var viewModel = new RequesterPendingViewModel(
-            _hub.Object, _navigator.Object, _authService.Object,
+            _hub.Object, _navigator.Object, _authService.Object, _repAssignedStore.Object,
             NullLogger<RequesterPendingViewModel>.Instance);
 
         Services.AddMudServices();

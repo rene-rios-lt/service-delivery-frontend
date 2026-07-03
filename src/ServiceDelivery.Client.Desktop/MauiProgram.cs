@@ -86,6 +86,12 @@ public static class MauiProgram
 		// Registered in every host for parity (the Requester persona is supported on Web/Desktop/Mobile).
 		builder.Services.AddScoped<IRequesterHubService, SignalRRequesterHubService>();
 		builder.Services.AddScoped<RequesterPendingViewModel>();
+		// Requester live rep-tracking view (FE-017). IRepAssignedStore carries the RepAssigned payload from
+		// the pending view to the tracking view (same scoped hand-off store pattern as IJobOfferStore); the
+		// tracking ViewModel seeds itself from it and registers the RequesterHub RepPositionUpdated handler.
+		// Registered in every host for parity (the Requester persona is supported on Web/Desktop/Mobile).
+		builder.Services.AddScoped<IRepAssignedStore, InMemoryRepAssignedStore>();
+		builder.Services.AddScoped<RequesterTrackingViewModel>();
 		builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 		builder.Services.AddScoped<ISessionState, SessionState>();
 		builder.Services.AddScoped<SessionExpiryHttpHandler>();

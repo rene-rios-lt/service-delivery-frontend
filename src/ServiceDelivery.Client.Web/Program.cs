@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor.Services;
 using ServiceDelivery.Client.Core.Authentication;
@@ -16,6 +17,30 @@ using ServiceDelivery.Client.Web.Services;
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
+
+// FE-025 web key-loading (host parity). Blazor WASM's CreateDefault auto-loads appsettings.json and
+// appsettings.{Environment}.json, but NOT the gitignored appsettings.Local.json that carries the real
+// Google Maps key (GoogleMaps:ApiKey) for local dev — so the web map degraded to its "map unavailable"
+// placeholder even with the key file present, while the MAUI hosts already loaded it explicitly in
+// MauiProgram.cs. Fetch it over HTTP (WASM config is HTTP-sourced, not file-system) and merge it when
+// present. It is optional: a clean checkout / production without the file is unaffected and the map still
+// degrades gracefully (FE-024). The stream is intentionally left open — AddJsonStream reads it at Build().
+using (var localConfigClient = new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) })
+{
+    try
+    {
+        var localConfigResponse = await localConfigClient.GetAsync("appsettings.Local.json");
+        if (localConfigResponse.IsSuccessStatusCode)
+        {
+            builder.Configuration.AddJsonStream(
+                new MemoryStream(await localConfigResponse.Content.ReadAsByteArrayAsync()));
+        }
+    }
+    catch (HttpRequestException)
+    {
+        // No local override available (clean checkout / production) — the map degrades gracefully (FE-024).
+    }
+}
 
 builder.Services.AddMudServices();
 
@@ -65,6 +90,12 @@ builder.Services.AddScoped<SubmitRequestViewModel>();
 // host for parity (the Requester persona is supported on Web, Desktop, and Mobile).
 builder.Services.AddScoped<IRequesterHubService, SignalRRequesterHubService>();
 builder.Services.AddScoped<RequesterPendingViewModel>();
+// Requester live rep-tracking view (FE-017). IRepAssignedStore carries the RepAssigned payload from the
+// pending view to the tracking view (same scoped hand-off store pattern as IJobOfferStore); the tracking
+// ViewModel seeds itself from it and registers the RequesterHub RepPositionUpdated handler. Registered in
+// every host for parity (the Requester persona is supported on Web, Desktop, and Mobile).
+builder.Services.AddScoped<IRepAssignedStore, InMemoryRepAssignedStore>();
+builder.Services.AddScoped<RequesterTrackingViewModel>();
 builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 builder.Services.AddScoped<ISessionState, SessionState>();
 builder.Services.AddScoped<SessionExpiryHttpHandler>();

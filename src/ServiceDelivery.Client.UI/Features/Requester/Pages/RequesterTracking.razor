@@ -1,12 +1,140 @@
 @page "/requester/tracking"
-@using MudBlazor
+@using System.Globalization
+@using ServiceDelivery.Client.Core.Models
+@using ServiceDelivery.Client.Core.ViewModels
+@using ServiceDelivery.Client.UI.Features.Maps.Components
+@implements IDisposable
+@inject RequesterTrackingViewModel ViewModel
+@inject ShellViewModel Shell
 
-@* Requester rep-tracking view — forward-reference stub (FE-016). NavigateToRequesterTracking (AC-3)
-   lands here after a RepAssigned event arrives on RequesterHub. FE-017 replaces this body with the real
-   Uber-like rep-tracking implementation; for now it is a spinner + status line so the post-assignment
-   navigation target is valid and meaningful (the same stub pattern FE-015 used for /requester/pending). *@
+@* Requester live rep-tracking view (FE-017). Mockup: requester-tracking__web-1280x800 / __mobile-390x844.
+   The app bar ("Your technician is on the way" + DTC subtitle) and avatar come from the shared PersonaShell
+   (FE-021); this screen renders only the full-bleed Google map + status pill overlay + bottom sheet into the
+   shell body. The rep marker, fixed requester pin, and route polyline are real map overlays placed via the
+   imperative interop API in UpdateMapOverlaysAsync (mirrors ActiveJob.razor / FE-026) — not DOM elements. *@
 
-<div class="d-flex flex-column align-center justify-center pa-8" data-testid="requester-tracking">
-    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
-    <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-4">Your technician is on the way…</MudText>
+<div class="sd-tracking" data-testid="requester-tracking">
+    <div class="sd-map" data-testid="tracking-map">
+        <div class="sd-chip @StatusPillClass" data-testid="status-pill">
+            <span class="sd-chip__dot"></span>@ViewModel.StatusMessage
+        </div>
+
+        <GoogleMap @ref="_map" Lat="@ViewModel.RepLat" Lng="@ViewModel.RepLng" Zoom="13"
+                   Interactive="false" OnMapReady="UpdateMapOverlaysAsync" />
+    </div>
+
+    <div class="sd-sheet" data-testid="tracking-sheet">
+        <div class="sd-sheet__grip"></div>
+        <div class="sd-sheet__row">
+            <div class="sd-listitem__icon">👷</div>
+            <div class="sd-sheet__rep">
+                <div class="sd-card__title" data-testid="rep-name">@ViewModel.RepName</div>
+                <div class="sd-muted" data-testid="rep-vehicle">@ViewModel.VehicleSubtitle</div>
+            </div>
+            @if (ViewModel.IsEtaVisible)
+            {
+                <div class="sd-eta" data-testid="eta-chip">
+                    <span class="sd-eta__num" data-testid="eta-minutes">@EtaMinutesLabel min</span>
+                    <span class="sd-eta__lbl">ETA</span>
+                </div>
+            }
+        </div>
+    </div>
 </div>
+
+@code {
+    // The app-bar chrome for the tracking screen (matches the mockup). The subtitle carries the fault name
+    // once BE-031 threads it through the payload; until then the shell keeps its derived subtitle.
+    private const string TrackingTitle = "Your technician is on the way";
+
+    // Captures the embedded GoogleMap (FE-024) so the page can drive its imperative overlay API
+    // (markers / polyline / fitBounds) from OnMapReady and each RepPositionUpdated-driven state change.
+    private GoogleMap? _map;
+
+    // The rep→requester trip points for the route polyline (ordered rep first, requester second).
+    private GpsPoint[] RoutePoints() =>
+    [
+        new GpsPoint(ViewModel.RepLat, ViewModel.RepLng),
+        new GpsPoint(ViewModel.RequesterLat, ViewModel.RequesterLng),
+    ];
+
+    private const string RepMarkerId = "rep";
+    private const string RepMarkerTestId = "rep-marker";
+    private const string RequesterMarkerId = "requester";
+    private const string RequesterMarkerTestId = "requester-pin";
+    private const string RouteId = "route";
+    private const string RouteTestId = "route-line";
+
+    // The requester pin's neutral-dark colour (design-system sd-pin-dest token) — the fixed destination dot
+    // in the mockup, identical to ActiveJob.razor's requester pin, distinct from the state-coloured rep marker.
+    private const string RequesterPinColour = "#2B2F3A";
+
+    // Street-level zoom used once the rep is on-site (the requester pin is gone; a close-up view is most
+    // useful). En route / within 15 mi rely on fitBounds, which manages zoom automatically.
+    private const int OnSiteZoom = 15;
+
+    // The ETA rounded to whole minutes for display (mirrors the mockup's "9 min").
+    private string EtaMinutesLabel =>
+        ((int)Math.Round(ViewModel.EtaMinutes)).ToString(CultureInfo.InvariantCulture);
+
+    // The status pill's design-system modifier, mirroring the rep marker colour so pill and marker stay in
+    // lock-step (OnSite → red, Within15Miles → yellow, otherwise EnRoute → blue).
+    private string StatusPillClass => ViewModel.RepState switch
+    {
+        "OnSite" => "sd-chip--onsite",
+        "Within15Miles" => "sd-chip--within15",
+        _ => "sd-chip--enroute",
+    };
+
+    protected override void OnInitialized()
+    {
+        ViewModel.StateChanged += OnViewModelStateChanged;
+        Shell.SetTitle(TrackingTitle);
+    }
+
+    // Drives the real Google map overlays from the current ViewModel state. While the rep is still travelling
+    // the fixed requester pin and the route polyline are shown so both ends of the trip stay visible; once
+    // on-site the trip is over so the polyline and requester pin are dropped and the map closes in on the rep.
+    private async Task UpdateMapOverlaysAsync()
+    {
+        if (_map is null)
+        {
+            return;
+        }
+
+        await _map.AddOrUpdateMarkerAsync(
+            RepMarkerId, ViewModel.RepLat, ViewModel.RepLng, RepStateColour.ForState(ViewModel.RepState), RepMarkerTestId);
+
+        if (ViewModel.IsEtaVisible)
+        {
+            await _map.AddOrUpdateMarkerAsync(
+                RequesterMarkerId, ViewModel.RequesterLat, ViewModel.RequesterLng, RequesterPinColour, RequesterMarkerTestId);
+            await _map.AddOrUpdatePolylineAsync(RouteId, RoutePoints(), RouteTestId);
+            await _map.FitBoundsAsync(RoutePoints());
+        }
+        else
+        {
+            await _map.RemovePolylineAsync(RouteId);
+            await _map.RemoveMarkerAsync(RequesterMarkerId);
+            await _map.PanToAsync(ViewModel.RepLat, ViewModel.RepLng);
+            await _map.SetZoomAsync(OnSiteZoom);
+        }
+    }
+
+    private void OnViewModelStateChanged()
+    {
+        // A RepPositionUpdated push moves/recolours the rep marker, redraws or drops the route polyline, and
+        // reframes the map — so refresh the overlays alongside the Razor re-render.
+        InvokeAsync(async () =>
+        {
+            await UpdateMapOverlaysAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        ViewModel.StateChanged -= OnViewModelStateChanged;
+        Shell.SetTitle(null);
+    }
+}

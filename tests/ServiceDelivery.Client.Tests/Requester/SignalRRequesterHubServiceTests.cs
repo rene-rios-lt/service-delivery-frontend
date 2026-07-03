@@ -153,4 +153,29 @@ public class SignalRRequesterHubServiceTests
         Assert.Null(exception);
         Assert.Null(received);
     }
+
+    [Fact]
+    public void GivenARepPositionUpdatedHandler_WhenOnRepPositionUpdatedRegistered_ThenItBindsToTheRepPositionUpdatedEventWithoutThrowing()
+    {
+        // Arrange — FE-017/AC-3: the service registers a "RepPositionUpdated" handler that forwards the
+        // deserialized RepPositionUpdatedPayload to the subscriber, mirroring the OnRepAssigned direct-bind
+        // pattern (the client RepPositionUpdatedPayload field names match the backend exactly). HubConnection
+        // is sealed and cannot dispatch a registered client handler without a live transport, so this unit
+        // test proves the binding is wired (correct event name and payload type, no throw); the E2E test is
+        // the live-system complement that proves an actual server push updates the tracking screen.
+        var service = CreateService();
+        RepPositionUpdatedPayload? received = null;
+
+        // Act
+        var register = () => service.OnRepPositionUpdated(payload =>
+        {
+            received = payload;
+            return Task.CompletedTask;
+        });
+
+        // Assert
+        var exception = Record.Exception(register);
+        Assert.Null(exception);
+        Assert.Null(received);
+    }
 }

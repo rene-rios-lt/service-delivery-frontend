@@ -17,17 +17,20 @@ public class RequesterPendingViewModel
     private readonly IRequesterHubService _requesterHub;
     private readonly IPersonaNavigator _navigator;
     private readonly IAuthService _authService;
+    private readonly IRepAssignedStore _repAssignedStore;
     private readonly ILogger<RequesterPendingViewModel> _logger;
 
     public RequesterPendingViewModel(
         IRequesterHubService requesterHub,
         IPersonaNavigator navigator,
         IAuthService authService,
+        IRepAssignedStore repAssignedStore,
         ILogger<RequesterPendingViewModel> logger)
     {
         _requesterHub = requesterHub;
         _navigator = navigator;
         _authService = authService;
+        _repAssignedStore = repAssignedStore;
         _logger = logger;
 
         // BUG-042 (double-subscribe): register the RepAssigned handler exactly once per VM lifetime. The
@@ -84,10 +87,12 @@ public class RequesterPendingViewModel
     public Task StopAsync() => _requesterHub.StopAsync();
 
     // AC-3: a RepAssigned push transitions the requester from "finding your technician" to the
-    // rep-tracking view (FE-017's route). The navigator carries no payload yet — FE-017 owns the
-    // tracking screen and will fetch / receive the rep detail; FE-016 only needs the transition.
+    // rep-tracking view (FE-017's route). FE-017 seeds RequesterTrackingViewModel from IRepAssignedStore, so
+    // the payload must be deposited into the store BEFORE navigating — the tracking ViewModel constructs
+    // against CurrentPayload on entry, and navigating first would leave it null (empty tracking screen).
     private Task OnRepAssignedAsync(RepAssignedPayload payload)
     {
+        _repAssignedStore.SetPayload(payload);
         _navigator.NavigateToRequesterTracking();
         return Task.CompletedTask;
     }
