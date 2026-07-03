@@ -1,0 +1,132 @@
+/* Root: full-bleed column inside the shell body (whose only style is 16px padding). The map fills the
+   upper portion; the bottom sheet sits beneath it. min-height gives the flex column a definite height so
+   the map's flex:1 actually expands (the shell body itself has no height). Mirrors .sd-active-job. */
+.sd-tracking {
+    display: flex;
+    flex-direction: column;
+    margin: -16px;
+    min-height: calc(100vh - 64px);
+}
+
+.sd-map {
+    position: relative;
+    flex: 1;
+    min-height: 320px;
+    background: linear-gradient(135deg, #E8EEE6 0%, #E3EAEF 100%);
+    overflow: hidden;
+}
+
+/* Status pill — white rounded pill, top-centre of the map (mockup). The state modifier tints the dot and
+   the label per rep state, reusing the same design-system tokens as ActiveJob's state chip. */
+.sd-chip {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: white;
+    font-weight: 700;
+    font-size: .9rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+}
+
+.sd-chip--enroute {
+    color: #1E88E5;
+}
+
+.sd-chip--within15 {
+    color: #F4A100;
+}
+
+.sd-chip--onsite {
+    color: #E5392F;
+}
+
+/* State-pill dot (inherits the pill's text colour). */
+.sd-chip__dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+/* Bottom sheet — white, rounded-top-corners, top shadow (identical to ActiveJob's .sd-sheet). */
+.sd-sheet {
+    border-radius: 20px 20px 0 0;
+    background: white;
+    padding: 16px 20px 20px;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, .08);
+}
+
+.sd-sheet__grip {
+    width: 36px;
+    height: 4px;
+    background: #C0C4CC;
+    border-radius: 2px;
+    margin: 0 auto 14px;
+}
+
+/* Rep row: avatar icon, name/vehicle stacked, ETA chip pushed to the right. */
+.sd-sheet__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sd-sheet__rep {
+    flex: 1;
+    min-width: 0;
+}
+
+.sd-listitem__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #ECEAFB;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    flex: 0 0 auto;
+}
+
+.sd-card__title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.sd-muted {
+    font-size: 13px;
+    color: #5A5F6E;
+    margin-top: 2px;
+}
+
+/* ETA chip — white bordered card on the right of the sheet showing the minutes over an "ETA" label. */
+.sd-eta {
+    text-align: center;
+    padding: 8px 16px;
+    border-radius: 12px;
+    border: 1px solid #E7E9EF;
+    flex: 0 0 auto;
+}
+
+.sd-eta__num {
+    display: block;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.sd-eta__lbl {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .4px;
+    color: #8B90A0;
+    margin-top: 2px;
+}

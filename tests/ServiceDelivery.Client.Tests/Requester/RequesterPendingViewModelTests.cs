@@ -18,13 +18,14 @@ public class RequesterPendingViewModelTests
     private readonly Mock<IRequesterHubService> _hub = new();
     private readonly Mock<IPersonaNavigator> _navigator = new();
     private readonly Mock<IAuthService> _authService = new();
+    private readonly Mock<IRepAssignedStore> _repAssignedStore = new();
 
     private RequesterPendingViewModel CreateViewModel()
     {
         _authService.Setup(a => a.GetCurrentUserAsync())
             .ReturnsAsync(new UserProfile(Guid.NewGuid(), "Marcus Wright", UserRole.Requester, ServiceTier.Gold, Guid.NewGuid()));
         return new RequesterPendingViewModel(
-            _hub.Object, _navigator.Object, _authService.Object,
+            _hub.Object, _navigator.Object, _authService.Object, _repAssignedStore.Object,
             NullLogger<RequesterPendingViewModel>.Instance);
     }
 
@@ -51,7 +52,7 @@ public class RequesterPendingViewModelTests
             .Callback<Func<RepAssignedPayload, Task>>(h => capturedHandler = h);
         CreateViewModel();
         var payload = new RepAssignedPayload(
-            Guid.NewGuid(), "Marcus Wright", 7.5, 41.601, -93.609);
+            Guid.NewGuid(), "Marcus Wright", 7.5, 41.601, -93.609, "IA-4471");
 
         // Act
         await capturedHandler!.Invoke(payload);
@@ -121,7 +122,7 @@ public class RequesterPendingViewModelTests
         _authService.Setup(a => a.GetCurrentUserAsync())
             .ReturnsAsync(new UserProfile(Guid.NewGuid(), "Marcus Wright", UserRole.Requester, tier, Guid.NewGuid()));
         var viewModel = new RequesterPendingViewModel(
-            _hub.Object, _navigator.Object, _authService.Object,
+            _hub.Object, _navigator.Object, _authService.Object, _repAssignedStore.Object,
             NullLogger<RequesterPendingViewModel>.Instance);
 
         // Act
@@ -142,7 +143,7 @@ public class RequesterPendingViewModelTests
         _authService.Setup(a => a.GetCurrentUserAsync())
             .ThrowsAsync(new HttpRequestException("Response status code does not indicate success: 401 (Unauthorized)."));
         var viewModel = new RequesterPendingViewModel(
-            _hub.Object, _navigator.Object, _authService.Object,
+            _hub.Object, _navigator.Object, _authService.Object, _repAssignedStore.Object,
             NullLogger<RequesterPendingViewModel>.Instance);
 
         // Act
@@ -151,5 +152,30 @@ public class RequesterPendingViewModelTests
         // Assert
         Assert.Null(exception);
         Assert.Equal(ServiceTier.None, viewModel.Tier);
+    }
+
+    [Fact]
+    public async Task GivenARepAssignedEvent_WhenHandledByPendingViewModel_ThenPayloadDepositedInStoreBeforeNavigation()
+    {
+        // Arrange — FE-017 hand-off: the tracking view seeds itself from IRepAssignedStore, so the pending
+        // view must deposit the RepAssigned payload into the store BEFORE navigating to the tracking route.
+        // If it navigated first (or never deposited), the tracking ViewModel would construct against a null
+        // payload and render an empty screen. A MockSequence enforces the deposit-then-navigate ordering.
+        var sequence = new MockSequence();
+        Func<RepAssignedPayload, Task>? capturedHandler = null;
+        _hub.Setup(h => h.OnRepAssigned(It.IsAny<Func<RepAssignedPayload, Task>>()))
+            .Callback<Func<RepAssignedPayload, Task>>(h => capturedHandler = h);
+        var payload = new RepAssignedPayload(
+            Guid.NewGuid(), "Jordan Tran", 9, 41.601, -93.609, "IA-4471");
+        _repAssignedStore.InSequence(sequence).Setup(s => s.SetPayload(payload));
+        _navigator.InSequence(sequence).Setup(n => n.NavigateToRequesterTracking());
+        CreateViewModel();
+
+        // Act
+        await capturedHandler!.Invoke(payload);
+
+        // Assert
+        _repAssignedStore.Verify(s => s.SetPayload(payload), Times.Once);
+        _navigator.Verify(n => n.NavigateToRequesterTracking(), Times.Once);
     }
 }

@@ -17,6 +17,7 @@ public sealed class SignalRRequesterHubService : IRequesterHubService, IAsyncDis
 {
     private const string RequesterHubPath = "hubs/requester";
     private const string RepAssignedEvent = "RepAssigned";
+    private const string RepPositionUpdatedEvent = "RepPositionUpdated";
 
     // BUG-038: bounded exponential back-off for the *initial* connect (1s → 2s → 4s → 8s → 16s, capped
     // at 30s). WithAutomaticReconnect only recovers a connection that was once established; it does
@@ -99,6 +100,13 @@ public sealed class SignalRRequesterHubService : IRequesterHubService, IAsyncDis
     // field-name match (ADR-0011).
     public void OnRepAssigned(Func<RepAssignedPayload, Task> handler) =>
         _connection.On(RepAssignedEvent, handler);
+
+    // FE-017: the backend RepPositionUpdatedPayload field names (Latitude/Longitude/EtaMinutes/State) match
+    // the client RepPositionUpdatedPayload exactly, so — like OnRepAssigned above — we bind directly to the
+    // payload with no wire-DTO mapping step. The captured-payload deserialization test guards the field-name
+    // match (ADR-0011).
+    public void OnRepPositionUpdated(Func<RepPositionUpdatedPayload, Task> handler) =>
+        _connection.On(RepPositionUpdatedEvent, handler);
 
     public bool IsConnected => _isConnected();
 
