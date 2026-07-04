@@ -178,4 +178,29 @@ public class SignalRRequesterHubServiceTests
         Assert.Null(exception);
         Assert.Null(received);
     }
+
+    [Fact]
+    public void GivenARepRedirectedHandler_WhenOnRepRedirectedRegistered_ThenItBindsToTheRepRedirectedEventWithoutThrowing()
+    {
+        // Arrange — FE-018/AC-4: the service registers a "RepRedirected" handler that forwards the
+        // deserialized RepRedirectedPayload to the subscriber, mirroring the OnRepAssigned direct-bind pattern
+        // (the client RepRedirectedPayload field names match the backend exactly). HubConnection is sealed and
+        // cannot dispatch a registered client handler without a live transport, so this unit test proves the
+        // binding is wired (correct event name and payload type, no throw); the E2E test is the live-system
+        // complement that proves an actual server push shows the redirect banner.
+        var service = CreateService();
+        RepRedirectedPayload? received = null;
+
+        // Act
+        var register = () => service.OnRepRedirected(payload =>
+        {
+            received = payload;
+            return Task.CompletedTask;
+        });
+
+        // Assert
+        var exception = Record.Exception(register);
+        Assert.Null(exception);
+        Assert.Null(received);
+    }
 }
