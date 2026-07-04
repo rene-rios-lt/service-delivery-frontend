@@ -51,6 +51,22 @@ public static class BackendApiHelper
     /// <summary>Shared default password for all seeded accounts.</summary>
     private const string SeedPassword = "Password123!";
 
+    /// <summary>
+    /// Seeded spare rep accounts + their distinct seeded HydraulicTool vehicles (V-002/V-003). The redirect
+    /// scenario needs at least one Available rep OTHER than the one being redirected, so a distinct rep can
+    /// re-accept the displaced request. The live simulator does not reliably supply that second rep on its
+    /// own: <c>GET /vehicles/available</c> does not exclude already-claimed vehicles, so every simulator rep
+    /// races to claim V-001 (the first entry) and all but one get a 409 — leaving exactly one Available rep
+    /// on a clean start. We work around that by claiming distinct vehicles for these spare reps directly
+    /// (each claim names its own vehicle, so no collision). The simulator's decision loops are connected for
+    /// all rep1..rep8, so once a spare rep is Available and in range it auto-accepts (AutoDeclineRatePercent=0).
+    /// </summary>
+    private static readonly (string Email, string VehicleId)[] SpareReps =
+    {
+        ("rep2@dealer.com", "30000000-0000-0000-0000-000000000002"),
+        ("rep3@dealer.com", "30000000-0000-0000-0000-000000000003"),
+    };
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -95,6 +111,227 @@ public static class BackendApiHelper
         }
     }
 
+    /// <summary>
+    /// Drives a full, real redirect against the live backend so the displaced requester (already on the
+    /// tracking page) receives the two redirect events — <c>RepAssigned</c> then <c>RepRedirected</c>
+    /// (FE-018). Synchronous wrapper for NUnit test bodies. Throws <see cref="InvalidOperationException"/> on
+    /// any setup step failure so the cause surfaces immediately rather than being swallowed by a later UI wait.
+    ///
+    /// <para>
+    /// The real redirect flow the backend enforces (business-rules.md / RedirectRepCommandHandler):
+    /// <list type="number">
+    /// <item>Find the EnRoute rep + vehicle currently assigned to the tracked (displaced) request via the
+    /// Simulator-role <c>GET /simulator/fleet-state</c>.</item>
+    /// <item>Move that vehicle FAR from the tracked requester (> 15 mi) so the redirect passes the backend's
+    /// <c>WithinFifteenMiles</c> proximity guard — a rep within 15 mi of its requester cannot be redirected.
+    /// This is the one place the tracking precondition (fleet positioned AT the requester) must be undone.</item>
+    /// <item>Submit a GOLD target request at the far coordinates as a second requester so the target tier is
+    /// strictly higher (or Gold), clearing the <c>TierNotHigher</c> guard.</item>
+    /// <item>As the dispatcher, POST <c>/dispatcher/redirect { repId, toRequestId }</c>. The backend returns
+    /// the displaced request to Pending, marks it <c>DisplacedFromRepId</c>, and re-runs matching on it.</item>
+    /// <item>The simulator's reps then accept the re-matched displaced request; on that accept the backend
+    /// fires <c>RepAssigned</c> (new rep's full picture) followed by the deferred <c>RepRedirected</c> to the
+    /// displaced requester — exactly the two events the tracking page now handles.</item>
+    /// </list>
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Not deterministic on the new rep's identity.</b> Which rep re-accepts the displaced job is up to the
+    /// live fleet, so the caller asserts only that the banner appears and the rep name/vehicle changed — not a
+    /// specific new name (mirroring the RequesterTrackingTests determinism note).
+    /// </para>
+    /// </summary>
+    public static void TriggerRedirect(
+        string baseUrl,
+        double trackedLatitude,
+        double trackedLongitude,
+        double farLatitude,
+        double farLongitude,
+        string dispatcherEmail,
+        string goldRequesterEmail,
+        string goldDtcId) =>
+        TriggerRedirectAsync(
+                baseUrl, trackedLatitude, trackedLongitude, farLatitude, farLongitude,
+                dispatcherEmail, goldRequesterEmail, goldDtcId)
+            .GetAwaiter().GetResult();
+
+    private static async Task TriggerRedirectAsync(
+        string baseUrl,
+        double trackedLatitude,
+        double trackedLongitude,
+        double farLatitude,
+        double farLongitude,
+        string dispatcherEmail,
+        string goldRequesterEmail,
+        string goldDtcId)
+    {
+        using var simClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var simToken = await LoginAsync(simClient, SimulatorEmail);
+        simClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", simToken);
+
+        // 1. Guarantee a SECOND, distinct Available rep exists to re-accept the displaced request. On a clean
+        //    live start the simulator claims only ONE vehicle (the /vehicles/available bug — it lists claimed
+        //    vehicles, so every rep races for V-001 and all but one 409), which is enough for a single
+        //    assignment but not for a redirect, where the redirected rep leaves and a DIFFERENT rep must take
+        //    the displaced job. Claiming distinct vehicles for these spare reps directly sidesteps the race.
+        await EnsureSpareRepsClaimedAsync(baseUrl);
+
+        // 2. Find the EnRoute rep assigned to OUR tracked request (its vehicle carries the assignment).
+        //    The suite runs multiple requester scenarios against a shared live fleet, so more than one rep can
+        //    be EnRoute at once (e.g. RequesterFindingTests leaves its gold1 rep driving). Picking any EnRoute
+        //    rep (the old FirstOrDefault) could redirect the WRONG rep, sending RepAssigned + RepRedirected to
+        //    a different requester and never to the tracked one. fleet-state exposes each rep's
+        //    ActiveRequestLocation, so we select the rep whose active request is at the tracked coordinates.
+        var assigned = await WaitForEnRouteRepAtAsync(simClient, trackedLatitude, trackedLongitude);
+
+        // 3. Move ONLY the assigned vehicle far from the tracked requester so the redirect clears the 15-mi
+        //    proximity guard, then re-assert every OTHER vehicle at the tracked coordinates. The displaced
+        //    request is matched exactly ONCE — synchronously inside the redirect handler (step 5) — and nothing
+        //    re-runs matching on a later position update, so a distinct in-range Available rep MUST already be
+        //    positioned at the tracked site at the instant of the redirect. Positioning the spares in range
+        //    only AFTER the redirect (the old step-5-only approach) missed that single matching window and the
+        //    displaced request stayed Pending forever.
+        await PostPositionAsync(simClient, assigned.VehicleId, farLatitude, farLongitude);
+        await PositionAllExceptAsync(simClient, assigned.VehicleId, trackedLatitude, trackedLongitude);
+
+        // 4. Submit a GOLD target request at the far coordinates (strictly-higher/Gold tier clears the guard).
+        using var goldClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var goldToken = await LoginAsync(goldClient, goldRequesterEmail);
+        goldClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", goldToken);
+        var target = await goldClient.PostAsJsonAsync("/service-requests", new
+        {
+            dtcId = Guid.Parse(goldDtcId),
+            latitude = farLatitude,
+            longitude = farLongitude
+        });
+        await EnsureSuccessAsync(target, "POST /service-requests (Gold target)");
+        var targetBody = await target.Content.ReadFromJsonAsync<SubmitResponse>(JsonOptions)
+            ?? throw new InvalidOperationException("POST /service-requests returned no body for the Gold target.");
+
+        // 5. As the dispatcher, redirect the EnRoute rep to the Gold target — this displaces the tracked
+        //    request and immediately re-runs matching, which now finds an in-range Available spare rep (step 3).
+        using var dispatcherClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var dispatcherToken = await LoginAsync(dispatcherClient, dispatcherEmail);
+        dispatcherClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", dispatcherToken);
+        var redirect = await dispatcherClient.PostAsJsonAsync("/dispatcher/redirect", new
+        {
+            repId = assigned.ClaimingRepId!.Value,
+            toRequestId = targetBody.RequestId
+        });
+        await EnsureSuccessAsync(redirect, "POST /dispatcher/redirect");
+
+        // 6. Keep every other vehicle at the tracked site so, should the immediate match miss (timing) and a
+        //    later rep transition to Available re-trigger matching, an in-range candidate is still present.
+        await PositionAllExceptAsync(simClient, assigned.VehicleId, trackedLatitude, trackedLongitude);
+    }
+
+    /// <summary>
+    /// Claims a distinct HydraulicTool vehicle for each spare rep so at least one Available rep exists BESIDES
+    /// the one that will be redirected. Each claim names its own vehicle (no race), so a rep already holding a
+    /// vehicle simply returns a benign 409 that is ignored; only a genuine failure (e.g. auth) would surface
+    /// via <see cref="LoginAsync"/>. Idempotent and safe to call once per redirect scenario.
+    /// </summary>
+    private static async Task EnsureSpareRepsClaimedAsync(string baseUrl)
+    {
+        foreach (var (email, vehicleId) in SpareReps)
+        {
+            using var repClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            var token = await LoginAsync(repClient, email);
+            repClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            // A 409 means this rep already holds a vehicle (from an earlier scenario or a prior tick) — that is
+            // exactly the desired end state, so it is not an error. Any other non-success is left to surface on
+            // the downstream assignment wait rather than masking a real problem here.
+            await repClient.PostAsync($"/vehicles/{vehicleId}/claim", content: null);
+        }
+    }
+
+    /// <summary>
+    /// Positions every vehicle EXCEPT the excluded one at the given coordinates. Used to keep the spare reps in
+    /// range at the tracked site while the redirected vehicle stays far away (so it is not re-matched to the
+    /// displaced request it was just redirected off).
+    /// </summary>
+    private static async Task PositionAllExceptAsync(
+        HttpClient simClient, Guid excludeVehicleId, double latitude, double longitude)
+    {
+        var fleet = await simClient.GetFromJsonAsync<List<FleetEntry>>("/simulator/fleet-state", JsonOptions)
+                    ?? new List<FleetEntry>();
+        foreach (var vehicle in fleet.Where(v => v.VehicleId != excludeVehicleId))
+            await PostPositionAsync(simClient, vehicle.VehicleId, latitude, longitude);
+    }
+
+    /// <summary>
+    /// Coordinates that identify the same request site are considered equal within this tolerance. The
+    /// active-request location echoed by fleet-state is the request's own submitted lat/lng, so an exact
+    /// double match is expected in practice; the small epsilon only absorbs round-trip formatting noise.
+    /// </summary>
+    private const double CoordinateMatchToleranceDegrees = 0.0005; // ~55 m — far tighter than the 15-mi guard.
+
+    /// <summary>
+    /// Polls fleet-state (bounded) until an EnRoute rep whose ACTIVE REQUEST is at the tracked coordinates
+    /// appears — i.e. the rep this test's own request was assigned to. Selecting by active-request location
+    /// (not "any EnRoute rep") guarantees the redirect displaces the tracked request, so RepAssigned +
+    /// RepRedirected land on the tracked requester's page. The poll absorbs the match → offer → accept-delay
+    /// chain and the shared-fleet timing (another test's rep may already be EnRoute); it never relies on a
+    /// single snapshot. Throws with a fleet dump if no matching rep appears within the bound so a genuine
+    /// assignment failure surfaces immediately instead of as a downstream UI timeout.
+    /// </summary>
+    private static async Task<FleetEntry> WaitForEnRouteRepAtAsync(
+        HttpClient simClient, double latitude, double longitude)
+    {
+        const int maxAttempts = 60;      // 60 × 500 ms = 30 s — comfortably covers match + 1–5 s accept + delivery.
+        const int pollDelayMs = 500;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var fleet = await simClient.GetFromJsonAsync<List<FleetEntry>>("/simulator/fleet-state", JsonOptions)
+                        ?? new List<FleetEntry>();
+
+            var match = fleet.FirstOrDefault(v =>
+                v.ClaimingRepId is not null &&
+                v.RepState == "EnRoute" &&
+                v.ActiveRequestLocation is not null &&
+                Math.Abs(v.ActiveRequestLocation.Lat - latitude) <= CoordinateMatchToleranceDegrees &&
+                Math.Abs(v.ActiveRequestLocation.Lng - longitude) <= CoordinateMatchToleranceDegrees);
+
+            if (match is not null)
+                return match;
+
+            await Task.Delay(pollDelayMs);
+        }
+
+        var finalFleet = await simClient.GetFromJsonAsync<List<FleetEntry>>("/simulator/fleet-state", JsonOptions)
+                         ?? new List<FleetEntry>();
+        var dump = string.Join("; ", finalFleet.Select(v =>
+            $"veh={v.VehicleId} rep={v.ClaimingRepId} state={v.RepState} " +
+            $"activeReq={(v.ActiveRequestLocation is null ? "none" : $"{v.ActiveRequestLocation.Lat},{v.ActiveRequestLocation.Lng}")}"));
+        throw new InvalidOperationException(
+            $"No EnRoute rep whose active request is at ({latitude},{longitude}) appeared within " +
+            $"{maxAttempts * pollDelayMs / 1000}s — the tracked request was never assigned to an EnRoute rep, " +
+            $"so there is nothing to redirect. Fleet: [{dump}]");
+    }
+
+    private static async Task PostPositionAsync(HttpClient client, Guid vehicleId, double latitude, double longitude)
+    {
+        var body = new { latitude, longitude, timestamp = DateTime.UtcNow };
+        var response = await client.PostAsJsonAsync($"/vehicles/{vehicleId}/position", body);
+        await EnsureSuccessAsync(response, $"POST /vehicles/{vehicleId}/position");
+    }
+
+    private static async Task EnsureSuccessAsync(HttpResponseMessage response, string operation)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException(
+                $"{operation} failed ({(int)response.StatusCode} {response.StatusCode}): {content}");
+        }
+    }
+
+    /// <summary>Shape of the <c>POST /service-requests</c> response (<c>{ "requestId": "...", "status": "..." }</c>).</summary>
+    private sealed record SubmitResponse(Guid RequestId, string Status);
+
     private static async Task<string> LoginAsync(HttpClient client, string email)
     {
         var loginBody = new { email, password = SeedPassword };
@@ -118,6 +355,18 @@ public static class BackendApiHelper
     /// <summary>Shape of the <c>POST /auth/login</c> response (<c>{ "token": "..." }</c>).</summary>
     private sealed record LoginResponse(string Token);
 
-    /// <summary>Minimal projection of a <c>GET /simulator/fleet-state</c> entry — only the id is needed.</summary>
-    private sealed record FleetEntry(Guid VehicleId);
+    /// <summary>
+    /// Projection of a <c>GET /simulator/fleet-state</c> entry. <c>VehicleId</c> is used to POST positions;
+    /// <c>ClaimingRepId</c> + <c>RepState</c> identify an EnRoute rep, and <c>ActiveRequestLocation</c> pins
+    /// that rep to a specific request site so the redirect targets the rep serving the TRACKED request rather
+    /// than any EnRoute rep on the shared fleet (FE-018).
+    /// </summary>
+    private sealed record FleetEntry(
+        Guid VehicleId,
+        Guid? ClaimingRepId,
+        string RepState,
+        ActiveRequestLocationEntry? ActiveRequestLocation);
+
+    /// <summary>Projection of a fleet-state entry's <c>activeRequestLocation</c> (<c>{ "lat": …, "lng": … }</c>).</summary>
+    private sealed record ActiveRequestLocationEntry(double Lat, double Lng);
 }

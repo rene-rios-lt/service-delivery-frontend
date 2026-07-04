@@ -44,6 +44,23 @@ public class RequesterTrackingViewModelTests
     }
 
     [Fact]
+    public async Task GivenTrackingViewModel_WhenStartAsyncCalled_ThenTheHubConnectionIsStarted()
+    {
+        // Arrange — the pending page stops the shared RequesterHub connection when it navigates away
+        // (RequesterPending.DisposeAsync → StopAsync). The tracking page must therefore (re)establish the
+        // connection on entry so it is live and re-joined to the requester group; otherwise the redirect's
+        // RepAssigned + RepRedirected events (fired seconds later) never reach the tracking page. This test
+        // drives that: the tracking ViewModel must delegate a start to the hub.
+        var viewModel = CreateViewModel();
+
+        // Act
+        await viewModel.StartAsync();
+
+        // Assert — the hub connection was started (re-established after the pending page's StopAsync).
+        _hub.Verify(h => h.StartAsync(), Times.Once);
+    }
+
+    [Fact]
     public void GivenRepAssignedPayload_WhenTrackingViewModelConstructed_ThenRepNameMatchesPayload()
     {
         // Arrange — AC-2: the rep name shown above the map comes from the RepAssigned payload.

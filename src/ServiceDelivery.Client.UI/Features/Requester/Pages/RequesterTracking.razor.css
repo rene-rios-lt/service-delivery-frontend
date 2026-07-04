@@ -8,6 +8,38 @@
     min-height: calc(100vh - 64px);
 }
 
+/* FE-018 redirect banner — full-width card between the app bar and the map. Soft-indigo "info" variant (NOT
+   the red danger .sd-banner used elsewhere): --sd-primary-soft (#ECEAFB) background, --sd-primary (#5B4AE2)
+   border at low opacity, dark-indigo text. Flex row (icon + text) that wraps naturally at narrow widths — the
+   mobile mockup shows the text on two lines with no breakpoint-specific markup. */
+.sd-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 12px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.sd-banner--info {
+    background: #ECEAFB;
+    border: 1px solid rgba(91, 74, 226, .25);
+    color: #1C1E26;
+}
+
+.sd-banner__icon {
+    font-size: 17px;
+    flex: 0 0 auto;
+}
+
+.sd-banner__text {
+    flex: 1;
+    min-width: 0;
+}
+
 .sd-map {
     position: relative;
     flex: 1;
@@ -94,10 +126,32 @@
     flex: 0 0 auto;
 }
 
+/* Rep name row: the name and (after a redirect) the "NEW" chip on one line. */
+.sd-sheet__name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .sd-card__title {
     font-size: 16px;
     font-weight: 700;
     margin: 0;
+}
+
+/* FE-018/AC-3 "NEW" chip — a small soft-indigo pill beside the rep name after a redirect (both mockups). A
+   distinct class (not a .sd-chip modifier) because .sd-chip here is the absolutely-positioned map status pill;
+   this chip is inline in the bottom sheet. Tokens: --sd-primary-soft fill, --sd-primary text, pill shape. */
+.sd-chip-new {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #ECEAFB;
+    color: #5B4AE2;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .5px;
 }
 
 .sd-muted {

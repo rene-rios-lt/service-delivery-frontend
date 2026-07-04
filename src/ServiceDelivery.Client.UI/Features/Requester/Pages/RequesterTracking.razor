@@ -3,9 +3,11 @@
 @using ServiceDelivery.Client.Core.Models
 @using ServiceDelivery.Client.Core.ViewModels
 @using ServiceDelivery.Client.UI.Features.Maps.Components
+@using Microsoft.Extensions.Logging
 @implements IDisposable
 @inject RequesterTrackingViewModel ViewModel
 @inject ShellViewModel Shell
+@inject ILogger<RequesterTracking> Logger
 
 @* Requester live rep-tracking view (FE-017). Mockup: requester-tracking__web-1280x800 / __mobile-390x844.
    The app bar ("Your technician is on the way" + DTC subtitle) and avatar come from the shared PersonaShell
@@ -14,6 +16,20 @@
    imperative interop API in UpdateMapOverlaysAsync (mirrors ActiveJob.razor / FE-026) — not DOM elements. *@
 
 <div class="sd-tracking" data-testid="requester-tracking">
+    @if (ViewModel.IsRedirected)
+    {
+        @* FE-018/AC-1: the redirect apology banner sits between the app bar and the map. Soft-indigo info
+           variant (.sd-banner--info), NOT the red danger .sd-banner. The sync icon and the old→new apology
+           text match both redirect mockups. *@
+        <div class="sd-banner sd-banner--info" data-testid="redirect-banner">
+            <span class="sd-banner__icon">🔄</span>
+            <span class="sd-banner__text">
+                Our apologies, we needed to redirect <strong>@ViewModel.OldRepName</strong>.
+                <strong>@ViewModel.NewRepName</strong> is heading your way now.
+            </span>
+        </div>
+    }
+
     <div class="sd-map" data-testid="tracking-map">
         <div class="sd-chip @StatusPillClass" data-testid="status-pill">
             <span class="sd-chip__dot"></span>@ViewModel.StatusMessage
@@ -28,7 +44,15 @@
         <div class="sd-sheet__row">
             <div class="sd-listitem__icon">👷</div>
             <div class="sd-sheet__rep">
-                <div class="sd-card__title" data-testid="rep-name">@ViewModel.RepName</div>
+                <div class="sd-sheet__name">
+                    <span class="sd-card__title" data-testid="rep-name">@ViewModel.RepName</span>
+                    @if (ViewModel.IsRedirected)
+                    {
+                        @* FE-018/AC-3: the "NEW" chip flags the freshly-assigned rep after a redirect (both
+                           mockups) — a small soft-indigo pill beside the name. Shown only when redirected. *@
+                        <span class="sd-chip-new" data-testid="new-rep-chip">NEW</span>
+                    }
+                </div>
                 <div class="sd-muted" data-testid="rep-vehicle">@ViewModel.VehicleSubtitle</div>
             </div>
             @if (ViewModel.IsEtaVisible)
@@ -46,6 +70,14 @@
     // The app-bar chrome for the tracking screen (matches the mockup). The subtitle carries the fault name
     // once BE-031 threads it through the payload; until then the shell keeps its derived subtitle.
     private const string TrackingTitle = "Your technician is on the way";
+
+    // FE-018/AC-1: after a redirect the app-bar title switches to this (both redirect mockups).
+    private const string RedirectTitle = "A new technician is on the way";
+
+    // The app-bar title for the current state — the redirect title once the rep has been redirected, the
+    // normal tracking title otherwise. The page (not the ViewModel) owns shell chrome: this feeds the
+    // Shell.SetTitle call in OnInitialized and in OnViewModelStateChanged so the title updates on redirect.
+    private string CurrentTitle => ViewModel.IsRedirected ? RedirectTitle : TrackingTitle;
 
     // Captures the embedded GoogleMap (FE-024) so the page can drive its imperative overlay API
     // (markers / polyline / fitBounds) from OnMapReady and each RepPositionUpdated-driven state change.
@@ -89,7 +121,25 @@
     protected override void OnInitialized()
     {
         ViewModel.StateChanged += OnViewModelStateChanged;
-        Shell.SetTitle(TrackingTitle);
+        Shell.SetTitle(CurrentTitle);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The RequesterHub connection is shared with the pending view, which STOPS it on navigation here
+        // (RequesterPending.DisposeAsync → StopAsync). Re-establish it on entry so this view is live and
+        // re-joined to the requester group; otherwise every subsequent push — position updates and, on a
+        // redirect, the RepAssigned + RepRedirected pair — would be silently missed (FE-018). Swallow-and-log
+        // any residual connect failure so a backend that is unreachable never trips Blazor's error banner
+        // (the BUG-038 no-crash guarantee, matching the pending screen); the map simply keeps its seeded state.
+        try
+        {
+            await ViewModel.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "RequesterHub start failed on tracking-screen init; keeping seeded state.");
+        }
     }
 
     // Drives the real Google map overlays from the current ViewModel state. While the rep is still travelling
@@ -123,8 +173,10 @@
 
     private void OnViewModelStateChanged()
     {
-        // A RepPositionUpdated push moves/recolours the rep marker, redraws or drops the route polyline, and
-        // reframes the map — so refresh the overlays alongside the Razor re-render.
+        // A RepPositionUpdated / RepAssigned push moves/recolours the rep marker, redraws or drops the route
+        // polyline, and reframes the map — so refresh the overlays alongside the Razor re-render. On a redirect
+        // the app-bar title also switches to the "new technician" wording (AC-1), so re-apply it here.
+        Shell.SetTitle(CurrentTitle);
         InvokeAsync(async () =>
         {
             await UpdateMapOverlaysAsync();
