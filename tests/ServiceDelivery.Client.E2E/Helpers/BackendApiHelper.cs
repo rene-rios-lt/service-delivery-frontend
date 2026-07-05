@@ -231,6 +231,17 @@ public static class BackendApiHelper
     /// the one that will be redirected. Each claim names its own vehicle (no race), so a rep already holding a
     /// vehicle simply returns a benign 409 that is ignored; only a genuine failure (e.g. auth) would surface
     /// via <see cref="LoginAsync"/>. Idempotent and safe to call once per redirect scenario.
+    ///
+    /// <para>
+    /// <b>Why this keeps hand-picking V-002/V-003 (BUG-045).</b> The production fix for the take-over collision
+    /// lives in <c>TakeOverViewModel.TakeOverAsync</c>, which now auto-retries the next available candidate on a
+    /// 409 (see the ViewModel unit tests — the primary guard for the retry pattern). This helper is deliberately
+    /// NOT switched to that retry path: it targets the separate <c>POST /vehicles/{id}/claim</c> endpoint (not
+    /// the production <c>/take-over</c> path), and naming a distinct vehicle per spare rep is collision-free by
+    /// construction — no 409 race to retry through. Duplicating the ViewModel's retry loop here in a raw HTTP
+    /// client would add timing surface for zero benefit, so the explicit-GUID approach is intentional
+    /// test-harness behaviour, not the bug being fixed.
+    /// </para>
     /// </summary>
     private static async Task EnsureSpareRepsClaimedAsync(string baseUrl)
     {

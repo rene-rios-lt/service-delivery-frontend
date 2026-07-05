@@ -307,6 +307,8 @@ public class TakeOverComponentTests : BunitContext
     public void GivenConflictResult_WhenComponentRendered_ThenErrorAlertIsVisible()
     {
         // Arrange
+        // A single-vehicle list that conflicts has no next candidate, so the take-over exhausts and
+        // the alert surfaces the terminal ExhaustedMessage (BUG-045 auto-retry).
         var vehicle = Vehicle("IA-4471");
         _vehicleService.Setup(s => s.TakeOverAsync(vehicle.VehicleId)).ReturnsAsync(TakeOverResult.Conflict);
         RegisterPage(vehicle);
@@ -318,7 +320,7 @@ public class TakeOverComponentTests : BunitContext
 
         // Assert
         var alert = cut.Find("[data-testid='take-over-error']");
-        Assert.Contains(TakeOverViewModel.ConflictMessage, alert.TextContent);
+        Assert.Contains(TakeOverViewModel.ExhaustedMessage, alert.TextContent);
     }
 
     [Fact]
