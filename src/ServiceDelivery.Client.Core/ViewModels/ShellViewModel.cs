@@ -39,6 +39,14 @@ public class ShellViewModel
         _menuFactory = menuFactory;
     }
 
+    /// <summary>
+    /// Raised after the app-bar title or subtitle override changes (via <see cref="SetTitle"/> or
+    /// <see cref="SetSubtitle"/>). A plain parameterless C# event — no UI-framework type, so Core stays
+    /// clean. <c>PersonaShell</c> subscribes with <c>StateHasChanged</c> so an already-loaded shell
+    /// re-renders the app-bar title binding when a route sets its title mid-session (BUG-044).
+    /// </summary>
+    public event Action? TitleChanged;
+
     public ShellMenuStyle MenuStyle => _presentation.MenuStyle;
 
     public PersonaMenuModel? Menu { get; private set; }
@@ -78,13 +86,21 @@ public class ShellViewModel
     /// Overrides the app-bar title for the current route. Pass <c>null</c> to restore the default
     /// ("Service Delivery"). The route that sets an override owns clearing it when it leaves.
     /// </summary>
-    public void SetTitle(string? title) => _titleOverride = title;
+    public void SetTitle(string? title)
+    {
+        _titleOverride = title;
+        TitleChanged?.Invoke();
+    }
 
     /// <summary>
     /// Overrides the app-bar subtitle for the current route. Pass <c>null</c> to fall back to the
     /// menu-derived vehicle/context line. The route that sets an override owns clearing it on leave.
     /// </summary>
-    public void SetSubtitle(string? subtitle) => _subtitleOverride = subtitle;
+    public void SetSubtitle(string? subtitle)
+    {
+        _subtitleOverride = subtitle;
+        TitleChanged?.Invoke();
+    }
 
     /// <summary>
     /// Shows or hides the app-bar menu affordance (the hamburger) for the current route. Defaults to

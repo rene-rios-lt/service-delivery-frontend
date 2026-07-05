@@ -1,6 +1,8 @@
 @using Microsoft.AspNetCore.Components
 @using MudBlazor
+@using ServiceDelivery.Client.Core.Models
 @using ServiceDelivery.Client.Core.ViewModels
+@implements IDisposable
 
 @* App-shell chrome for authenticated routes: a shared app bar (title + persona context + a menu
    affordance) above the page body, with the platform-adaptive PersonaMenu attached. The shell only
@@ -16,7 +18,11 @@
         </div>
         <MudSpacer />
         <div class="sd-appbar__controls">
-            @if (ViewModel.IsMenuAffordanceVisible)
+            @* BUG-044/AC-3: the hamburger toggles the navigation DRAWER — a ServiceRep-mobile (Drawer)
+               concern. On the AccountMenu (Desktop/Web) style the persona-avatar itself is the menu
+               affordance (it opens the inline account panel), so the app-bar hamburger is a stray
+               affordance the Requester/Dispatcher mockups do not depict — suppress it on AccountMenu. *@
+            @if (ViewModel.IsMenuAffordanceVisible && ViewModel.MenuStyle == ShellMenuStyle.Drawer)
             {
                 <MudIconButton data-testid="appbar-menu-affordance"
                                id="appbar-menu-affordance"
@@ -25,14 +31,30 @@
                                OnClick="ViewModel.ToggleMenu"
                                Class="sd-appbar__action" />
             }
-            @if (ViewModel.Menu is not null)
+            @* BUG-044/AC-2: the trailing app-bar avatar is only the correct affordance on the Drawer
+               (Mobile) style, where PersonaMenu's persona-avatar lives off-screen inside the drawer. On
+               the AccountMenu (Desktop/Web) style PersonaMenu renders the persona-avatar inline as the
+               clickable dropdown affordance, so rendering this one too would duplicate it — suppress it. *@
+            @if (ViewModel.Menu is not null && ViewModel.MenuStyle == ShellMenuStyle.Drawer)
             {
                 <MudAvatar data-testid="appbar-avatar" Class="sd-avatar">@Initials</MudAvatar>
+            }
+            @* BUG-044/AC-2 (cycle 2): the AccountMenu (Desktop/Web) persona surface — the single
+               persona-avatar plus its inline dropdown panel — renders INSIDE the app bar's trailing
+               controls, so the sole avatar sits in the trailing app-bar slot the mockup shows (not
+               floating below the bar). The Drawer style keeps PersonaMenu as a full-screen sibling
+               overlay below (rendered outside this app bar). *@
+            @if (ViewModel.MenuStyle == ShellMenuStyle.AccountMenu)
+            {
+                <PersonaMenu ViewModel="ViewModel" />
             }
         </div>
     </MudAppBar>
 
-    <PersonaMenu ViewModel="ViewModel" />
+    @if (ViewModel.MenuStyle == ShellMenuStyle.Drawer)
+    {
+        <PersonaMenu ViewModel="ViewModel" />
+    }
 
     <main class="sd-shell__body">
         @Body
@@ -52,6 +74,22 @@
     // Without it the unchanged ShellViewModel reference makes Blazor skip the child re-render (BUG-025).
     [Parameter]
     public int ShellVersion { get; set; }
+
+    // BUG-044: a route may set the app-bar title AFTER this shell has rendered (the tracking page does so
+    // in OnInitialized and again on a redirect). The ShellVersion / MainLayout mechanism only nudges a
+    // re-render when the menu first loads (BUG-025/026) — it does NOT fire again on a mid-session title
+    // override. Subscribing to TitleChanged gives Blazor the StateHasChanged nudge it needs to re-render
+    // the appbar-title binding for those already-loaded shells. StateHasChanged matches the parameterless
+    // Action signature directly, so no lambda wrapper is needed. Unsubscribed in Dispose.
+    protected override void OnInitialized()
+    {
+        ViewModel.TitleChanged += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        ViewModel.TitleChanged -= StateHasChanged;
+    }
 
     private string ContextSubtitle => ViewModel.Subtitle ?? ViewModel.Menu?.VehicleContext ?? ViewModel.Menu?.ContextLine ?? string.Empty;
 

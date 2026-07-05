@@ -134,6 +134,9 @@ public sealed class RequesterTrackingTests : E2ETestBase
         // AC-1 / AC-6: the real Google map (requester pin, moving rep marker, connecting route line) — the map
         // container carries data-testid='google-map', now rendering the real map after the web key-loading fix.
         var map = await Page.WaitForSelectorAsync("[data-testid='google-map']", new() { Timeout = 10_000 });
+        // BUG-044/AC-1/AC-3: the shared PersonaShell app bar reflects the page-set title live (not the default
+        // "Service Delivery"). This is the live complement to the composed bUnit RequesterTrackingShellRenderTests.
+        var appBarTitle = await Page.WaitForSelectorAsync("[data-testid='appbar-title']", new() { Timeout = 10_000 });
         // AC-2: the assigned rep's name in the bottom sheet.
         var repName = await Page.WaitForSelectorAsync("[data-testid='rep-name']", new() { Timeout = 10_000 });
         // AC-4: the initial state on assignment is EnRoute, so the status pill reads "On the way".
@@ -151,5 +154,7 @@ public sealed class RequesterTrackingTests : E2ETestBase
         Assert.That(await statusPill!.TextContentAsync(), Does.Contain("On the way"));
         Assert.That(await etaChip!.TextContentAsync(), Does.Contain("min"));
         Assert.That(await trackingSheet!.IsVisibleAsync(), Is.True);
+        // BUG-044/AC-1/AC-3: the app-bar title is the page-set "Your technician is on the way", live.
+        Assert.That((await appBarTitle!.TextContentAsync())?.Trim(), Is.EqualTo("Your technician is on the way"));
     }
 }

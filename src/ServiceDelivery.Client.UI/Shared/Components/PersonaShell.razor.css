@@ -56,6 +56,15 @@
     margin-left: 10px;
 }
 
+/* BUG-044 (cycle 2): on the AccountMenu (Desktop/Web) style PersonaMenu now renders inside these
+   app-bar controls (so the sole persona-avatar sits in the trailing app-bar slot, not floating below
+   the bar). Keep its account container aligned centrally in the flex row; the inline dropdown panel
+   still positions itself absolutely relative to this container (see PersonaMenu.razor.css). */
+.sd-appbar__controls ::deep .sd-persona-account {
+    display: flex;
+    align-items: center;
+}
+
 .sd-shell__body {
     padding: 16px;
 }

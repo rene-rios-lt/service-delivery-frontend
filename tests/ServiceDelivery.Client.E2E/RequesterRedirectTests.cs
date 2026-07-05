@@ -206,11 +206,19 @@ public sealed class RequesterRedirectTests : E2ETestBase
         var banner = await WaitForRedirectBannerWithFleetRepositioningAsync();
         var repName = await Page.WaitForSelectorAsync("[data-testid='rep-name']", new() { Timeout = 10_000 });
         var repVehicle = await Page.WaitForSelectorAsync("[data-testid='rep-vehicle']", new() { Timeout = 10_000 });
+        // BUG-044/AC-1/AC-3: after the redirect the app-bar title swaps to the redirect wording, live.
+        var appBarTitle = await Page.WaitForSelectorAsync("[data-testid='appbar-title']", new() { Timeout = 10_000 });
 
         Assert.That(await banner.TextContentAsync(), Does.Contain("Our apologies"));
         Assert.That((await repName!.TextContentAsync())?.Trim(), Is.Not.Empty);
         Assert.That(await repVehicle!.TextContentAsync(), Does.Contain("Vehicle"));
         Assert.That(repNameBefore, Is.Not.Null);
+        // BUG-044/AC-1/AC-3: the app-bar title reflects the page-set redirect title, not the default.
+        Assert.That((await appBarTitle!.TextContentAsync())?.Trim(), Is.EqualTo("A new technician is on the way"));
+        // BUG-044/AC-2: exactly one avatar in the app bar — the duplicate appbar-avatar is suppressed on
+        // the Requester (AccountMenu) style, leaving the persona-avatar as the sole avatar.
+        Assert.That(await Page.Locator("[data-testid='appbar-avatar']").CountAsync(), Is.EqualTo(0));
+        Assert.That(await Page.Locator("[data-testid='persona-avatar']").CountAsync(), Is.EqualTo(1));
     }
 
     // Bounded poll for the redirect banner, re-positioning the fleet at the tracked coordinates between
