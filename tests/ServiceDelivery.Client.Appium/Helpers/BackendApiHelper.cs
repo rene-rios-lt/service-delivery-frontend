@@ -75,6 +75,17 @@ public static class BackendApiHelper
     /// <summary>DTC-001 — Hydraulic system fault (requires <c>HydraulicTool</c>), seeded GUID.</summary>
     private const string Dtc001Id = "20000000-0000-0000-0000-000000000001";
 
+    /// <summary>Seeded V-001 (carries <c>HydraulicTool</c>) — the vehicle rep1 claims for the FE-019 flow.</summary>
+    private const string Vehicle1Id = "30000000-0000-0000-0000-000000000001";
+
+    /// <summary>
+    /// Request site for the FE-019 mobile completion flow — the same fixed Des Moines-area point the
+    /// simulator GPS is pinned to in the Appium test's [OneTimeSetUp], so the requester's submitted
+    /// location, rep1's positioned vehicle, and the request all coincide (distance 0 → deterministic match).
+    /// </summary>
+    public const double CompletionRequestLatitude = 41.5868;
+    public const double CompletionRequestLongitude = -93.6250;
+
     /// <summary>
     /// Where the fleet starts — the Iowa geographic centroid, permanently inside the simulator's
     /// operational area. The taken-over rep's vehicle gets this position so it is matchable; the request
@@ -204,6 +215,148 @@ public static class BackendApiHelper
         }
     }
 
+    /// <summary>
+    /// FE-019 step 1 (before the requester app submits): makes rep1 a matchable, Available candidate AT the
+    /// request site. rep1 claims V-001 (HydraulicTool) — a benign 409 means it already holds a vehicle — and
+    /// the whole fleet is positioned at the request coordinates (as the <c>Simulator</c> account) so rep1 is
+    /// distance 0 from the request. With the rep-operating simulator disabled (backend-only Appium run) rep1
+    /// is then the sole match candidate, so the requester's single submission routes an offer to it
+    /// deterministically. Throws on any login / claim-auth / position failure.
+    /// </summary>
+    public static void PrepareRep1AtRequestSite(string baseUrl) =>
+        PrepareRep1AtRequestSiteAsync(baseUrl).GetAwaiter().GetResult();
+
+    private static async Task PrepareRep1AtRequestSiteAsync(string baseUrl)
+    {
+        using var repClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var repToken = await LoginAsync(repClient, Rep1Email);
+        repClient.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", repToken);
+
+        // A 409 means rep1 already holds a vehicle (from an earlier scenario) — the desired end state, so it
+        // is not an error. Any other failure surfaces on the downstream match/offer wait rather than here.
+        await repClient.PostAsync($"/vehicles/{Vehicle1Id}/claim", content: null);
+
+        await PositionFleetAtAsync(baseUrl, CompletionRequestLatitude, CompletionRequestLongitude);
+    }
+
+    /// <summary>
+    /// FE-019 step 2 (after the requester app has submitted and reached the pending screen): drives rep1's
+    /// offer through to completion so the backend fires <c>ServiceCompleted</c> to the requester's group and
+    /// the mobile app auto-navigates to <c>/requester/complete</c>. Polls <c>GET /job-offers/pending</c> for
+    /// rep1's pushed offer, then <c>POST /job-offers/{id}/accept</c> → re-post a distance-0 position at the
+    /// request site + wait for the <c>EnRoute→Within15Miles</c> transition → <c>POST /rep/arrive</c> →
+    /// <c>POST /rep/complete</c>. Throws on any step failure (or if no offer appears / the rep never reaches
+    /// Within15Miles within the poll budget) so a broken precondition surfaces immediately rather than as a
+    /// downstream UI timeout.
+    /// </summary>
+    public static void DriveRep1ToCompletion(string baseUrl) =>
+        DriveRep1ToCompletionAsync(baseUrl).GetAwaiter().GetResult();
+
+    private static async Task DriveRep1ToCompletionAsync(string baseUrl)
+    {
+        using var repClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var repToken = await LoginAsync(repClient, Rep1Email);
+        repClient.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", repToken);
+
+        var offerId = await WaitForPendingOfferAsync(repClient);
+
+        var accept = await repClient.PostAsync($"/job-offers/{offerId}/accept", content: null);
+        await EnsureSuccessAsync(accept, $"POST /job-offers/{offerId}/accept");
+
+        // After accept rep1 is EnRoute, but /rep/arrive requires Within15Miles — the backend state machine is
+        // EnRoute → Within15Miles → OnSite. The EnRoute→Within15Miles transition is driven ONLY by a position
+        // POST received WHILE the rep is on an active job (UpdateVehiclePositionCommandHandler recomputes
+        // proximity). In the Playwright run the simulator's position stream does this; the Appium harness runs
+        // backend-only (SD_SKIP_SIMULATOR=1), so the harness must post it. Re-post the whole fleet at the
+        // FE-019 request site — CompletionRequestLatitude/Longitude, where PrepareRep1AtRequestSite positioned
+        // the fleet and the requester's GPS submit landed, so rep1's distance to ITS active request is 0
+        // (< 15 mi). NOTE: this deliberately does NOT call PositionFleetAtRequestSite, which targets the
+        // separate JobOffer/ActiveJob scenario's coordinates (~100 mi east) — posting there would leave rep1
+        // far from the FE-019 request and it would never reach Within15Miles.
+        await PositionFleetAtAsync(baseUrl, CompletionRequestLatitude, CompletionRequestLongitude);
+
+        // The proximity recompute is async, so bound-poll until rep1 has actually reached Within15Miles
+        // before arriving (rather than firing /rep/arrive into the race and 400ing on EnRoute).
+        await WaitForRep1Within15MilesAsync(baseUrl);
+
+        var arrive = await repClient.PostAsync("/rep/arrive", content: null);
+        await EnsureSuccessAsync(arrive, "POST /rep/arrive");
+
+        var complete = await repClient.PostAsync("/rep/complete", content: null);
+        await EnsureSuccessAsync(complete, "POST /rep/complete");
+    }
+
+    /// <summary>
+    /// Bounded poll (mirrors <see cref="WaitForPendingOfferAsync"/>) that waits until rep1 has reached the
+    /// <c>Within15Miles</c> state after a distance-0 position re-post, reading the state from
+    /// <c>GET /dispatcher/fleet</c>. <c>/rep/arrive</c> is only valid from <c>Within15Miles</c>, so this
+    /// closes the async-recompute race deterministically. Throws with a clear message if rep1 has not
+    /// transitioned within the budget so a genuine regression fails loudly rather than as an arrive 400.
+    /// </summary>
+    private static async Task WaitForRep1Within15MilesAsync(string baseUrl)
+    {
+        const int maxAttempts = 20; // 20 × 500 ms = 10 s.
+        const int pollDelayMs = 500;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var state = await GetRep1FleetStateAsync(baseUrl);
+            if (state is not null && state.State == "Within15Miles")
+            {
+                return;
+            }
+
+            await Task.Delay(pollDelayMs);
+        }
+
+        var finalState = await GetRep1FleetStateAsync(baseUrl);
+        throw new InvalidOperationException(
+            "rep1 did not reach Within15Miles within 10s after re-posting a distance-0 position at the " +
+            $"request site (current state: {finalState?.State ?? "unknown"}) — /rep/arrive requires " +
+            "Within15Miles, so the job cannot be driven to completion.");
+    }
+
+    /// <summary>
+    /// Polls <c>GET /job-offers/pending</c> (which 404s until an offer is pushed) until rep1's offer appears
+    /// or the bounded budget elapses. Returns the offer id to accept. Throws if none appears in time.
+    /// </summary>
+    private static async Task<Guid> WaitForPendingOfferAsync(HttpClient repClient)
+    {
+        const int maxAttempts = 60; // 60 × 500 ms = 30 s — covers match + SignalR/DB settle.
+        const int pollDelayMs = 500;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var response = await repClient.GetAsync("/job-offers/pending");
+            if (response.IsSuccessStatusCode)
+            {
+                var offer = await response.Content.ReadFromJsonAsync<PendingOffer>(JsonOptions);
+                if (offer is not null && offer.OfferId != Guid.Empty)
+                {
+                    return offer.OfferId;
+                }
+            }
+
+            await Task.Delay(pollDelayMs);
+        }
+
+        throw new InvalidOperationException(
+            "No pending job offer appeared for rep1 within 30s — the requester's request was never matched " +
+            "and offered, so the job cannot be driven to completion.");
+    }
+
+    private static async Task EnsureSuccessAsync(HttpResponseMessage response, string operation)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException(
+                $"{operation} failed ({(int)response.StatusCode} {response.StatusCode}): {content}");
+        }
+    }
+
     private static async Task<string> LoginAsync(HttpClient client, string email)
     {
         var loginBody = new
@@ -304,6 +457,9 @@ public static class BackendApiHelper
 
     /// <summary>Minimal projection of a <c>GET /simulator/fleet-state</c> entry — only the id is needed.</summary>
     private sealed record FleetEntry(Guid VehicleId);
+
+    /// <summary>Minimal projection of the <c>GET /job-offers/pending</c> response — only the offer id is needed.</summary>
+    private sealed record PendingOffer(Guid OfferId);
 
     /// <summary>Minimal projection of a <c>GET /dispatcher/fleet</c> entry for QUAL-009 assertions.</summary>
     private sealed record DispatcherFleetEntry(Guid RepId, string State, Guid VehicleId, bool HumanControlled);

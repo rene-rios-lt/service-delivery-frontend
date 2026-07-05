@@ -19,9 +19,11 @@ public class SubmitRequestViewModelTests
     private readonly Mock<IServiceRequestService> _requestService = new();
     private readonly Mock<IGeolocationService> _geolocation = new();
     private readonly Mock<IPersonaNavigator> _navigator = new();
+    private readonly Mock<IServiceCompletedStore> _serviceCompletedStore = new();
 
     private SubmitRequestViewModel CreateViewModel() =>
-        new(_dtcService.Object, _requestService.Object, _geolocation.Object, _navigator.Object);
+        new(_dtcService.Object, _requestService.Object, _geolocation.Object, _navigator.Object,
+            _serviceCompletedStore.Object);
 
     private static DtcItem Dtc(string code = "P0700", string title = "Transmission Control Fault") =>
         new(Guid.NewGuid(), code, title);
@@ -234,5 +236,52 @@ public class SubmitRequestViewModelTests
 
         // Assert
         _navigator.Verify(n => n.NavigateToRequesterPending(), Times.Never);
+    }
+
+    // FE-019/AC-4: on a successful submit the ViewModel resolves the selected DtcItem by SelectedDtcId and
+    // threads its title into the completion store — the earliest point the DTC title is known — so the
+    // completion screen (reached much later via ServiceCompleted) can render "{Rep} resolved your {Title}".
+    [Fact]
+    public async Task GivenASuccessfulSubmit_WhenSubmitAsyncCalled_ThenServiceCompletedStoreSetDtcTitleCalledWithSelectedDtcTitle()
+    {
+        // Arrange — a known DTC (distinct code + title) is loaded and selected; distinct values ensure the
+        // stored title is the SELECTED DTC's title, not any other field.
+        var selectedDtc = Dtc("P0700", "Transmission Control Fault");
+        var otherDtc = Dtc("P0420", "Catalyst System Efficiency");
+        _dtcService.Setup(s => s.GetDtcsAsync()).ReturnsAsync(new List<DtcItem> { otherDtc, selectedDtc });
+        _requestService.Setup(s => s.SubmitAsync(It.IsAny<double>(), It.IsAny<double>(), selectedDtc.Id))
+            .ReturnsAsync(new SubmitServiceRequestResult.Success(Guid.NewGuid()));
+        var vm = CreateViewModel();
+        await vm.LoadDtcsAsync();
+        vm.SetLocation(new GpsPoint(41.6, -93.6));
+        vm.SelectDtc(selectedDtc.Id);
+
+        // Act
+        await vm.SubmitAsync();
+
+        // Assert
+        _serviceCompletedStore.Verify(s => s.SetDtcTitle("Transmission Control Fault"), Times.Once);
+    }
+
+    // FE-019/AC-4 guard: a FAILED submit must not thread a DTC title forward — there is no completion coming,
+    // and a stale title would corrupt a later, unrelated completion's subtitle.
+    [Fact]
+    public async Task GivenSubmitReturnsError_WhenSubmitAsyncCalled_ThenServiceCompletedStoreSetDtcTitleIsNotCalled()
+    {
+        // Arrange
+        var selectedDtc = Dtc("P0700", "Transmission Control Fault");
+        _dtcService.Setup(s => s.GetDtcsAsync()).ReturnsAsync(new List<DtcItem> { selectedDtc });
+        _requestService.Setup(s => s.SubmitAsync(It.IsAny<double>(), It.IsAny<double>(), It.IsAny<Guid>()))
+            .ReturnsAsync(new SubmitServiceRequestResult.Error("Submit failed."));
+        var vm = CreateViewModel();
+        await vm.LoadDtcsAsync();
+        vm.SetLocation(new GpsPoint(41.6, -93.6));
+        vm.SelectDtc(selectedDtc.Id);
+
+        // Act
+        await vm.SubmitAsync();
+
+        // Assert
+        _serviceCompletedStore.Verify(s => s.SetDtcTitle(It.IsAny<string>()), Times.Never);
     }
 }

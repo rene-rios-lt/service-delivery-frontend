@@ -72,6 +72,12 @@ public static class MauiProgram
 		// Registered in every host for parity (the Requester persona is supported on Web/Desktop/Mobile).
 		builder.Services.AddScoped<IRepAssignedStore, InMemoryRepAssignedStore>();
 		builder.Services.AddScoped<RequesterTrackingViewModel>();
+		// Requester completion view (FE-019). IServiceCompletedStore is a two-phase cross-navigation
+		// hand-off: SubmitRequestViewModel deposits the DTC title at submit success, RequesterTrackingViewModel
+		// deposits the assembled completion data on the ServiceCompleted push; RequesterCompleteViewModel reads
+		// it. Registered in every host for parity (the Requester persona is supported on Web/Desktop/Mobile).
+		builder.Services.AddScoped<IServiceCompletedStore, InMemoryServiceCompletedStore>();
+		builder.Services.AddScoped<RequesterCompleteViewModel>();
 		builder.Services.AddScoped<ISessionExpiryHandler, SessionExpiryHandler>();
 		builder.Services.AddScoped<ISessionState, SessionState>();
 		builder.Services.AddScoped<SessionExpiryHttpHandler>();

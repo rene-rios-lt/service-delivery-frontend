@@ -41,4 +41,12 @@ public interface IRequesterHubService
     /// new rep with a "NEW" chip — never to move the map or ETA (that is the concurrent RepAssigned's job).
     /// </summary>
     void OnRepRedirected(Func<RepRedirectedPayload, Task> handler);
+
+    /// <summary>
+    /// Registers a callback for the RequesterHub <c>ServiceCompleted</c> event (FE-019/AC-4). The backend
+    /// emits it when the assigned rep marks the job complete. The payload carries only the request id — it is
+    /// the navigation TRIGGER; the tracking ViewModel uses it to deposit the completion display data (rep
+    /// name + threaded DTC title) into the store and navigate to the completion screen.
+    /// </summary>
+    void OnServiceCompleted(Func<ServiceCompletedPayload, Task> handler);
 }

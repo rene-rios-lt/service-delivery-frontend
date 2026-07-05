@@ -1,0 +1,41 @@
+@page "/requester/complete"
+@using MudBlazor
+
+@* Requester "Your service is complete" view (FE-019). Mockup: requester-complete__mobile-390x844.
+   Terminal state reached when the RequesterHub ServiceCompleted event fires (the tracking view handles the
+   push, deposits the completion data, and navigates here). The app bar ("Service Delivery" title +
+   "Request closed" subtitle) and avatar come from the shared PersonaShell (FE-021); this screen renders a
+   centred success confirmation — green checkmark, heading, subtitle — above a two-button action stack.
+   There is NO map, NO ETA chip, NO bottom sheet (AC-2 — their absence is structural). All interaction is
+   delegated to RequesterCompleteViewModel. Code-behind: RequesterComplete.razor.cs. *@
+
+<div class="sd-complete" data-testid="requester-complete">
+    <div class="sd-complete__body">
+        <div class="sd-complete__icon-circle" data-testid="completion-icon">
+            <MudIcon Icon="@Icons.Material.Filled.Check" Class="sd-complete__icon" />
+        </div>
+
+        <MudText Typo="Typo.h5" Align="Align.Center"
+                 Class="font-weight-bold sd-complete__heading" data-testid="completion-heading">
+            Your service is complete.
+        </MudText>
+
+        <MudText Typo="Typo.body2" Align="Align.Center"
+                 Class="sd-complete__subtitle" data-testid="completion-subtitle">
+            @ViewModel.CompletionSubtitle
+        </MudText>
+    </div>
+
+    <div class="sd-complete__actions">
+        <button type="button" class="sd-btn sd-btn--primary sd-btn--block sd-btn--lg"
+                data-testid="submit-new-request-button" id="submit-new-request-button"
+                @onclick="ViewModel.SubmitNewRequest">
+            Submit a new request
+        </button>
+        <button type="button" class="sd-btn sd-btn--ghost sd-btn--block sd-btn--lg mt-2"
+                data-testid="done-button" id="done-button"
+                @onclick="ViewModel.Dismiss">
+            Done
+        </button>
+    </div>
+</div>

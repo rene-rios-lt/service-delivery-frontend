@@ -1,0 +1,125 @@
+/* Requester completion view (mockup: requester-complete__mobile-390x844).
+   Co-located scoped CSS redefining every sd-* class this page renders. Blazor scoped CSS is locked to its
+   own component via the generated b-<hash> attribute, so the sd-btn* rules in SubmitRequest.razor.css /
+   JobOffer.razor.css do NOT reach this page — each page must redefine the classes it uses (the same lesson
+   documented in SubmitRequest.razor.css / RequesterPending.razor.css). Colours are the literal
+   design-system tokens inlined as hex. Primary = --sd-primary #5B4AE2; success green = --sd-state-available
+   #2E9E5B; secondary text = --sd-text-2 #5A5F6E; ghost fill = #EEF0F4. */
+
+/* ---------------------------------------------------------------------------
+   Page layout. A centred flex column: a flex-grow content region (checkmark,
+   heading, subtitle) that vertically centres the confirmation, then the action
+   stack pinned below it. On web/desktop the whole column is horizontally
+   constrained and centred (max-width ~480px) — the implementor responsive
+   choice, since no desktop mockup exists (AC-5). Mobile fills the width.
+--------------------------------------------------------------------------- */
+.sd-complete {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 24px 20px 32px;
+    box-sizing: border-box;
+}
+
+.sd-complete__body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+}
+
+/* ---------------------------------------------------------------------------
+   Large success disc — mint background circle with a dark-green check, matching
+   the mockup.
+--------------------------------------------------------------------------- */
+.sd-complete__icon-circle {
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    background: rgba(46, 158, 91, .12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.sd-complete__icon {
+    color: #2E9E5B;
+    width: 64px;
+    height: 64px;
+    font-size: 64px;
+}
+
+/* ---------------------------------------------------------------------------
+   Heading + subtitle typography.
+--------------------------------------------------------------------------- */
+.sd-complete__heading {
+    color: #1C1E26;
+}
+
+.sd-complete__subtitle {
+    color: #5A5F6E;
+    max-width: 340px;
+}
+
+/* ---------------------------------------------------------------------------
+   Action stack pinned below the centred content.
+--------------------------------------------------------------------------- */
+.sd-complete__actions {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-top: 24px;
+}
+
+/* ---------------------------------------------------------------------------
+   Buttons. "Submit a new request" = filled primary, full-width (block), large.
+   "Done" = ghost (light neutral fill). No auto-uppercase (labels are
+   sentence-case in the mockup).
+--------------------------------------------------------------------------- */
+.sd-btn {
+    appearance: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 650;
+    padding: 11px 18px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: filter .12s;
+    text-transform: none;
+}
+
+.sd-btn--primary {
+    background: #5B4AE2;
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(20, 22, 40, .10), 0 1px 3px rgba(20, 22, 40, .12);
+}
+
+.sd-btn--ghost {
+    background: #EEF0F4;
+    color: #1C1E26;
+}
+
+.sd-btn--block {
+    width: 100%;
+}
+
+.sd-btn--lg {
+    padding: 15px 20px;
+    font-size: 15.5px;
+}
+
+.mt-2 {
+    margin-top: 10px;
+}

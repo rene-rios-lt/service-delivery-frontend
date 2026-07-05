@@ -196,4 +196,24 @@ public class RequesterPendingComponentTests : BunitContext
         // Assert
         Assert.Empty(cut.FindAll("[data-testid='hub-status']"));
     }
+
+    [Fact]
+    public async Task GivenTheRequesterPendingPage_WhenDisposed_ThenTheSharedHubConnectionIsNotStopped()
+    {
+        // Arrange — FE-019 (shared-connection handoff): advancing pending→tracking must NOT tear down the
+        // shared, scoped RequesterHub connection. Previously the page stopped it on dispose, and the tracking
+        // view's re-StartAsync raced the async stop — HubConnection.StartAsync threw "cannot be started if it
+        // is not in the Disconnected state", was swallowed into the BUG-038 back-off, and the one-shot
+        // ServiceCompleted push fired into that window and was dropped (SignalR does not buffer group
+        // messages for absent clients). The connection now persists and is torn down only when the DI scope
+        // ends (session end).
+        RegisterPage();
+        var cut = Render<RequesterPending>();
+
+        // Act — dispose the page, exactly what Blazor does when navigating away from /requester/pending.
+        await cut.Instance.DisposeAsync();
+
+        // Assert — the shared hub connection is left running for the tracking view to re-use.
+        _hub.Verify(h => h.StopAsync(), Times.Never);
+    }
 }

@@ -83,6 +83,77 @@ public static class BackendApiHelper
     public static void PositionFleetAt(string baseUrl, double latitude, double longitude) =>
         PositionFleetAtAsync(baseUrl, latitude, longitude).GetAwaiter().GetResult();
 
+    /// <summary>
+    /// Seeded rep accounts keyed by their deterministic seed GUID (SeedConstants.Rep1Id..Rep8Id =
+    /// 50000000-…-000N). The assignment picks whichever in-range rep the simulator operates, so to drive that
+    /// rep's job to completion (FE-019) we must map its ClaimingRepId back to its login email.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<Guid, string> RepAccountsById = new Dictionary<Guid, string>
+    {
+        [Guid.Parse("50000000-0000-0000-0000-000000000001")] = "rep1@dealer.com",
+        [Guid.Parse("50000000-0000-0000-0000-000000000002")] = "rep2@dealer.com",
+        [Guid.Parse("50000000-0000-0000-0000-000000000003")] = "rep3@dealer.com",
+        [Guid.Parse("50000000-0000-0000-0000-000000000004")] = "rep4@dealer.com",
+        [Guid.Parse("50000000-0000-0000-0000-000000000005")] = "rep5@dealer.com",
+        [Guid.Parse("50000000-0000-0000-0000-000000000006")] = "rep6@dealer.com",
+        [Guid.Parse("50000000-0000-0000-0000-000000000007")] = "rep7@dealer.com",
+        [Guid.Parse("50000000-0000-0000-0000-000000000008")] = "rep8@dealer.com",
+    };
+
+    /// <summary>
+    /// Drives the assigned rep's job through to completion against the live backend so the tracked requester
+    /// (already on the tracking page) receives the <c>ServiceCompleted</c> push (FE-019). Synchronous wrapper
+    /// for NUnit test bodies. Throws <see cref="InvalidOperationException"/> on any step failure so the cause
+    /// surfaces immediately rather than being swallowed by a later UI wait.
+    ///
+    /// <para>
+    /// The completion flow the backend enforces (RepController + Complete/ArriveCommandHandler):
+    /// <list type="number">
+    /// <item>Find the EnRoute rep whose active request is at the tracked coordinates via the Simulator-role
+    /// <c>GET /simulator/fleet-state</c> — the rep serving THIS request (not any EnRoute rep on the shared
+    /// fleet), so the ServiceCompleted lands on the tracked requester.</item>
+    /// <item>Map that rep's <c>ClaimingRepId</c> back to its seeded login email (the reps are simulator-driven,
+    /// so we authenticate AS the rep to POST its own state transitions).</item>
+    /// <item>As that rep: <c>POST /rep/arrive</c> (EnRoute → OnSite, request → InProgress) then
+    /// <c>POST /rep/complete</c> (OnSite → Available, request → Completed). The complete handler fires
+    /// <c>ServiceCompleted</c> to <c>requester:{requesterId}</c> — exactly the event the tracking page now
+    /// handles by navigating to <c>/requester/complete</c>.</item>
+    /// </list>
+    /// </para>
+    /// </summary>
+    public static void CompleteAssignedRequestAt(string baseUrl, double latitude, double longitude) =>
+        CompleteAssignedRequestAtAsync(baseUrl, latitude, longitude).GetAwaiter().GetResult();
+
+    private static async Task CompleteAssignedRequestAtAsync(string baseUrl, double latitude, double longitude)
+    {
+        using var simClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var simToken = await LoginAsync(simClient, SimulatorEmail);
+        simClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", simToken);
+
+        // Find the EnRoute rep serving the tracked request, then keep its vehicle at the request site so no
+        // proximity edge case can interfere before it marks arrival.
+        var assigned = await WaitForEnRouteRepAtAsync(simClient, latitude, longitude);
+        await PostPositionAsync(simClient, assigned.VehicleId, latitude, longitude);
+
+        var repId = assigned.ClaimingRepId!.Value;
+        if (!RepAccountsById.TryGetValue(repId, out var repEmail))
+        {
+            throw new InvalidOperationException(
+                $"No seeded rep account is known for rep id {repId} — cannot drive the job to completion. " +
+                "The assignment must be to one of the seeded rep1..rep8 accounts.");
+        }
+
+        using var repClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var repToken = await LoginAsync(repClient, repEmail);
+        repClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", repToken);
+
+        var arrive = await repClient.PostAsync("/rep/arrive", content: null);
+        await EnsureSuccessAsync(arrive, "POST /rep/arrive");
+
+        var complete = await repClient.PostAsync("/rep/complete", content: null);
+        await EnsureSuccessAsync(complete, "POST /rep/complete");
+    }
+
     private static async Task PositionFleetAtAsync(string baseUrl, double latitude, double longitude)
     {
         using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };

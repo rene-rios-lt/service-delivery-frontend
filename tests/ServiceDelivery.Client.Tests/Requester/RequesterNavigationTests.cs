@@ -69,4 +69,33 @@ public class RequesterNavigationTests : BunitContext
         // Assert
         Assert.EndsWith(PersonaRouteMap.RequesterTracking, navigation.Uri);
     }
+
+    [Fact]
+    public void GivenPersonaRouteMap_WhenAccessingRequesterComplete_ThenRouteIsRequesterCompletePath()
+    {
+        // Arrange
+        // (PersonaRouteMap is a pure, stateless mapping helper; FE-019 adds the completion route as the
+        // target the tracking view navigates to on the ServiceCompleted event.)
+
+        // Act
+        var route = PersonaRouteMap.RequesterComplete;
+
+        // Assert
+        Assert.Equal("/requester/complete", route);
+    }
+
+    [Fact]
+    public void GivenAServiceCompleted_WhenNavigateToRequesterCompleteCalled_ThenRouteIsRequesterComplete()
+    {
+        // Arrange — FE-019/AC-4: when a ServiceCompleted event arrives the requester transitions from the
+        // tracking view to the completion screen.
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        var navigator = new BlazorPersonaNavigator(navigation, new InMemoryJobOfferStore());
+
+        // Act
+        navigator.NavigateToRequesterComplete();
+
+        // Assert
+        Assert.EndsWith(PersonaRouteMap.RequesterComplete, navigation.Uri);
+    }
 }

@@ -24,6 +24,7 @@ public class SubmitRequestComponentTests : BunitContext
     private readonly Mock<IServiceRequestService> _requestService = new();
     private readonly Mock<IGeolocationService> _geolocation = new();
     private readonly Mock<IPersonaNavigator> _navigator = new();
+    private readonly Mock<IServiceCompletedStore> _serviceCompletedStore = new();
     private readonly Mock<IMapsLoader> _mapsLoader = new();
 
     // ShellViewModel collaborators — the page drives the shared app-bar title/subtitle (Request Service /
@@ -46,7 +47,8 @@ public class SubmitRequestComponentTests : BunitContext
 
         _dtcService.Setup(s => s.GetDtcsAsync()).ReturnsAsync(dtcs ?? new List<DtcItem>());
         var viewModel = new SubmitRequestViewModel(
-            _dtcService.Object, _requestService.Object, _geolocation.Object, _navigator.Object);
+            _dtcService.Object, _requestService.Object, _geolocation.Object, _navigator.Object,
+            _serviceCompletedStore.Object);
         Services.AddSingleton(viewModel);
 
         _presentation.SetupGet(p => p.MenuStyle).Returns(ShellMenuStyle.Drawer);
