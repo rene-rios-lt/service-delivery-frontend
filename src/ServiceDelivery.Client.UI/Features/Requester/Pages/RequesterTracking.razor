@@ -124,6 +124,24 @@
         Shell.SetTitle(CurrentTitle);
     }
 
+    // BUG-044 (cycle 2): the OnInitialized SetTitle above runs while the new route is being built, BEFORE
+    // the shared PersonaShell (which lives in MainLayout and persists across the pending→tracking
+    // navigation) is in a live, post-render state — so its TitleChanged → StateHasChanged nudge is lost on
+    // the INITIAL render and the app bar keeps the default "Service Delivery" on a running app (the
+    // reviewer's live baseline defect; bUnit's collapsed batch hides it). Re-applying the title in
+    // OnAfterRenderAsync(firstRender) puts the SetTitle in the SAME post-render regime that the redirect
+    // path (OnViewModelStateChanged, fired by an async SignalR callback) already uses successfully live —
+    // so the TitleChanged nudge now lands in the DOM. Guarded on firstRender so it runs once per entry.
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Shell.SetTitle(CurrentTitle);
+        }
+
+        return Task.CompletedTask;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         // The RequesterHub connection is shared with the pending view, which STOPS it on navigation here

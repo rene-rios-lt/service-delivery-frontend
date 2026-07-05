@@ -289,4 +289,38 @@ public class ShellViewModelTests
         // Assert
         Assert.NotEqual(initial, vm.IsMenuOpen);
     }
+
+    [Fact]
+    public void GivenShellViewModel_WhenSetTitleCalled_ThenTitleChangedEventFires()
+    {
+        // Arrange
+        // BUG-044: SetTitle must raise TitleChanged so a subscribed PersonaShell can re-render the
+        // app-bar title binding on an already-loaded shell (the live-render defect).
+        var vm = CreateViewModel();
+        var fired = false;
+        vm.TitleChanged += () => fired = true;
+
+        // Act
+        vm.SetTitle("Your technician is on the way");
+
+        // Assert
+        Assert.True(fired);
+    }
+
+    [Fact]
+    public void GivenShellViewModel_WhenSetSubtitleCalled_ThenTitleChangedEventFires()
+    {
+        // Arrange
+        // BUG-044: SetSubtitle shares the same app-bar rendering path, so it fires TitleChanged too
+        // (parity), giving PersonaShell the same re-render nudge for subtitle overrides.
+        var vm = CreateViewModel();
+        var fired = false;
+        vm.TitleChanged += () => fired = true;
+
+        // Act
+        vm.SetSubtitle("Transmission Control Fault");
+
+        // Assert
+        Assert.True(fired);
+    }
 }

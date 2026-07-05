@@ -194,4 +194,133 @@ public class PersonaShellComponentTests
         // Assert
         Assert.NotEqual(initial, vm.IsMenuOpen);
     }
+
+    [Fact]
+    public async Task GivenPersonaShellWithAccountMenuStyle_WhenRendered_ThenAppBarAvatarIsAbsent()
+    {
+        // Arrange
+        // BUG-044/AC-2: on AccountMenu (Desktop/Web) the sole avatar is the persona-avatar inside
+        // PersonaMenu (the clickable dropdown affordance). The appbar-avatar in PersonaShell is the
+        // duplicate and must be suppressed on this style. (This test reproduces the defect: before the
+        // fix the appbar-avatar renders unconditionally when Menu is not null.)
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.AccountMenu, UserRole.Requester, "Marcus Webb");
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.Empty(cut.FindAll("[data-testid='appbar-avatar']"));
+    }
+
+    [Fact]
+    public async Task GivenPersonaShellWithAccountMenuStyle_WhenRendered_ThenOnlyOneAvatarElementExists()
+    {
+        // Arrange
+        // BUG-044/AC-2: the mockups show EXACTLY ONE avatar in the app-bar trailing position on
+        // Desktop/Web. Counting both avatar test-ids together guards the visual contract directly —
+        // exactly one avatar (the persona-avatar) is present, the duplicate appbar-avatar is gone.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.AccountMenu, UserRole.Requester, "Marcus Webb");
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        var avatars = cut.FindAll("[data-testid='appbar-avatar'], [data-testid='persona-avatar']");
+        Assert.Single(avatars);
+    }
+
+    [Fact]
+    public async Task GivenPersonaShellWithDrawerStyle_WhenRendered_ThenAppBarAvatarIsPresent()
+    {
+        // Arrange
+        // BUG-044/AC-2 (no regression): on the Drawer (Mobile) style the persona-avatar lives inside the
+        // off-screen drawer, so the trailing appbar-avatar is the needed visible avatar and MUST remain.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.NotNull(cut.Find("[data-testid='appbar-avatar']"));
+    }
+
+    [Fact]
+    public async Task GivenPersonaShellWithAccountMenuStyle_WhenRendered_ThenPersonaAvatarIsInsideTheAppBarControls()
+    {
+        // Arrange
+        // BUG-044/AC-2 (cycle 2): the single avatar must render in the TRAILING app-bar slot per the
+        // mockup — not floating below the bar. On AccountMenu the PersonaMenu account surface (which owns
+        // the persona-avatar) must live INSIDE the app bar's .sd-appbar__controls flex row, so the avatar
+        // sits in the trailing position. Before this fix the account surface was a sibling BELOW the bar,
+        // so the avatar floated top-left half-cut-off (the live-render defect the reviewer caught).
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.AccountMenu, UserRole.Requester, "Marcus Webb");
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert — the persona-avatar is a descendant of the app-bar controls (trailing slot).
+        var controls = cut.Find(".sd-appbar__controls");
+        var avatarInControls = controls.QuerySelector("[data-testid='persona-avatar']");
+        Assert.NotNull(avatarInControls);
+    }
+
+    [Fact]
+    public async Task GivenPersonaShellWithAccountMenuStyle_WhenRendered_ThenNoHamburgerAffordanceIsRendered()
+    {
+        // Arrange
+        // BUG-044/AC-3 (cycle 2): the Requester mockups depict NO hamburger — the drawer/hamburger is a
+        // ServiceRep-mobile (Drawer) concern. On AccountMenu (Desktop/Web) the persona-avatar IS the menu
+        // affordance, so the app-bar hamburger must not render. Before this fix the hamburger showed on the
+        // live Requester tracking bar (the reviewer's screenshot).
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.AccountMenu, UserRole.Requester, "Marcus Webb");
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.Empty(cut.FindAll("[data-testid='appbar-menu-affordance']"));
+    }
+
+    [Fact]
+    public async Task GivenPersonaShellWithDrawerStyle_WhenRendered_ThenHamburgerAffordanceIsRendered()
+    {
+        // Arrange
+        // BUG-044/AC-3 (cycle 2, no regression): the ServiceRep-mobile (Drawer) style keeps the hamburger —
+        // it toggles the navigation drawer. Suppressing the hamburger on AccountMenu must NOT touch Drawer.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.NotNull(cut.Find("[data-testid='appbar-menu-affordance']"));
+    }
+
+    [Fact]
+    public async Task GivenPersonaShell_WhenSetTitleCalledAfterRender_ThenAppBarTitleUpdatesInDom()
+    {
+        // Arrange
+        // BUG-044/AC-1: the core defect — a route sets its title AFTER the shell has rendered (as the
+        // tracking page does in OnInitialized / on redirect). Before the fix, SetTitle mutated the field
+        // but PersonaShell never re-rendered, so the DOM kept the default. Asserting the rendered
+        // [data-testid='appbar-title'] (not the ViewModel field) is what the masking test missed.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+        var cut = RenderShell(ctx, vm);
+
+        // Act
+        await cut.InvokeAsync(() => vm.SetTitle("Your technician is on the way"));
+
+        // Assert
+        cut.WaitForAssertion(() =>
+            Assert.Equal(
+                "Your technician is on the way",
+                cut.Find("[data-testid='appbar-title']").TextContent.Trim()));
+    }
 }
