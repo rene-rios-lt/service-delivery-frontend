@@ -4,9 +4,12 @@ using ServiceDelivery.Client.Core.Models;
 namespace ServiceDelivery.Client.Core.ViewModels;
 
 /// <summary>
-/// Orchestrates the rep take-over screen: loads idle vehicles, tracks the selected one, claims it
-/// via <see cref="IVehicleService"/>, surfaces a conflict message, and navigates to the idle rep
-/// view on success. Depends only on Core abstractions.
+/// Orchestrates the rep take-over screen: loads idle vehicles, tracks the selected one, and claims it
+/// via <see cref="IVehicleService"/>. On a 409 conflict (the vehicle was claimed out from under the rep)
+/// it auto-retries the next available candidate — re-fetching the idle list and attempting each
+/// un-attempted vehicle until one succeeds or the list is exhausted (BUG-045). On success it navigates to
+/// the idle rep view; on exhaustion it surfaces <see cref="ExhaustedMessage"/>. The retry is bounded by the
+/// finite set of vehicles attempted this invocation, so it can never spin. Depends only on Core abstractions.
 /// </summary>
 public class TakeOverViewModel
 {
@@ -34,8 +37,8 @@ public class TakeOverViewModel
 
     public string? ErrorMessage { get; private set; }
 
-    public const string ConflictMessage =
-        "That vehicle is no longer available. Please pick another.";
+    public const string ExhaustedMessage =
+        "The vehicle you picked was just taken and no others are available right now. Please try again shortly.";
 
     public bool IsEligible { get; private set; } = true;
 
@@ -76,19 +79,43 @@ public class TakeOverViewModel
         if (!CanTakeOver || SelectedVehicleId is not { } vehicleId)
             return;
 
-        LastResult = await _vehicleService.TakeOverAsync(vehicleId);
+        var attempted = new HashSet<Guid>();
+        var candidateId = vehicleId;
 
-        if (LastResult == TakeOverResult.Success)
+        while (true)
         {
-            var selected = IdleVehicles.First(v => v.VehicleId == vehicleId);
-            _claimedVehicleStore.SetVehicle(new ClaimedVehicle(
-                selected.VehicleId, selected.Registration, selected.Model, selected.EquipmentTypes));
-            _navigator.NavigateToRepIdleView();
-            return;
-        }
+            attempted.Add(candidateId);
+            LastResult = await _vehicleService.TakeOverAsync(candidateId);
 
-        ErrorMessage = ConflictMessage;
-        SelectedVehicleId = null;
-        await LoadAsync();
+            if (LastResult == TakeOverResult.Success)
+            {
+                ClaimAndNavigate(candidateId);
+                return;
+            }
+
+            // Conflict: the candidate was claimed out from under the rep. Refresh the list and try
+            // the next vehicle we have not yet attempted. The attempted set bounds the loop — once no
+            // un-attempted candidate remains, we exhaust rather than spin (BUG-045).
+            await LoadAsync();
+
+            var nextCandidate = IdleVehicles.FirstOrDefault(v => !attempted.Contains(v.VehicleId));
+            if (nextCandidate is null)
+            {
+                ErrorMessage = ExhaustedMessage;
+                SelectedVehicleId = null;
+                return;
+            }
+
+            candidateId = nextCandidate.VehicleId;
+            SelectedVehicleId = candidateId;
+        }
+    }
+
+    private void ClaimAndNavigate(Guid vehicleId)
+    {
+        var selected = IdleVehicles.First(v => v.VehicleId == vehicleId);
+        _claimedVehicleStore.SetVehicle(new ClaimedVehicle(
+            selected.VehicleId, selected.Registration, selected.Model, selected.EquipmentTypes));
+        _navigator.NavigateToRepIdleView();
     }
 }
