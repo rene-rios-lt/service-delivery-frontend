@@ -7,14 +7,14 @@ using ServiceDelivery.Client.Tests.Maps;
 namespace ServiceDelivery.Client.Tests.Requester;
 
 /// <summary>
-/// FE-015 styling guard (AI-review cycle-1 finding / QUAL-001 masking-test rule). The bUnit component
-/// tests assert class-string PRESENCE in the rendered markup but cannot prove the class is actually
-/// DEFINED/applied — Blazor scoped CSS is locked to its own component via the generated b-&lt;hash&gt;
-/// attribute, so an sd-* class referenced in the markup but only defined in another page's scoped CSS
-/// (or nowhere) renders unstyled. This source-read guard closes that gap: it asserts every sd-* class the
-/// markup uses is defined in the page's OWN scoped stylesheet (SubmitRequest.razor.css). It mirrors the
-/// existing googleMap.js / GoogleMap.razor.css source-read guards in GoogleMapComponentTests. The live
-/// render check + E2E remain the ultimate visual net; this catches the "referenced-but-undefined" class.
+/// FE-015 styling guard (AI-review cycle-1 finding / QUAL-001 masking-test rule), retargeted for QUAL-011.
+/// The bUnit component tests assert class-string PRESENCE in the rendered markup but cannot prove the class
+/// is actually DEFINED/applied. QUAL-011 lifted the shared sd-* tokens out of this page's scoped CSS into
+/// the global design-system.css served by every host, leaving only page-specific rules scoped. So this
+/// guard now asserts every sd-* class the markup uses is defined in the global sheet OR the page's OWN
+/// scoped stylesheet (the union) — a shared token dropped without the global sheet supplying it, or a
+/// page-specific token lost from the scoped file, would still be caught. The live render check + E2E
+/// remain the ultimate visual net; this catches the "referenced-but-undefined" class.
 /// </summary>
 public class SubmitRequestStyleTests
 {
@@ -24,26 +24,33 @@ public class SubmitRequestStyleTests
     private static string Markup => File.ReadAllText(
         RepoRoot.Combine(ComponentDir.Split(Path.DirectorySeparatorChar).Append("SubmitRequest.razor").ToArray()));
 
-    private static string Css => File.ReadAllText(
+    private static string ScopedCss => File.ReadAllText(
         RepoRoot.Combine(ComponentDir.Split(Path.DirectorySeparatorChar).Append("SubmitRequest.razor.css").ToArray()));
 
+    private static string GlobalCss => File.ReadAllText(
+        RepoRoot.Combine("src", "ServiceDelivery.Client.UI", "wwwroot", "design-system.css"));
+
+    private static bool ResolvesFrom(string scoped, string cls) =>
+        Regex.IsMatch(GlobalCss, $@"\.{Regex.Escape(cls)}(?![\w-])")
+        || Regex.IsMatch(scoped, $@"\.{Regex.Escape(cls)}(?![\w-])");
+
     [Fact]
-    public void GivenSubmitRequestMarkup_WhenEverySdClassIsChecked_ThenEachIsDefinedInTheScopedStylesheet()
+    public void GivenSubmitRequestMarkup_WhenEverySdClassIsChecked_ThenEachIsDefinedInGlobalOrScopedStylesheet()
     {
         // Arrange
-        var css = Css;
+        var scoped = ScopedCss;
         var usedClasses = ExtractSdClasses(Markup);
 
         // Act
         var undefined = usedClasses
-            .Where(cls => !Regex.IsMatch(css, $@"\.{Regex.Escape(cls)}(?![\w-])"))
+            .Where(cls => !ResolvesFrom(scoped, cls))
             .ToList();
 
         // Assert
         Assert.True(
             undefined.Count == 0,
-            $"SubmitRequest.razor uses sd-* class(es) not defined in SubmitRequest.razor.css "
-            + $"(scoped CSS does not inherit other pages' rules): {string.Join(", ", undefined)}");
+            "SubmitRequest.razor uses sd-* class(es) defined neither in the global design-system.css nor "
+            + $"in SubmitRequest.razor.css: {string.Join(", ", undefined)}");
     }
 
     // Pulls every sd-* token out of the markup's class="..." attributes. MudBlazor utility classes
