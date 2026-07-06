@@ -21,6 +21,8 @@ public class RequesterTrackingComponentTests : BunitContext
     private readonly Mock<IRepAssignedStore> _store = new();
     private readonly Mock<IRequesterHubService> _hub = new();
     private readonly Mock<IMapsLoader> _mapsLoader = new();
+    private readonly Mock<IPersonaNavigator> _navigator = new();
+    private readonly Mock<IServiceCompletedStore> _completedStore = new();
     private RequesterTrackingViewModel _viewModel = null!;
 
     // ShellViewModel collaborators — the tracking page sets the shared app-bar title on init (mockup: "Your
@@ -48,7 +50,8 @@ public class RequesterTrackingComponentTests : BunitContext
         _store.SetupGet(s => s.CurrentPayload).Returns(payload);
         Services.AddSingleton(_store.Object);
         Services.AddSingleton(_hub.Object);
-        _viewModel = new RequesterTrackingViewModel(_store.Object, _hub.Object);
+        _viewModel = new RequesterTrackingViewModel(
+            _store.Object, _hub.Object, _navigator.Object, _completedStore.Object);
         Services.AddSingleton(_viewModel);
 
         _presentation.SetupGet(p => p.MenuStyle).Returns(ShellMenuStyle.Drawer);

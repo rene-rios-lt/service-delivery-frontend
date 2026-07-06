@@ -19,6 +19,7 @@ public sealed class SignalRRequesterHubService : IRequesterHubService, IAsyncDis
     private const string RepAssignedEvent = "RepAssigned";
     private const string RepPositionUpdatedEvent = "RepPositionUpdated";
     private const string RepRedirectedEvent = "RepRedirected";
+    private const string ServiceCompletedEvent = "ServiceCompleted";
 
     // BUG-038: bounded exponential back-off for the *initial* connect (1s → 2s → 4s → 8s → 16s, capped
     // at 30s). WithAutomaticReconnect only recovers a connection that was once established; it does
@@ -43,9 +44,11 @@ public sealed class SignalRRequesterHubService : IRequesterHubService, IAsyncDis
     // HubConnection and Task.Delay; tests inject a connect delegate that throws-then-succeeds plus a
     // no-op delay, which lets RetryConnectAsync be asserted directly (deleting the loop turns those
     // tests red — they no longer rely on the harness calling StartAsync twice).
+    // FE-019: the connection-state seam surfaces the FULL HubConnectionState (not just a connected bool) so
+    // StartAsync can distinguish Disconnected (cold-connect) from Connected/Connecting/Reconnecting (no-op).
     private readonly Func<CancellationToken, Task> _connectAsync;
     private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
-    private readonly Func<bool> _isConnected;
+    private readonly Func<HubConnectionState> _connectionState;
 
     public SignalRRequesterHubService(
         HttpClient httpClient, ITokenStore tokenStore, ILogger<SignalRRequesterHubService> logger)
@@ -59,12 +62,13 @@ public sealed class SignalRRequesterHubService : IRequesterHubService, IAsyncDis
             .Build();
         _connectAsync = ct => _connection.StartAsync(ct);
         _delayAsync = Task.Delay;
-        _isConnected = () => _connection.State == HubConnectionState.Connected;
+        _connectionState = () => _connection.State;
     }
 
     /// <summary>
     /// Test seam: injects the connect / delay / connection-state operations so the back-off retry loop
-    /// can be exercised deterministically without a live transport. Not used in production wiring.
+    /// and the state-aware StartAsync guard can be exercised deterministically without a live transport.
+    /// Not used in production wiring.
     /// </summary>
     internal SignalRRequesterHubService(
         HttpClient httpClient,
@@ -72,7 +76,7 @@ public sealed class SignalRRequesterHubService : IRequesterHubService, IAsyncDis
         ILogger<SignalRRequesterHubService> logger,
         Func<CancellationToken, Task> connectAsync,
         Func<TimeSpan, CancellationToken, Task> delayAsync,
-        Func<bool> isConnected)
+        Func<HubConnectionState> connectionState)
     {
         _tokenStore = tokenStore;
         _logger = logger;
@@ -83,7 +87,7 @@ public sealed class SignalRRequesterHubService : IRequesterHubService, IAsyncDis
             .Build();
         _connectAsync = connectAsync;
         _delayAsync = delayAsync;
-        _isConnected = isConnected;
+        _connectionState = connectionState;
     }
 
     /// <summary>
@@ -116,7 +120,14 @@ public sealed class SignalRRequesterHubService : IRequesterHubService, IAsyncDis
     public void OnRepRedirected(Func<RepRedirectedPayload, Task> handler) =>
         _connection.On(RepRedirectedEvent, handler);
 
-    public bool IsConnected => _isConnected();
+    // FE-019: the backend ServiceCompletedPayload field name (RequestId) matches the client
+    // ServiceCompletedPayload exactly, so — like the three On* handlers above — we bind directly to the
+    // payload with no wire-DTO mapping step. The captured-payload deserialization test guards the field-name
+    // match (ADR-0011).
+    public void OnServiceCompleted(Func<ServiceCompletedPayload, Task> handler) =>
+        _connection.On(ServiceCompletedEvent, handler);
+
+    public bool IsConnected => _connectionState() == HubConnectionState.Connected;
 
     // BUG-038: never let an unreachable backend propagate an exception to the caller (the pending
     // screen). Try once; if that fails, hand off to a bounded back-off retry loop running on its own task
@@ -124,6 +135,20 @@ public sealed class SignalRRequesterHubService : IRequesterHubService, IAsyncDis
     // crashing.
     public async Task StartAsync()
     {
+        // FE-019: only cold-connect from Disconnected. The scoped RequesterHub connection is SHARED and now
+        // PERSISTS across the requester's pending→tracking→complete navigations, so a view re-entering on a
+        // Connected (or Connecting/Reconnecting) connection is a genuine no-op — NOT a failure to back off
+        // from. HubConnection.StartAsync throws "cannot be started if it is not in the Disconnected state"
+        // on a non-Disconnected connection; previously that throw was swallowed into the back-off below,
+        // opening a multi-second window where the requester was not joined to its group and the one-shot
+        // ServiceCompleted push was lost (SignalR does not buffer group messages for absent clients). This
+        // guard makes StartAsync genuinely idempotent so the re-entry is a true no-op, while a real
+        // cold/unreachable start (Disconnected) still connects and, on failure, backs off.
+        if (_connectionState() != HubConnectionState.Disconnected)
+        {
+            return;
+        }
+
         try
         {
             await _connectAsync(_disposeCts.Token);

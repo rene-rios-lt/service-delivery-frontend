@@ -17,6 +17,8 @@ public class RequesterTrackingViewModelTests
 {
     private readonly Mock<IRepAssignedStore> _store = new();
     private readonly Mock<IRequesterHubService> _hub = new();
+    private readonly Mock<IPersonaNavigator> _navigator = new();
+    private readonly Mock<IServiceCompletedStore> _completedStore = new();
 
     private static RepAssignedPayload Payload(
         string repName = "Jordan Tran",
@@ -29,7 +31,19 @@ public class RequesterTrackingViewModelTests
     private RequesterTrackingViewModel CreateViewModel(RepAssignedPayload? payload = null)
     {
         _store.SetupGet(s => s.CurrentPayload).Returns(payload ?? Payload());
-        return new RequesterTrackingViewModel(_store.Object, _hub.Object);
+        return new RequesterTrackingViewModel(
+            _store.Object, _hub.Object, _navigator.Object, _completedStore.Object);
+    }
+
+    // Captures the ServiceCompleted handler the ViewModel registers with the hub so a test can invoke it as
+    // a server push, and stores the constructed ViewModel in _viewModelUnderTest for the assertions.
+    private Func<ServiceCompletedPayload, Task> CaptureServiceCompletedHandler()
+    {
+        Func<ServiceCompletedPayload, Task>? captured = null;
+        _hub.Setup(h => h.OnServiceCompleted(It.IsAny<Func<ServiceCompletedPayload, Task>>()))
+            .Callback<Func<ServiceCompletedPayload, Task>>(h => captured = h);
+        _viewModelUnderTest = CreateViewModel();
+        return captured!;
     }
 
     // Captures the handler the ViewModel registers with the hub so a test can invoke it as a server push.
@@ -46,17 +60,17 @@ public class RequesterTrackingViewModelTests
     [Fact]
     public async Task GivenTrackingViewModel_WhenStartAsyncCalled_ThenTheHubConnectionIsStarted()
     {
-        // Arrange — the pending page stops the shared RequesterHub connection when it navigates away
-        // (RequesterPending.DisposeAsync → StopAsync). The tracking page must therefore (re)establish the
-        // connection on entry so it is live and re-joined to the requester group; otherwise the redirect's
-        // RepAssigned + RepRedirected events (fired seconds later) never reach the tracking page. This test
-        // drives that: the tracking ViewModel must delegate a start to the hub.
+        // Arrange — FE-019: the shared RequesterHub connection persists across pending→tracking→complete, so
+        // the tracking ViewModel unconditionally delegates a start to the hub on entry. The hub itself decides
+        // whether that is a genuine cold-connect (direct navigation / refresh → Disconnected) or an idempotent
+        // no-op (re-entry on the already-live shared connection) — see SignalRRequesterHubService.StartAsync.
+        // This test drives the delegation: the tracking ViewModel must call the hub's StartAsync.
         var viewModel = CreateViewModel();
 
         // Act
         await viewModel.StartAsync();
 
-        // Assert — the hub connection was started (re-established after the pending page's StopAsync).
+        // Assert — the ViewModel delegates the start to the hub.
         _hub.Verify(h => h.StartAsync(), Times.Once);
     }
 
@@ -194,6 +208,58 @@ public class RequesterTrackingViewModelTests
 
         // Assert
         Assert.True(_viewModelUnderTest.IsEtaVisible);
+    }
+
+    [Fact]
+    public async Task GivenServiceCompletedEvent_WhenReceivedByTrackingViewModel_ThenSetPayloadCalledWithCurrentRepName()
+    {
+        // Arrange — FE-019/AC-4: when ServiceCompleted arrives the tracking VM assembles the completion
+        // display data from client state — the rep name from its own seeded state (last RepAssigned) and the
+        // DTC title threaded through the store at submit time — and deposits it for the completion screen.
+        // Distinct values per field so a swapped/dropped field cannot pass coincidentally.
+        _completedStore.SetupGet(s => s.DtcTitle).Returns("Transmission Control Fault");
+        var handler = CaptureServiceCompletedHandler();
+
+        // Act
+        await handler(new ServiceCompletedPayload(Guid.NewGuid()));
+
+        // Assert — the VM's current RepName is the seeded "Jordan Tran"; the DTC title comes from the store.
+        _completedStore.Verify(
+            s => s.SetPayload(It.Is<ServiceCompletionData>(d =>
+                d.RepName == "Jordan Tran" && d.DtcTitle == "Transmission Control Fault")),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenServiceCompletedEvent_WhenReceivedByTrackingViewModel_ThenNavigateToRequesterCompleteIsCalled()
+    {
+        // Arrange — FE-019/AC-4: after depositing the completion data the tracking VM navigates to the
+        // "Your service is complete" screen.
+        var handler = CaptureServiceCompletedHandler();
+
+        // Act
+        await handler(new ServiceCompletedPayload(Guid.NewGuid()));
+
+        // Assert
+        _navigator.Verify(n => n.NavigateToRequesterComplete(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenNoDtcTitleInStore_WhenServiceCompletedReceived_ThenSetPayloadUsesEmptyDtcTitle()
+    {
+        // Arrange — FE-019/AC-4: if the DTC title was never threaded (store.DtcTitle null) the VM deposits an
+        // empty DTC title rather than null, so the completion subtitle degrades cleanly (generic form) with
+        // no NullReferenceException.
+        _completedStore.SetupGet(s => s.DtcTitle).Returns((string?)null);
+        var handler = CaptureServiceCompletedHandler();
+
+        // Act
+        await handler(new ServiceCompletedPayload(Guid.NewGuid()));
+
+        // Assert
+        _completedStore.Verify(
+            s => s.SetPayload(It.Is<ServiceCompletionData>(d => d.DtcTitle == string.Empty)),
+            Times.Once);
     }
 
     // Holds the ViewModel captured by CaptureHandler so the handler-driven tests can assert its state.

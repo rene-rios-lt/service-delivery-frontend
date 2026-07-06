@@ -72,7 +72,8 @@ public class RequesterRedirectComponentTests : BunitContext
         _store.SetupGet(s => s.CurrentPayload).Returns(seed);
         Services.AddSingleton(_store.Object);
         Services.AddSingleton(_hub.Object);
-        _viewModel = new RequesterTrackingViewModel(_store.Object, _hub.Object);
+        _viewModel = new RequesterTrackingViewModel(
+            _store.Object, _hub.Object, _navigatorForShell.Object, Mock.Of<IServiceCompletedStore>());
         Services.AddSingleton(_viewModel);
 
         _presentation.SetupGet(p => p.MenuStyle).Returns(ShellMenuStyle.Drawer);

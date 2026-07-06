@@ -27,10 +27,18 @@ public class RequesterTrackingViewModel
     private const string OnSiteMessage = "Your technician has arrived";
 
     private readonly IRequesterHubService _requesterHub;
+    private readonly IPersonaNavigator _navigator;
+    private readonly IServiceCompletedStore _serviceCompletedStore;
 
-    public RequesterTrackingViewModel(IRepAssignedStore repAssignedStore, IRequesterHubService requesterHub)
+    public RequesterTrackingViewModel(
+        IRepAssignedStore repAssignedStore,
+        IRequesterHubService requesterHub,
+        IPersonaNavigator navigator,
+        IServiceCompletedStore serviceCompletedStore)
     {
         _requesterHub = requesterHub;
+        _navigator = navigator;
+        _serviceCompletedStore = serviceCompletedStore;
 
         var payload = repAssignedStore.CurrentPayload;
         if (payload is not null)
@@ -48,18 +56,22 @@ public class RequesterTrackingViewModel
         requesterHub.OnRepPositionUpdated(HandlePositionUpdatedAsync);
         requesterHub.OnRepAssigned(HandleRepAssignedAsync);
         requesterHub.OnRepRedirected(HandleRepRedirectedAsync);
+        requesterHub.OnServiceCompleted(HandleServiceCompletedAsync);
     }
 
-    // FE-018 (hub handoff): the requester's RequesterHub connection is SHARED (scoped) between the pending
-    // and tracking views, and the pending page STOPS it when it navigates here (RequesterPending.DisposeAsync
-    // → StopAsync). An explicit StopAsync leaves the connection Disconnected — WithAutomaticReconnect only
-    // recovers unexpected drops, not a deliberate stop — so without a restart the tracking view would join no
-    // group and silently miss every subsequent push: the initial map would show the seeded rep and freeze,
-    // and the redirect's RepAssigned + RepRedirected (fired seconds later) would never arrive (the live E2E
-    // caught exactly this — a stable listener on the same group received all three events while the browser
-    // received only the first). The tracking page calls this on entry to re-establish the connection; the
-    // backend's RequesterHub.OnConnectedAsync re-adds it to requester:{userId}. StartAsync on an already-live
-    // connection is a benign no-op, so this is safe whether the pending stop has landed yet or not.
+    // FE-019 (hub handoff): the requester's RequesterHub connection is SHARED (scoped) across the pending,
+    // tracking, and complete views and now PERSISTS across those navigations — the pending page no longer
+    // stops it on dispose (RequesterPending.DisposeAsync). The tracking page still calls this on entry for
+    // two reasons: (1) when it re-enters on the already-live shared connection, StartAsync is a genuine
+    // no-op — guaranteed by the state guard in SignalRRequesterHubService.StartAsync (only Disconnected
+    // cold-connects; Connected/Connecting/Reconnecting return immediately), NOT by an unconditional
+    // assumption; (2) when someone lands DIRECTLY on /requester/tracking (a page refresh or deep-link), the
+    // connection is Disconnected and this cold-connects it so the view joins requester:{userId} and receives
+    // every subsequent push. Previously the pending page stopped the connection and this StartAsync raced the
+    // async stop — HubConnection.StartAsync threw "cannot be started if it is not in the Disconnected state",
+    // the throw was swallowed into the BUG-038 back-off, and the one-shot ServiceCompleted push fired into
+    // that window and was lost (SignalR does not buffer group messages for an absent client). Persisting the
+    // connection + the idempotent StartAsync guard together close that window.
     public Task StartAsync() => _requesterHub.StartAsync();
 
     // Raised after each RepPositionUpdated push so the Razor page can re-render (StateHasChanged) and redraw
@@ -175,6 +187,21 @@ public class RequesterTrackingViewModel
         EtaMinutes = payload.EtaMinutes;
         RepState = payload.State;
         StateChanged?.Invoke();
+        return Task.CompletedTask;
+    }
+
+    // FE-019/AC-4: the ServiceCompleted push (fired when the assigned rep marks the job complete) is the
+    // navigation trigger. The wire payload carries only the request id — the completion screen's subtitle
+    // data comes from CLIENT state: the rep name from this VM's own last-RepAssigned state, and the DTC
+    // title threaded through the store by SubmitRequestViewModel at submit time. Assemble that
+    // ServiceCompletionData, deposit it for the completion ViewModel to read, then navigate. A null threaded
+    // DTC title degrades to empty so the completion subtitle falls back to its generic form (never a
+    // half-built sentence).
+    public Task HandleServiceCompletedAsync(ServiceCompletedPayload payload)
+    {
+        _serviceCompletedStore.SetPayload(
+            new ServiceCompletionData(RepName, _serviceCompletedStore.DtcTitle ?? string.Empty));
+        _navigator.NavigateToRequesterComplete();
         return Task.CompletedTask;
     }
 }

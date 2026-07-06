@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging.Abstractions;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
@@ -48,7 +49,26 @@ public class SignalRRequesterHubServiceTests
         Func<TimeSpan, CancellationToken, Task> noDelay = (_, _) => Task.CompletedTask;
         return new SignalRRequesterHubService(
             httpClient, _tokenStore.Object, NullLogger<SignalRRequesterHubService>.Instance,
-            connect, noDelay, () => connected);
+            connect, noDelay,
+            () => connected ? HubConnectionState.Connected : HubConnectionState.Disconnected);
+    }
+
+    // FE-019: builds the service with an EXPLICIT connection state and a connect-invocation counter, so the
+    // state-aware StartAsync guard (only cold-connect from Disconnected) can be asserted independently of
+    // whether a connect succeeds. Production binds the state seam to the real HubConnection.State.
+    private SignalRRequesterHubService CreateServiceWithStateSeam(
+        HubConnectionState state, Action recordConnectAttempt)
+    {
+        var httpClient = new HttpClient { BaseAddress = new Uri("http://localhost:5180") };
+        Func<CancellationToken, Task> connect = _ =>
+        {
+            recordConnectAttempt();
+            return Task.CompletedTask;
+        };
+        Func<TimeSpan, CancellationToken, Task> noDelay = (_, _) => Task.CompletedTask;
+        return new SignalRRequesterHubService(
+            httpClient, _tokenStore.Object, NullLogger<SignalRRequesterHubService>.Instance,
+            connect, noDelay, () => state);
     }
 
     [Fact]
@@ -193,6 +213,67 @@ public class SignalRRequesterHubServiceTests
 
         // Act
         var register = () => service.OnRepRedirected(payload =>
+        {
+            received = payload;
+            return Task.CompletedTask;
+        });
+
+        // Assert
+        var exception = Record.Exception(register);
+        Assert.Null(exception);
+        Assert.Null(received);
+    }
+
+    [Fact]
+    public async Task GivenAConnectedConnection_WhenStartAsyncCalledAgain_ThenNoReconnectAttemptedAndNoThrow()
+    {
+        // Arrange — FE-019 (shared-connection handoff): the scoped RequesterHub connection PERSISTS across
+        // the requester's pending→tracking→complete navigations, so a view re-entering on a still-live
+        // (Connected) connection must find StartAsync a genuine no-op. It must NOT re-issue a connect — the
+        // real HubConnection rejects StartAsync unless it is Disconnected ("cannot be started if it is not in
+        // the Disconnected state"), and that throw was being swallowed into the BUG-038 back-off, opening a
+        // multi-second window where the requester was not joined to its group and the one-shot
+        // ServiceCompleted push was lost.
+        var connectAttempts = 0;
+        var service = CreateServiceWithStateSeam(HubConnectionState.Connected, () => connectAttempts++);
+
+        // Act
+        var exception = await Record.ExceptionAsync(() => service.StartAsync());
+
+        // Assert — no connect attempted, no throw (a live connection is a no-op, not a failure to retry).
+        Assert.Null(exception);
+        Assert.Equal(0, connectAttempts);
+    }
+
+    [Fact]
+    public async Task GivenADisconnectedConnection_WhenStartAsyncCalled_ThenItConnects()
+    {
+        // Arrange — a Disconnected connection is a genuine cold entry (e.g. a direct navigation / refresh
+        // straight to /requester/tracking), so StartAsync must still connect.
+        var connectAttempts = 0;
+        var service = CreateServiceWithStateSeam(HubConnectionState.Disconnected, () => connectAttempts++);
+
+        // Act
+        await service.StartAsync();
+
+        // Assert
+        Assert.Equal(1, connectAttempts);
+    }
+
+    [Fact]
+    public void GivenSignalRRequesterHubService_WhenOnServiceCompletedRegistered_ThenHandlerIsAccepted()
+    {
+        // Arrange — FE-019/AC-4: the service registers a "ServiceCompleted" handler that forwards the
+        // deserialized ServiceCompletedPayload to the subscriber, mirroring the OnRepAssigned direct-bind
+        // pattern (the client ServiceCompletedPayload field name matches the backend exactly). HubConnection
+        // is sealed and cannot dispatch a registered client handler without a live transport, so this unit
+        // test proves the binding is wired (correct event name and payload type, no throw); the E2E test is
+        // the live-system complement that proves an actual server push navigates to the completion screen.
+        var service = CreateService();
+        ServiceCompletedPayload? received = null;
+
+        // Act
+        var register = () => service.OnServiceCompleted(payload =>
         {
             received = payload;
             return Task.CompletedTask;

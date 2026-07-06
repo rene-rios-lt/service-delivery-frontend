@@ -33,4 +33,8 @@ public interface IPersonaNavigator
     // (FE-016/AC-3) transitions to the rep-tracking view (FE-017 owns that route; this story navigates
     // to its stub).
     void NavigateToRequesterTracking();
+
+    // When a ServiceCompleted event arrives on RequesterHub, the tracking view (FE-019/AC-4) transitions
+    // to the "Your service is complete" screen.
+    void NavigateToRequesterComplete();
 }

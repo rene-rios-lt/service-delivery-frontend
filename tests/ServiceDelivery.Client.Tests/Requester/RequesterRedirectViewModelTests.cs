@@ -37,7 +37,8 @@ public class RequesterRedirectViewModelTests
     {
         _store.SetupGet(s => s.CurrentPayload).Returns(
             seed ?? new RepAssignedPayload(Guid.NewGuid(), "Jordan Tran", 9, 41.601, -93.609, "IA-4471"));
-        return new RequesterTrackingViewModel(_store.Object, _hub.Object);
+        return new RequesterTrackingViewModel(
+            _store.Object, _hub.Object, Mock.Of<IPersonaNavigator>(), Mock.Of<IServiceCompletedStore>());
     }
 
     [Fact]

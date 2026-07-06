@@ -19,17 +19,20 @@ public class SubmitRequestViewModel
     private readonly IServiceRequestService _requestService;
     private readonly IGeolocationService _geolocation;
     private readonly IPersonaNavigator _navigator;
+    private readonly IServiceCompletedStore _serviceCompletedStore;
 
     public SubmitRequestViewModel(
         IDtcService dtcService,
         IServiceRequestService requestService,
         IGeolocationService geolocation,
-        IPersonaNavigator navigator)
+        IPersonaNavigator navigator,
+        IServiceCompletedStore serviceCompletedStore)
     {
         _dtcService = dtcService;
         _requestService = requestService;
         _geolocation = geolocation;
         _navigator = navigator;
+        _serviceCompletedStore = serviceCompletedStore;
     }
 
     public IReadOnlyList<DtcItem> Dtcs { get; private set; } = [];
@@ -94,6 +97,17 @@ public class SubmitRequestViewModel
             switch (result)
             {
                 case SubmitServiceRequestResult.Success:
+                    // FE-019/AC-4: thread the selected fault's title into the completion store at the
+                    // earliest point it is known, so the completion screen (reached later via the
+                    // ServiceCompleted push) can render "{Rep} resolved your {Title}". Resolve the DtcItem by
+                    // the selected id from the already-loaded list; a null match leaves the store untouched
+                    // (the completion subtitle then degrades gracefully).
+                    var selectedDtc = Dtcs.FirstOrDefault(dtc => dtc.Id == dtcId);
+                    if (selectedDtc is not null)
+                    {
+                        _serviceCompletedStore.SetDtcTitle(selectedDtc.Title);
+                    }
+
                     _navigator.NavigateToRequesterPending();
                     break;
                 case SubmitServiceRequestResult.Error error:

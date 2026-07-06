@@ -31,6 +31,7 @@ public class RequesterTrackingShellRenderTests : BunitContext
     private readonly Mock<ILogoutSideEffect> _sideEffect = new();
     private readonly Mock<IReleaseVehicleAction> _releaseAction = new();
     private readonly Mock<IShellPresentation> _presentation = new();
+    private readonly Mock<IServiceCompletedStore> _completedStore = new();
 
     private ShellViewModel _shell = null!;
 
@@ -79,7 +80,8 @@ public class RequesterTrackingShellRenderTests : BunitContext
         _store.SetupGet(s => s.CurrentPayload).Returns(seed);
         Services.AddSingleton(_store.Object);
         Services.AddSingleton(_hub.Object);
-        var trackingViewModel = new RequesterTrackingViewModel(_store.Object, _hub.Object);
+        var trackingViewModel = new RequesterTrackingViewModel(
+            _store.Object, _hub.Object, _navigator.Object, _completedStore.Object);
         Services.AddSingleton(trackingViewModel);
 
         // Requester is a Desktop/Web persona → AccountMenu style (the single-avatar path this bug also fixes).

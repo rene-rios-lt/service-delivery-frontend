@@ -144,12 +144,16 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // The RequesterHub connection is shared with the pending view, which STOPS it on navigation here
-        // (RequesterPending.DisposeAsync → StopAsync). Re-establish it on entry so this view is live and
-        // re-joined to the requester group; otherwise every subsequent push — position updates and, on a
-        // redirect, the RepAssigned + RepRedirected pair — would be silently missed (FE-018). Swallow-and-log
-        // any residual connect failure so a backend that is unreachable never trips Blazor's error banner
-        // (the BUG-038 no-crash guarantee, matching the pending screen); the map simply keeps its seeded state.
+        // The RequesterHub connection is shared (scoped) with the pending view and now PERSISTS across the
+        // pending→tracking→complete navigations — the pending page no longer stops it on dispose (FE-019).
+        // Calling StartAsync on entry is still correct: on the normal advance the connection is already live,
+        // so StartAsync is a genuine no-op (guaranteed by the Disconnected-only state guard in
+        // SignalRRequesterHubService.StartAsync); on a direct navigation/refresh to /requester/tracking the
+        // connection is Disconnected and this cold-connects it so the view joins requester:{userId} and
+        // receives every subsequent push (position updates and, on a redirect, the RepAssigned + RepRedirected
+        // pair). Swallow-and-log any residual connect failure so a backend that is unreachable never trips
+        // Blazor's error banner (the BUG-038 no-crash guarantee, matching the pending screen); the map simply
+        // keeps its seeded state.
         try
         {
             await ViewModel.StartAsync();

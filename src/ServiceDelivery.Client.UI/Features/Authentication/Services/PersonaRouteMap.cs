@@ -19,6 +19,7 @@ public static class PersonaRouteMap
     public const string RequesterSubmit = "/requester/submit";
     public const string RequesterPending = "/requester/pending";
     public const string RequesterTracking = "/requester/tracking";
+    public const string RequesterComplete = "/requester/complete";
 
     public static string RouteFor(UserRole role) => role switch
     {
