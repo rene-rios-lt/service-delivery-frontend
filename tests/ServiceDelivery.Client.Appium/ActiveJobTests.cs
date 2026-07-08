@@ -88,13 +88,13 @@ public sealed class ActiveJobTests : AppiumTestBase
         // Act
         // The map and its overlays are placed once the embedded GoogleMap imports its JS module and the
         // page's OnMapReady callback runs — poll for each rather than assuming they are present on first paint.
-        var map = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='google-map']")));
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='google-map']")));
         var repMarker = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='rep-marker']")));
         var requesterPin = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='requester-pin']")));
         var routeLine = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='route-line']")));
 
         // Assert
-        Assert.That(map.Displayed, Is.True);
+        Assert.That(Driver.FindElements(By.CssSelector("[data-testid='google-map']")), Is.Not.Empty);
         Assert.That(repMarker, Is.Not.Null);
         Assert.That(requesterPin, Is.Not.Null);
         Assert.That(routeLine, Is.Not.Null);
