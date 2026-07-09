@@ -134,4 +134,30 @@ public sealed class ActiveJobTests : AppiumTestBase
         var idleView = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='rep-idle']")));
         Assert.That(idleView.Displayed, Is.True);
     }
+
+    /// <summary>
+    /// BUG-047 coverage (AC-3): after the CSS fix (top:12px → bottom:12px) the ETA card and its
+    /// eta-minutes / eta-distance children remain accessible on the live active-job screen. This is a
+    /// presence regression guard; the center-bottom placement that resolves the Map/Satellite overlap
+    /// (AC-1) is confirmed by visual inspection during the same Appium run — computed CSS position is
+    /// not surfaced via the XCUITest/WebDriver element model, so it is not asserted here.
+    /// </summary>
+    [Test]
+    public void GivenRep1AcceptedJob_WhenActiveJobScreenLoads_ThenEtaCardMinutesAndDistanceAllDisplayed()
+    {
+        // Arrange
+        TakeOverFirstIdleVehicle();
+        BackendApiHelper.SubmitServiceRequest(AppiumConfig.BackendBaseUrl);
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='accept-button']"))).Click();
+
+        // Act
+        var etaCard = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='eta-card']")));
+        var etaMinutes = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='eta-minutes']")));
+        var etaDistance = WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='eta-distance']")));
+
+        // Assert
+        Assert.That(etaCard.Displayed, Is.True, "eta-card should be visible after CSS relocation");
+        Assert.That(etaMinutes.Displayed, Is.True, "eta-minutes should be visible after CSS relocation");
+        Assert.That(etaDistance.Displayed, Is.True, "eta-distance should be visible after CSS relocation");
+    }
 }
