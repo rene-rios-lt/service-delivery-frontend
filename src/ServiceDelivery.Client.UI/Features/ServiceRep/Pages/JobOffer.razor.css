@@ -1,8 +1,11 @@
 /* Job-offer view (mockup: rep-job-offer__mobile-390x844).
-   Co-located scoped CSS for the sd-* classes the page renders. Colours are the literal
-   design-system tokens inlined as hex — the repo bundles hex values into scoped CSS rather
-   than relying on the :root token block (see RepIdle.razor.css / PersonaShell.razor.css).
-   State Red is --sd-state-onsite (#E5392F); En-route Blue ring is --sd-state-enroute (#1E88E5). */
+   Co-located scoped CSS for the job-offer-specific sd-* classes. The shared design-system tokens this page
+   also uses (sd-muted, sd-card base, sd-card__body, sd-badge + tier modifiers, sd-btn + variants) now live
+   in the global design-system.css (QUAL-011) served by every host at
+   _content/ServiceDelivery.Client.UI/design-system.css — they are no longer redefined here. What remains
+   below is job-offer-specific layout (the countdown ring, the offer map panel, the ETA stat boxes) plus a
+   page-specific sd-card override (padding + margin) layered on top of the global sd-card base.
+   Colours are the literal design-system tokens inlined as hex. */
 
 /* ---------------------------------------------------------------------------
    Countdown ring — conic-gradient arc driven by the --val / --max custom props
@@ -76,66 +79,23 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Elevated content card grouping requester / tier / fault / metrics (BUG-036).
-   Matches the white elevated card in the mockup; same elevation language as the
-   idle vehicle card (RepIdle.razor.css).
+   Page-specific sd-card override (QUAL-011). The global sd-card base (white
+   surface, rounded, soft shadow) comes from design-system.css; the job-offer
+   card adds its own padding + vertical margin. The scoped b-<hash> attribute
+   selector out-specifies the global class, so both apply.
 --------------------------------------------------------------------------- */
 .sd-card {
-    background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 6px 20px rgba(27, 29, 41, .08);
     padding: 16px;
     margin: 12px 0;
 }
 
 /* ---------------------------------------------------------------------------
-   Requester card text.
+   Requester card title.
 --------------------------------------------------------------------------- */
 .sd-card__title {
     font-size: 15px;
     font-weight: 650;
     margin: 0 0 2px;
-}
-
-.sd-card__body {
-    padding: 0;
-    margin: 2px 0 12px;
-}
-
-.sd-muted {
-    color: #5A5F6E;
-}
-
-/* ---------------------------------------------------------------------------
-   Tier badge (star icon + tier name). One modifier per service tier.
---------------------------------------------------------------------------- */
-.sd-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 10px;
-    font-size: 11.5px;
-    font-weight: 750;
-    letter-spacing: .3px;
-    text-transform: uppercase;
-    border-radius: 999px;
-    color: #fff;
-}
-
-.sd-badge__icon {
-    font-size: 11px;
-}
-
-.sd-badge--bronze {
-    background: #B0703C;
-}
-
-.sd-badge--silver {
-    background: #8893A0;
-}
-
-.sd-badge--gold {
-    background: #D4A017;
 }
 
 /* ---------------------------------------------------------------------------
@@ -165,49 +125,6 @@
     text-transform: uppercase;
     letter-spacing: .5px;
     margin-top: 3px;
-}
-
-/* ---------------------------------------------------------------------------
-   Accept / Decline buttons. Accept is success-green; Decline is the neutral ghost.
---------------------------------------------------------------------------- */
-.sd-btn {
-    appearance: none;
-    border: none;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 650;
-    padding: 11px 18px;
-    border-radius: 10px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: filter .12s;
-}
-
-.sd-btn--success {
-    background: #2E9E5B;
-    color: #fff;
-}
-
-.sd-btn--danger {
-    background: #E5392F;
-    color: #fff;
-}
-
-.sd-btn--ghost {
-    background: #EEF0F4;
-    color: #1C1E26;
-}
-
-.sd-btn--block {
-    width: 100%;
-}
-
-.sd-btn--lg {
-    padding: 15px 20px;
-    font-size: 15.5px;
 }
 
 /* ---------------------------------------------------------------------------

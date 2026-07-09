@@ -1,3 +1,10 @@
+/* Active-job view (mockup: rep-on-site / en-route). Co-located scoped CSS for the active-job-specific
+   layout. The shared design-system tokens this page also uses (sd-badge + tier modifiers, sd-btn base +
+   primary + lg + disabled) now live in the global design-system.css (QUAL-011) served by every host — they
+   are no longer redefined here. What remains is active-job layout (the map, the absolutely-positioned ETA
+   card / state chip / at-location pill, the bottom sheet + requester card) plus a page-specific
+   sd-btn--block override (margin-top) layered on top of the global sd-btn--block base. */
+
 /* Root: full-bleed column inside the shell body (whose only style is 16px padding). The map fills the
    upper portion; the bottom sheet sits beneath it. min-height gives the flex column a definite height
    so the map's flex:1 actually expands (the shell body itself has no height). */
@@ -83,42 +90,12 @@
 }
 
 /* Requester row: icon, name, and the inline tier badge to the right of the name (matches the
-   rep-on-site mockup). */
+   rep-on-site mockup). The tier badge itself (sd-badge + tier modifiers) is a shared token — it now
+   comes from the global design-system.css. */
 .sd-reqcard__row {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-/* Service-tier badge — mirrors the design system's .sd-badge (gold/silver/bronze, star icon,
-   uppercase). Sits inline beside the requester name in the bottom sheet. */
-.sd-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 10px;
-    font-size: 11.5px;
-    font-weight: 750;
-    letter-spacing: .3px;
-    text-transform: uppercase;
-    border-radius: 999px;
-    color: #fff;
-}
-
-.sd-badge--bronze {
-    background: #B0703C;
-}
-
-.sd-badge--silver {
-    background: #8893A0;
-}
-
-.sd-badge--gold {
-    background: #D4A017;
-}
-
-.sd-badge__icon {
-    font-size: 11px;
 }
 
 /* State chip dot (inherits the chip's text colour). */
@@ -153,42 +130,12 @@
     margin-top: 6px;
 }
 
-/* Buttons (design-system .sd-btn). The primary block button is the sheet's main action. */
-.sd-btn {
-    appearance: none;
-    border: none;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 650;
-    padding: 11px 18px;
-    border-radius: 10px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: filter .12s;
-}
-
-.sd-btn--primary {
-    background: #5B4AE2;
-    color: #fff;
-    box-shadow: 0 1px 2px rgba(20, 22, 40, .06), 0 1px 3px rgba(20, 22, 40, .08);
-}
-
+/* ---------------------------------------------------------------------------
+   Page-specific sd-btn--block override (QUAL-011). The global sd-btn--block base
+   (width: 100%) comes from design-system.css; the active-job sheet's main action
+   button also needs top margin to separate it from the requester card. The scoped
+   b-<hash> attribute selector out-specifies the global class, so both apply.
+--------------------------------------------------------------------------- */
 .sd-btn--block {
-    width: 100%;
     margin-top: 14px;
-}
-
-.sd-btn--lg {
-    padding: 15px 20px;
-    font-size: 15.5px;
-}
-
-.sd-btn:disabled {
-    background: #E7E9EF;
-    color: #8B90A0;
-    box-shadow: none;
-    cursor: default;
 }
