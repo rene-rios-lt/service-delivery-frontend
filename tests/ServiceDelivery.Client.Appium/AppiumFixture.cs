@@ -279,7 +279,7 @@ public abstract class AppiumTestBase
         Driver.FindElement(By.CssSelector("[data-testid='sign-in-button']")).Click();
 
         // The take-over screen is the first authenticated screen for a rep (FE-001 / AC-8).
-        Driver.FindElement(By.CssSelector("[data-testid='take-over-button']"));
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='take-over-button']")));
     }
 
     /// <summary>
@@ -312,11 +312,11 @@ public abstract class AppiumTestBase
     {
         Login("rep1@dealer.com", RepPassword);
 
-        Driver.FindElement(By.CssSelector("[data-testid='idle-vehicle-row']")).Click();
-        Driver.FindElement(By.CssSelector("[data-testid='take-over-button']")).Click();
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='idle-vehicle-row']"))).Click();
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='take-over-button']"))).Click();
 
         // The idle / available view is the post-take-over screen (FE-020 / AC-11).
-        Driver.FindElement(By.CssSelector("[data-testid='available-indicator']"));
+        WaitForSignalR(d => d.FindElement(By.CssSelector("[data-testid='available-indicator']")));
     }
 
     /// <summary>
