@@ -529,4 +529,32 @@ public class ActiveJobComponentTests : BunitContext
         var chip = cut.Find("[data-testid='state-chip']");
         Assert.Contains("Within 15 mi", chip.TextContent);
     }
+
+    [Fact]
+    public void GivenActiveJobRendered_WhenEtaCardDisplayed_ThenEtaMinutesAndDistanceStillPresent()
+    {
+        // BUG-047 markup/test-id regression guard. The fix is CSS-only (top:12px → bottom:12px in
+        // ActiveJob.razor.css) to relocate the ETA card from center-top to center-bottom. bUnit does
+        // NOT apply scoped .razor.css, so this test cannot — and does not — assert the rendered
+        // `bottom` position; it only guards that the eta-card / eta-minutes / eta-distance markup and
+        // test-ids still render after the edit. The center-bottom reposition itself (AC-1/AC-3) is
+        // live-verified on device only (Appium run / manual demo), NOT asserted here.
+
+        // Arrange
+        RegisterPage(Context(etaMinutes: 7, distanceMiles: 5.3));
+
+        // Act
+        var cut = Render<ActiveJob>();
+
+        // Assert
+        var etaCard = cut.Find("[data-testid='eta-card']");
+        Assert.NotNull(etaCard);
+        Assert.Contains("sd-eta", etaCard.GetAttribute("class") ?? string.Empty);
+
+        var etaMinutes = cut.Find("[data-testid='eta-minutes']");
+        Assert.Contains("7", etaMinutes.TextContent);
+
+        var etaDistance = cut.Find("[data-testid='eta-distance']");
+        Assert.Contains("5.3 MI", etaDistance.TextContent);
+    }
 }
