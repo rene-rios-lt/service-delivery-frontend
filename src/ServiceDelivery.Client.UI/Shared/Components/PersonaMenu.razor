@@ -18,46 +18,53 @@
                    Variant="DrawerVariant.Temporary"
                    Anchor="Anchor.Start"
                    Overlay="true"
+                   Fixed="true"
                    Class="sd-persona-drawer">
-            <MudDrawerHeader Class="sd-persona-drawer__header">
-                <div data-testid="persona-name" class="sd-persona-drawer__name">@ViewModel.Menu.Title</div>
-                <div class="sd-persona-drawer__role">@ViewModel.Menu.ContextLine</div>
-                @if (ViewModel.Menu.VehicleContext is not null)
-                {
-                    <span data-testid="vehicle-context-chip" class="sd-chip sd-chip--available">
-                        @ViewModel.Menu.VehicleContext
-                    </span>
-                }
-            </MudDrawerHeader>
-            <MudNavMenu>
-                @foreach (var item in ViewModel.Menu.Items)
-                {
-                    @if (IsFirstDestructive(item))
+            @* FE-029/AC-3: the indigo drawer header (rep name / role / vehicle chip) is removed —
+               the persona context now lives in the app bar. The drawer begins directly with the
+               navigation items and ends with the footer note (rep-nav-drawer mockup).
+
+               FE-029: the nav items and the footer note are wrapped in this authored
+               `.sd-persona-drawer__content` div so PersonaMenu's scoped [b-<scope>] attribute rides
+               natively on it — a PLAIN scoped selector then matches (no ::deep). The prior cycle-3 rule
+               reached into MudBlazor's INTERNAL `.mud-drawer-content` via ::deep, which a Fixed
+               MudDrawer never stamps with the scope attribute on the live WKWebView, so the rule was
+               inert on device. This div clears the top status bar (safe-area inset) only. The footer
+               bottom-pin was attempted, found infeasible against MudBlazor's flex-sized drawer
+               container, and reverted — it is now an accepted advisory (10b-B), not a defect; the
+               footer renders in normal flow, unclipped. (See the matching note in PersonaMenu.razor.css
+               on `.sd-persona-drawer__content`.) *@
+            <div class="sd-persona-drawer__content">
+                <MudNavMenu>
+                    @foreach (var item in ViewModel.Menu.Items)
                     {
-                        @* Separator between the navigation items and the destructive group
-                           ("Release vehicle" / "Log out") — matches the rep-nav-drawer mockup. *@
-                        <MudDivider data-testid="menu-destructive-divider" Class="sd-menu-divider" />
+                        @if (IsFirstDestructive(item))
+                        {
+                            @* Separator between the navigation items and the destructive group
+                               ("Release vehicle" / "Log out") — matches the rep-nav-drawer mockup. *@
+                            <MudDivider data-testid="menu-destructive-divider" Class="sd-menu-divider" />
+                        }
+                        <MudNavLink data-testid="@TestId(item)"
+                                    id="@TestId(item)"
+                                    Class="@ItemClass(item)"
+                                    Icon="@MaterialIcon(item.Icon)"
+                                    IconColor="@IconColor(item)"
+                                    Disabled="!item.IsEnabled"
+                                    OnClick="() => OnItemClicked(item)">
+                            @item.Label
+                        </MudNavLink>
                     }
-                    <MudNavLink data-testid="@TestId(item)"
-                                id="@TestId(item)"
-                                Class="@ItemClass(item)"
-                                Icon="@MaterialIcon(item.Icon)"
-                                IconColor="@IconColor(item)"
-                                Disabled="!item.IsEnabled"
-                                OnClick="() => OnItemClicked(item)">
-                        @item.Label
-                    </MudNavLink>
+                </MudNavMenu>
+                @if (HasReleaseItem)
+                {
+                    @* Footer disclaimer — narrates the release action and the AC-2 disabled-while-in-progress
+                       rule (rep-nav-drawer mockup). The registration is interpolated from the vehicle context
+                       when known; otherwise a generic phrasing is used. *@
+                    <MudText data-testid="release-disclaimer" Class="sd-persona-drawer__disclaimer" Typo="Typo.caption">
+                        @DisclaimerText
+                    </MudText>
                 }
-            </MudNavMenu>
-            @if (HasReleaseItem)
-            {
-                @* Footer disclaimer — narrates the release action and the AC-2 disabled-while-in-progress
-                   rule (rep-nav-drawer mockup). The registration is interpolated from the vehicle context
-                   when known; otherwise a generic phrasing is used. *@
-                <MudText data-testid="release-disclaimer" Class="sd-persona-drawer__disclaimer" Typo="Typo.caption">
-                    @DisclaimerText
-                </MudText>
-            }
+            </div>
         </MudDrawer>
     }
     else
@@ -141,8 +148,12 @@
         return string.IsNullOrWhiteSpace(registration) ? null : registration;
     }
 
-    private static string ItemClass(PersonaMenuItem item) =>
-        item.IsDestructive ? "sd-menu-item sd-menu-item--destructive" : "sd-menu-item";
+    private static string ItemClass(PersonaMenuItem item)
+    {
+        if (item.IsDestructive) return "sd-menu-item sd-menu-item--destructive";
+        if (item.IsActive) return "sd-menu-item sd-menu-item--active";
+        return "sd-menu-item";
+    }
 
     private static Color IconColor(PersonaMenuItem item) =>
         item.IsDestructive ? Color.Error : Color.Default;

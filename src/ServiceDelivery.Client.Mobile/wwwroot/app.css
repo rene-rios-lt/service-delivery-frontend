@@ -90,7 +90,10 @@ h1:focus {
         position: sticky;
         top: 0;
         height: env(safe-area-inset-top);
-        background-color: #f7f7f7;
+        /* FE-029: paint the iOS top safe-area inset with the app-bar indigo (--sd-primary #5B4AE2)
+           so the indigo is full-bleed behind the status bar / Dynamic Island, matching the mockup —
+           replacing the default template gray (#f7f7f7) that left a gray strip above the app bar. */
+        background-color: #5B4AE2;
         width: 100%;
         z-index: 1;
     }

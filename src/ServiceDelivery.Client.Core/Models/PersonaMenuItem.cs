@@ -9,4 +9,5 @@ public record PersonaMenuItem(
     string Icon,
     string ActionKey,
     bool IsDestructive = false,
-    bool IsEnabled = true);
+    bool IsEnabled = true,
+    bool IsActive = false);

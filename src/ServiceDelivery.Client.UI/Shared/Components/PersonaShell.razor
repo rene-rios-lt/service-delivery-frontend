@@ -11,6 +11,21 @@
 
 <div data-testid="persona-shell" class="sd-shell">
     <MudAppBar Elevation="2" Class="sd-appbar" Fixed="false">
+        @* FE-029/AC-1: the hamburger toggles the navigation DRAWER — a ServiceRep-mobile (Drawer)
+           concern — and sits at the LEADING (left) edge of the app bar, before the logo/title
+           (rep-idle / rep-nav-drawer mockups). On the AccountMenu (Desktop/Web) style the
+           persona-avatar itself is the menu affordance (it opens the inline account panel), so the
+           app-bar hamburger is a stray affordance the Requester/Dispatcher mockups do not depict —
+           suppress it on AccountMenu. *@
+        @if (ViewModel.IsMenuAffordanceVisible && ViewModel.MenuStyle == ShellMenuStyle.Drawer)
+        {
+            <MudIconButton data-testid="appbar-menu-affordance"
+                           id="appbar-menu-affordance"
+                           Icon="@MenuIcon"
+                           Color="Color.Inherit"
+                           OnClick="ViewModel.ToggleMenu"
+                           Class="sd-appbar__leading" />
+        }
         <div class="sd-appbar__logo">🚐</div>
         <div>
             <div data-testid="appbar-title" class="sd-appbar__title">@ViewModel.Title</div>
@@ -18,19 +33,6 @@
         </div>
         <MudSpacer />
         <div class="sd-appbar__controls">
-            @* BUG-044/AC-3: the hamburger toggles the navigation DRAWER — a ServiceRep-mobile (Drawer)
-               concern. On the AccountMenu (Desktop/Web) style the persona-avatar itself is the menu
-               affordance (it opens the inline account panel), so the app-bar hamburger is a stray
-               affordance the Requester/Dispatcher mockups do not depict — suppress it on AccountMenu. *@
-            @if (ViewModel.IsMenuAffordanceVisible && ViewModel.MenuStyle == ShellMenuStyle.Drawer)
-            {
-                <MudIconButton data-testid="appbar-menu-affordance"
-                               id="appbar-menu-affordance"
-                               Icon="@MenuIcon"
-                               Color="Color.Inherit"
-                               OnClick="ViewModel.ToggleMenu"
-                               Class="sd-appbar__action" />
-            }
             @* BUG-044/AC-2: the trailing app-bar avatar is only the correct affordance on the Drawer
                (Mobile) style, where PersonaMenu's persona-avatar lives off-screen inside the drawer. On
                the AccountMenu (Desktop/Web) style PersonaMenu renders the persona-avatar inline as the

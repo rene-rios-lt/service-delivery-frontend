@@ -83,7 +83,10 @@ public class MainLayoutTests
         var cut = ctx.Render<MainLayout>(p => p.Add(c => c.Body, Body));
 
         // Assert
-        Assert.Contains("Rosa Alvarez", cut.Find("[data-testid='persona-name']").TextContent);
+        // FE-029/AC-3: the drawer's rep-name header was removed, so the current user is now
+        // reflected in the app-bar avatar initials ("RA" for Rosa Alvarez) — the name-derived
+        // observable proving MainLayout wired the loaded profile into the shell chrome.
+        Assert.Equal("RA", cut.Find("[data-testid='appbar-avatar']").TextContent.Trim());
     }
 
     [Fact]

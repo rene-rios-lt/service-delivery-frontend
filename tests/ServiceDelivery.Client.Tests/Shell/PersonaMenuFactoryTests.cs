@@ -77,6 +77,23 @@ public class PersonaMenuFactoryTests
     }
 
     [Fact]
+    public void GivenAServiceRepProfile_WhenMenuBuilt_ThenRepHomeItemIsMarkedActive()
+    {
+        // Arrange
+        // FE-029/AC-7: the ServiceRep's current-screen item ("Waiting for offers") is the always-on
+        // active item in the drawer — the factory marks it IsActive so the shell can render the
+        // active-state highlight (rep-nav-drawer mockup).
+        var factory = new PersonaMenuFactory();
+        var profile = ProfileFor(UserRole.ServiceRep, "Rosa Alvarez");
+
+        // Act
+        var model = factory.Build(profile);
+
+        // Assert
+        Assert.True(model.Items.Single(i => i.ActionKey == "rep-home").IsActive);
+    }
+
+    [Fact]
     public void GivenAProfileWithName_WhenMenuBuilt_ThenTitleIsTheProfileName()
     {
         // Arrange
