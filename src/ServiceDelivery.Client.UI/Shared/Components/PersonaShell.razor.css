@@ -3,6 +3,22 @@
 .sd-appbar {
     background: #5B4AE2;
     color: #fff;
+    /* FE-029/AC-4: push the toolbar content below the iOS Dynamic Island / notch. The indigo
+       background naturally paints up into the safe zone while the inner content shifts down. */
+    padding-top: max(env(safe-area-inset-top, 0px), 0px);
+}
+
+/* FE-029/AC-1: leading hamburger — a translucent-white circle matching the trailing avatar
+   treatment (BUG-033). MudIconButton is a child component, so its rendered root doesn't carry this
+   component's scoped attribute — ::deep from the scoped app bar is required to reach it. The
+   margin-right creates the gap between the hamburger and the logo. */
+::deep .sd-appbar__leading {
+    background: rgba(255, 255, 255, .15);
+    color: #fff;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    margin-right: 4px;
 }
 
 .sd-appbar__logo {
@@ -29,22 +45,13 @@
     font-weight: 500;
 }
 
-/* App-bar trailing controls (mockup: rep-idle / rep-takeover) — the hamburger and the persona
-   avatar are matching translucent-white circles on the indigo bar, not a bare icon + grey avatar
-   (BUG-033). MudIconButton/MudAvatar are child components, so their rendered roots don't carry this
-   component's scoped attribute — ::deep from the scoped wrapper is required to reach them. */
+/* App-bar trailing controls (mockup: rep-idle / rep-takeover) — the persona avatar is a
+   translucent-white circle on the indigo bar, matching the leading hamburger (BUG-033).
+   MudAvatar is a child component, so its rendered root doesn't carry this component's scoped
+   attribute — ::deep from the scoped wrapper is required to reach it. */
 .sd-appbar__controls {
     display: flex;
     align-items: center;
-}
-
-.sd-appbar__controls ::deep .sd-appbar__action {
-    background: rgba(255, 255, 255, .15);
-    color: #fff;
-    width: 42px;
-    height: 42px;
-    padding: 0;
-    margin-left: 10px;
 }
 
 .sd-appbar__controls ::deep .sd-avatar {

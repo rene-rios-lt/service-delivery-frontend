@@ -1,35 +1,6 @@
 /* Persona menu — matches docs/ui-mockups (rep-nav-drawer, dispatcher-nav). Tokens mirror
    docs/ui-mockups/design-system.css; destructive items use the on-site red (#E5392F). */
 
-.sd-persona-drawer__name {
-    font-size: 20px;
-    font-weight: 700;
-}
-
-.sd-persona-drawer__role {
-    font-size: 13px;
-    opacity: .8;
-    margin-bottom: 8px;
-}
-
-.sd-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 11px;
-    font-size: 12px;
-    font-weight: 650;
-    border-radius: 999px;
-    background: #EEF0F4;
-    color: #5A5F6E;
-    white-space: nowrap;
-}
-
-.sd-chip--available {
-    background: rgba(46, 158, 91, .13);
-    color: #2E9E5B;
-}
-
 .sd-menu-item {
     display: flex;
     align-items: center;
@@ -50,16 +21,84 @@
     color: #E5392F;
 }
 
+/* FE-029/AC-7: active (current-screen) item highlight in the shared design-system colours
+   (--sd-primary-soft background, --sd-primary text). The shipped design-system.css bundles literal
+   hex tokens and defines NO :root custom-property block (see its header comment), so these var()s
+   resolve via their literal fallbacks — #ECEAFB / #5B4AE2 — which ARE the design-token values. The
+   var() form stays forward-compatible if a :root block is ever introduced. */
+.sd-menu-item--active {
+    background: var(--sd-primary-soft, #ECEAFB);
+    color: var(--sd-primary, #5B4AE2);
+    border-radius: 10px;
+}
+
 /* Separator between the navigation items and the destructive group (Release / Log out). */
 .sd-menu-divider {
     margin: 8px 18px;
     border-color: #E6E8EE;
 }
 
-/* Footer disclaimer narrating the release action + the AC-2 disabled-while-in-progress rule. */
+/* FE-029/AC-4 (cycle 4 — proper scoped-wrapper fix): the content wrapper is an element we AUTHOR in
+   PersonaMenu.razor (`<div class="sd-persona-drawer__content">`), not MudBlazor's internal
+   `.mud-drawer-content`. Because we author it, PersonaMenu's scoped [b-<scope>] attribute rides on it
+   natively, so this PLAIN scoped selector matches — no ::deep needed. The cycle-3 rule targeted
+   `.sd-persona-drawer ::deep .mud-drawer-content`, which a Fixed MudDrawer never stamps with the
+   scope attribute on the live WKWebView, so it was inert on device (offline bUnit's scope-forwarding
+   differed, masking it).
+   - `padding-top` clears the OS status bar / Dynamic Island so the first item ("Waiting for offers")
+     does not overlap the clock, mirroring `.sd-appbar`'s top-inset idiom (AC-4). This top inset is
+     live-verified working (cycle 4).
+
+   FOOTER BOTTOM-PIN — attempted and found infeasible here; NOW AN ACCEPTED ADVISORY (10b-B), NOT A
+   DEFECT. Matching the mockup's bottom-pinned footer note (rep-nav-drawer__mobile-390x844.png) was
+   tried across two live cycles: a full-height flex column (`display: flex; flex-direction: column`)
+   with `margin-top: auto` on the note, sized first via `min-height: 100%` (cycle 4) then
+   `min-height: 100dvh` (cycle 5). Both were inert on the live WKWebView — MudBlazor's flex-sized
+   `.mud-drawer-content` parent (`flex: 1 1 auto`, no explicit height) never gives this wrapper a
+   definite/resolvable full height, so `margin-top: auto` had no free space to consume and the note
+   stayed top-aligned under "Log out". A working pin would need a different STRUCTURAL approach (e.g.
+   flexing the MudBlazor parent itself, or absolute-positioning the note) — not another height tweak.
+   Per developer decision at Checkpoint #2, the inert pin machinery (the full-height flex column +
+   `min-height`/`box-sizing` + the disclaimer's `margin-top: auto`) was REVERTED rather than
+   reattempted, so no CSS here claims a pin it does not deliver. AC-5 ("footer note never clipped") is
+   satisfied by normal in-flow rendering — the full two-line note renders unclipped inside the viewport
+   (the Appium AssertWithinViewport on `release-disclaimer` passes) — and the bottom-pin remains an
+   accepted advisory. */
+.sd-persona-drawer__content {
+    padding-top: max(env(safe-area-inset-top, 0px), 12px);
+}
+
+/* Footer disclaimer narrating the release action + the AC-2 disabled-while-in-progress rule.
+   FE-029/AC-5: renders in normal document flow directly under the nav items — unclipped and inside the
+   viewport. It is NOT bottom-pinned to the drawer (see the accepted-advisory 10b-B note on
+   `.sd-persona-drawer__content` above — the pin proved infeasible against MudBlazor's flex-sized
+   drawer container and was reverted). The bottom padding clears the iOS home indicator via
+   env(safe-area-inset-bottom), falling back to 22px on devices/hosts without a safe-area inset so the
+   note is never clipped. */
 .sd-persona-drawer__disclaimer {
     display: block;
-    padding: 18px 18px 22px;
+    /* LEFT INSET — attempted and found infeasible here; NOW AN ACCEPTED ADVISORY (10b-C), NOT A DEFECT.
+       A 24px left inset (slightly more indented than the ~18px menu items) was attempted twice: first
+       as a 4-value padding SHORTHAND (cycle 7), then as a discrete longhand `padding-left: 24px` (cycle
+       8, deliberately outside any max()/env() shorthand). NEITHER rendered on the live WKWebView — the
+       AI Reviewer measured the footer glyphs at ~1px CSS from the drawer's left edge (flush-left) on
+       both cycles. The original hypothesis — that a padding shorthand containing a max(env(...)) term is
+       dropped whole by the WKWebView parser — was TESTED AND FALSIFIED at cycle 8: the plain longhand
+       `padding-left: 24px` (no function value) also failed to inset the text, while the disclaimer's
+       other scoped properties (font-size / color) DO render, so the scoped selector matches the element.
+       The true cause is not shorthand parsing; it is something about how this MudText lays out on the
+       live WKWebView such that padding does not shift the rendered glyph position — NOT YET DIAGNOSED.
+       Per developer decision at Checkpoint #2, this is accepted as-is (not reattempted): the footer text
+       renders flush-left (~1px), the same inset it had before this padding sub-thread began, fully
+       unclipped and readable, inside the viewport. No AC depends on the left-inset value (AC-5/AC-6 are
+       about the note being present and never clipped). The `padding-left: 24px` below is left in place as
+       harmless dead CSS (mirroring how 10b-B's revert was handled) rather than removed. The bottom side
+       still clears the iOS home indicator via env(safe-area-inset-bottom), falling back to 22px on hosts
+       without a safe-area inset so the note is never clipped. */
+    padding-top: 18px;
+    padding-right: 18px;
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 22px);
+    padding-left: 24px;
     font-size: 13px;
     line-height: 1.45;
     color: #8A8F9C;

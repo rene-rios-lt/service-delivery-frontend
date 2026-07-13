@@ -1,6 +1,8 @@
+using System.Text.RegularExpressions;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using MudBlazor;
 using MudBlazor.Services;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
@@ -34,6 +36,16 @@ public class PersonaShellComponentTests
         return vm;
     }
 
+    // Extracts the distinguishing SVG glyph path `d` data from a MudBlazor icon constant (e.g.
+    // Icons.Material.Filled.Menu) so AC-8 assertions compare against the real constant rather than a
+    // hardcoded, brittle path. Material icons prefix the glyph with a shared transparent bounding-box
+    // path ("M0 0h24v24H0z") common to every icon — take the LAST `d`, which is the actual glyph.
+    private static string IconPathData(string iconConstant)
+    {
+        var matches = Regex.Matches(iconConstant, "d=\"([^\"]+)\"");
+        return matches[^1].Groups[1].Value;
+    }
+
     private static IRenderedComponent<PersonaShell> RenderShell(BunitContext ctx, ShellViewModel vm)
     {
         RenderFragment body = builder => builder.AddMarkupContent(0, "<div data-testid='page-body'>page</div>");
@@ -55,34 +67,6 @@ public class PersonaShellComponentTests
         // Assert
         Assert.Contains("Service Delivery", cut.Find("[data-testid='appbar-title']").TextContent);
         Assert.NotNull(cut.Find("[data-testid='appbar-menu-affordance']"));
-    }
-
-    [Fact]
-    public async Task GivenAProfileWithName_WhenShellRenders_ThenContextLineShowsPersonaName()
-    {
-        // Arrange
-        await using var ctx = new BunitContext();
-        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep, "Rosa Alvarez");
-
-        // Act
-        var cut = RenderShell(ctx, vm);
-
-        // Assert
-        Assert.Contains("Rosa Alvarez", cut.Find("[data-testid='persona-name']").TextContent);
-    }
-
-    [Fact]
-    public async Task GivenNoClaimedVehicle_WhenShellRenders_ThenNoVehicleContextChipIsShown()
-    {
-        // Arrange
-        await using var ctx = new BunitContext();
-        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
-
-        // Act
-        var cut = RenderShell(ctx, vm);
-
-        // Assert
-        Assert.Empty(cut.FindAll("[data-testid='vehicle-context-chip']"));
     }
 
     [Fact]
@@ -300,6 +284,84 @@ public class PersonaShellComponentTests
 
         // Assert
         Assert.NotNull(cut.Find("[data-testid='appbar-menu-affordance']"));
+    }
+
+    [Fact]
+    public async Task GivenDrawerStyleForServiceRep_WhenShellRendered_ThenHamburgerPrecedesTitleInDomOrder()
+    {
+        // Arrange
+        // FE-029/AC-1: on the ServiceRep (Drawer) style the hamburger must sit at the LEADING (left)
+        // edge of the app bar — before the title — matching the rep-idle / rep-nav-drawer mockups.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        var markup = cut.Markup;
+        var hamburgerIndex = markup.IndexOf("appbar-menu-affordance", StringComparison.Ordinal);
+        var titleIndex = markup.IndexOf("appbar-title", StringComparison.Ordinal);
+        Assert.True(hamburgerIndex >= 0, "hamburger affordance should be rendered on the Drawer style");
+        Assert.True(
+            hamburgerIndex < titleIndex,
+            "the hamburger affordance must precede the app-bar title in DOM order (leading position)");
+    }
+
+    [Fact]
+    public async Task GivenDrawerStyleWithMenuClosed_WhenShellRendered_ThenLeadingIconHasMenuIconMarkup()
+    {
+        // Arrange
+        // FE-029/AC-8: with the drawer closed the leading toggle shows the Menu (hamburger) icon.
+        // Asserting the rendered SVG path against the MudBlazor constant (not a hardcoded path)
+        // keeps the check meaningful without being brittle.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        var affordance = cut.Find("[data-testid='appbar-menu-affordance']");
+        Assert.Contains(IconPathData(Icons.Material.Filled.Menu), affordance.InnerHtml);
+        Assert.DoesNotContain(IconPathData(Icons.Material.Filled.Close), affordance.InnerHtml);
+    }
+
+    [Fact]
+    public async Task GivenDrawerStyleWithMenuOpen_WhenMenuToggled_ThenLeadingIconMarkupChangesToClose()
+    {
+        // Arrange
+        // FE-029/AC-8: toggling the drawer open swaps the leading toggle to the Close (X) icon.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.Drawer, UserRole.ServiceRep);
+        var cut = RenderShell(ctx, vm);
+        var closedMarkup = cut.Find("[data-testid='appbar-menu-affordance']").InnerHtml;
+
+        // Act
+        cut.Find("[data-testid='appbar-menu-affordance']").Click();
+
+        // Assert
+        var affordance = cut.Find("[data-testid='appbar-menu-affordance']");
+        Assert.Contains(IconPathData(Icons.Material.Filled.Close), affordance.InnerHtml);
+        Assert.DoesNotContain(IconPathData(Icons.Material.Filled.Menu), affordance.InnerHtml);
+        Assert.NotEqual(closedMarkup, affordance.InnerHtml);
+    }
+
+    [Fact]
+    public async Task GivenDispatcherAccountMenuShell_WhenShellRendered_ThenNoNotificationBellIsPresent()
+    {
+        // Arrange
+        // FE-029/AC-11: the Dispatcher app bar carries no notification bell. Guard both a dedicated
+        // testid and the Notifications icon glyph so re-introducing a bell (either way) fails here.
+        await using var ctx = new BunitContext();
+        var vm = CreateViewModel(ctx, ShellMenuStyle.AccountMenu, UserRole.Dispatcher, "Dana Morales");
+
+        // Act
+        var cut = RenderShell(ctx, vm);
+
+        // Assert
+        Assert.Empty(cut.FindAll("[data-testid='notification-bell']"));
+        Assert.DoesNotContain(IconPathData(Icons.Material.Filled.Notifications), cut.Markup);
     }
 
     [Fact]

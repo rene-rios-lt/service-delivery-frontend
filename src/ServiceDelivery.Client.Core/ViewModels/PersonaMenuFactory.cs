@@ -44,7 +44,7 @@ public class PersonaMenuFactory
     {
         UserRole.ServiceRep => new List<PersonaMenuItem>
         {
-            new("Waiting for offers", "home", "rep-home"),
+            new("Waiting for offers", "home", "rep-home", IsActive: true),
             new("Job history", "history", "job-history"),
             new("Help & support", "help", "help"),
             new("Release vehicle", "local_parking", ReleaseActionKey, IsDestructive: true),
