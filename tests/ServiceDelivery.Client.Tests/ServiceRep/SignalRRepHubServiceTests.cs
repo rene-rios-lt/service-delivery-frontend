@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
@@ -15,7 +16,8 @@ public class SignalRRepHubServiceTests
     {
         var httpClient = new HttpClient { BaseAddress = new Uri("http://localhost:5180") };
         return new SignalRRepHubService(
-            httpClient, _tokenStore.Object, NullLogger<SignalRRepHubService>.Instance);
+            httpClient, _tokenStore.Object, NullLogger<SignalRRepHubService>.Instance,
+            NullLoggerFactory.Instance);
     }
 
     // Builds the service through the internal test seam: a fake connect delegate (counted, controllable
@@ -43,7 +45,7 @@ public class SignalRRepHubServiceTests
         Func<TimeSpan, CancellationToken, Task> noDelay = (_, _) => Task.CompletedTask;
         return new SignalRRepHubService(
             httpClient, _tokenStore.Object, NullLogger<SignalRRepHubService>.Instance,
-            connect, noDelay, () => connected);
+            NullLoggerFactory.Instance, connect, noDelay, () => connected);
     }
 
     [Fact]
@@ -154,6 +156,31 @@ public class SignalRRepHubServiceTests
         // Assert
         Assert.Equal(1, attemptsObserved);
         Assert.True(service.IsConnected);
+    }
+
+    [Fact]
+    public void GivenAnInjectedLoggerFactory_WhenRepHubServiceIsConstructed_ThenTheHubConnectionLoggingIsRoutedToTheFactory()
+    {
+        // Arrange — QUAL-012: a client-side SignalR transport failure on the RepHub was invisible because the
+        // HubConnection was built with no logger routing (its internal transport/dispatch logs went nowhere).
+        // The service must now route that logging into the host's ILoggerFactory (mirroring the FE-003
+        // VehiclePositionHub fix). The HubConnection resolves ILoggerFactory when the builder constructs it,
+        // so a factory routed via ConfigureLogging is asked for at least one logger during construction; a spy
+        // factory that is NEVER asked proves the routing is absent. NullLoggerFactory would silently pass
+        // either way, so a real spy is used (anti-masking: the assertion must fail when the routing is absent).
+        var loggerFactory = new Mock<ILoggerFactory>();
+        loggerFactory.Setup(f => f.CreateLogger(It.IsAny<string>())).Returns(NullLogger.Instance);
+
+        // Act — constructing the service builds the HubConnection (which pulls a logger from the routed factory).
+        _ = new SignalRRepHubService(
+            new HttpClient { BaseAddress = new Uri("http://localhost:5180") },
+            _tokenStore.Object,
+            NullLogger<SignalRRepHubService>.Instance,
+            loggerFactory.Object);
+
+        // Assert — the connection's logging pipeline was fed the injected factory (it created at least one
+        // logger from it); with no routing the spy is never touched.
+        loggerFactory.Verify(f => f.CreateLogger(It.IsAny<string>()), Times.AtLeastOnce);
     }
 
     [Fact]
