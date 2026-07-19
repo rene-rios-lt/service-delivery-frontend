@@ -1,9 +1,45 @@
 @page "/dispatcher"
+@using ServiceDelivery.Client.Core.ViewModels
+@using ServiceDelivery.Client.UI.Features.Dispatcher.Components
+@implements IDisposable
+@inject DispatcherFleetViewModel ViewModel
 
-@* Placeholder persona home — a valid navigation target for role-based routing (FE-001).
-   The Dispatcher fleet command center is built in a later story (FE-003+). *@
+@* FE-003 dispatcher fleet command centre (mockup: dispatcher-dashboard). Renders into the shared
+   PersonaShell body (FE-021 supplies the app bar). Two columns: the live FleetMap on the left and a
+   stubbed ACTIVE REQUESTS rail on the right (FE-004 populates it). An empty offline-alert banner slot sits
+   above the layout (FE-006 wires it). The page owns the fleet ViewModel lifecycle: load the snapshot and
+   start the VehiclePositionHub on mount, stop the hub on dispose, and re-render on StateChanged. *@
 
-<MudContainer Class="mt-6" data-testid="dispatcher-dashboard">
-    <MudText Typo="Typo.h4">Dispatcher</MudText>
-    <MudText Typo="Typo.body1">Your fleet command center will appear here.</MudText>
-</MudContainer>
+<div class="sd-dispatcher">
+    @* Offline-alert banner slot — empty in FE-003; wired to the rep-offline event in FE-006. *@
+    <div class="sd-dispatcher__banner" data-testid="dispatcher-offline-banner"></div>
+
+    <div class="sd-dispatcher-layout" data-testid="dispatcher-dashboard">
+        <div class="sd-dispatcher-layout__map" data-testid="dispatcher-map-column">
+            <FleetMap />
+        </div>
+
+        <section class="sd-dispatcher-layout__rail" data-testid="dispatcher-queue-rail">
+            <div class="sd-dispatcher-rail__head">ACTIVE REQUESTS</div>
+            @* FE-004 populates the request cards here. *@
+            <div class="sd-dispatcher-rail__list" data-testid="dispatcher-queue-list"></div>
+        </section>
+    </div>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        ViewModel.StateChanged += OnStateChanged;
+        await ViewModel.LoadAsync();
+        await ViewModel.StartHubAsync();
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        ViewModel.StateChanged -= OnStateChanged;
+        _ = ViewModel.StopHubAsync();
+    }
+}

@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ServiceDelivery.Client.Appium/ServiceDelivery.Client.Appium.csproj" />
+    <Project Path="tests/ServiceDelivery.Client.Appium.Mac/ServiceDelivery.Client.Appium.Mac.csproj" />
     <Project Path="tests/ServiceDelivery.Client.E2E/ServiceDelivery.Client.E2E.csproj" />
     <Project Path="tests/ServiceDelivery.Client.Tests/ServiceDelivery.Client.Tests.csproj" />
   </Folder>

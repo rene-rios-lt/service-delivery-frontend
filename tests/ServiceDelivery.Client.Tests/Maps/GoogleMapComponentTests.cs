@@ -633,4 +633,138 @@ public class GoogleMapComponentTests : BunitContext
             initMapBody.IndexOf("importLibrary") < initMapBody.IndexOf("new google.maps.Map"),
             "initMap must await importLibrary before constructing the google.maps.Map.");
     }
+
+    [Fact]
+    public void GivenAnOnMarkerClickedCallback_WhenMapInitialised_ThenRegisterMarkerClickHandlerInvokedAfterInitMap()
+    {
+        // Arrange — FE-003 AC-5: the dispatcher fleet map needs a marker tap to open a rep popover. When a
+        // consumer supplies an OnMarkerClicked callback, the component registers a JS marker-click handler
+        // (registerMarkerClickHandler) after initMap so a marker tap calls back into .NET carrying the
+        // marker id. Read-only consumers (ActiveJob / JobOffer) supply no callback and get no handler.
+        MapsAvailable();
+
+        // Act
+        Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12)
+            .Add(c => c.OnMarkerClicked, EventCallback.Factory.Create<string>(this, _ => { })));
+
+        // Assert
+        _module.VerifyInvoke("initMap");
+        _module.VerifyInvoke("registerMarkerClickHandler");
+    }
+
+    [Fact]
+    public void GivenNoOnMarkerClickedCallback_WhenMapInitialised_ThenRegisterMarkerClickHandlerIsNotInvoked()
+    {
+        // Arrange — FE-003: existing map consumers (ActiveJob / JobOffer) supply no OnMarkerClicked
+        // callback, so the component must NOT register a marker-click handler for them (additive extension,
+        // no behaviour change for existing maps).
+        MapsAvailable();
+
+        // Act
+        Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12));
+
+        // Assert
+        _module.VerifyInvoke("initMap");
+        _module.VerifyNotInvoke("registerMarkerClickHandler");
+    }
+
+    [Fact]
+    public async Task GivenAnOnMarkerClickedCallback_WhenOnMarkerClickedAsyncInvoked_ThenCallbackReceivesTheMarkerId()
+    {
+        // Arrange — FE-003 AC-5: a marker tap flows from JS into the [JSInvokable] OnMarkerClickedAsync,
+        // which raises the OnMarkerClicked EventCallback carrying the tapped marker's id (the vehicle id).
+        MapsAvailable();
+        string? received = null;
+        var cut = Render<GoogleMap>(p => p
+            .Add(c => c.Lat, 41.6)
+            .Add(c => c.Lng, -93.6)
+            .Add(c => c.Zoom, 12)
+            .Add(c => c.OnMarkerClicked, EventCallback.Factory.Create<string>(this, id => received = id)));
+
+        // Act
+        await cut.InvokeAsync(() => cut.Instance.OnMarkerClickedAsync("veh-42"));
+
+        // Assert
+        Assert.Equal("veh-42", received);
+    }
+
+    [Fact]
+    public void GivenTheGoogleMapModule_WhenItsSourceIsRead_ThenMarkerContentStampsDataLatAndDataLngForPositionObservability()
+    {
+        // Arrange — FE-003 review-fix cycle 1 (Finding 2): the fleet map's real-time AC (AC-4) is E2E-only,
+        // and no authored scenario could FAIL on a dead hub — they all assert data-fleet-count, which the
+        // REST snapshot (LoadAsync) already populates, so a broken VehiclePositionHub stays green. To prove a
+        // HUB-delivered position update actually moves a rendered marker, the marker element must expose its
+        // live position in the DOM: the E2E scenario captures the marker's data-lat/data-lng, then bounded-
+        // polls for it to CHANGE (the only path that moves it after the initial REST render is the hub). bUnit
+        // mocks the JS module and cannot run the real buildMarkerContent, so guard the committed source: the
+        // marker content must stamp data-lat AND data-lng as DOM attributes (exactly as it stamps data-testid).
+        var modulePath = RepoRoot.Combine(
+            "src", "ServiceDelivery.Client.UI", "wwwroot", "Features", "Maps", "googleMap.js");
+
+        // Act
+        var module = File.ReadAllText(modulePath);
+
+        // Assert
+        Assert.Contains("setAttribute(\"data-lat\"", module);
+        Assert.Contains("setAttribute(\"data-lng\"", module);
+    }
+
+    [Fact]
+    public void GivenTheGoogleMapModule_WhenItsSourceIsRead_ThenMarkerContentCarriesRoleImgAndCoordinateStampedAriaLabelForNativeAxObservability()
+    {
+        // Arrange — FE-003 review-fix cycle 3 (live Mac2 finding): the Desktop (Mac Catalyst) fleet-map gate
+        // runs on the appium mac2 driver, which is native-only XCTest automation of the macOS accessibility
+        // (AX) tree — it has NO WebView context, so data-testid / data-lat / data-lng (DOM attributes) never
+        // reach the driver. Only AX-visible properties do. A role="img" div with an aria-label surfaces in the
+        // AX tree as an image element whose label IS the aria-label, giving the Mac test a countable native
+        // anchor (predicate label BEGINSWITH the marker's testId). display:none content never reaches AX, so
+        // this is inherently visibility-aware too.
+        //
+        // Cycle-5 extension (second live Mac2 run): the AC-4 marker-MOVE scenario needs a deterministic
+        // AX-visible movement signal. WebKit's AX tree does NOT reliably re-report the FRAME of a
+        // JS-repositioned absolutely-positioned div, so polling the on-screen Location is not a dependable
+        // move signal even when the marker did move. The fix stamps the marker's LIVE coordinates into the
+        // aria-label alongside its testId — "fleet-marker-<id> @ <lat>,<lng>" — recomputed on every
+        // addOrUpdateMarker call (i.e. on every hub-delivered VehiclePositionUpdated), so the accessible name
+        // changes iff the hub moved the marker. This is a machine-readable test hook (like data-testid /
+        // data-lat) — acceptable label churn for the POC. bUnit mocks the JS module and cannot run the real
+        // buildMarkerContent, so guard the committed source: the marker content must stamp role="img" AND set
+        // aria-label to a template literal binding the caller's testId plus the live lat/lng (both to 4 dp).
+        var modulePath = RepoRoot.Combine(
+            "src", "ServiceDelivery.Client.UI", "wwwroot", "Features", "Maps", "googleMap.js");
+
+        // Act
+        var module = File.ReadAllText(modulePath);
+        var markerContentBody =
+            module[module.IndexOf("function buildMarkerContent")..module.IndexOf("export function removeMarker")];
+
+        // Assert
+        Assert.Contains("setAttribute(\"role\", \"img\")", markerContentBody);
+        Assert.Contains("setAttribute(\"aria-label\", `${testId} @ ${lat.toFixed(4)},${lng.toFixed(4)}`)", markerContentBody);
+    }
+
+    [Fact]
+    public void GivenTheGoogleMapModule_WhenItsSourceIsRead_ThenItExportsMarkerClickHandlerFunctions()
+    {
+        // Arrange — FE-003: the mocked JS module hides a renamed/missing export, so guard the committed
+        // source: googleMap.js must export the register/unregister marker-click-handler functions the
+        // component invokes, and forward taps to OnMarkerClickedAsync.
+        var modulePath = RepoRoot.Combine(
+            "src", "ServiceDelivery.Client.UI", "wwwroot", "Features", "Maps", "googleMap.js");
+
+        // Act
+        var module = File.ReadAllText(modulePath);
+
+        // Assert
+        Assert.Contains("export function registerMarkerClickHandler", module);
+        Assert.Contains("export function unregisterMarkerClickHandler", module);
+        Assert.Contains("OnMarkerClickedAsync", module);
+    }
 }
