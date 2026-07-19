@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Models;
@@ -49,15 +50,13 @@ public sealed class SignalRRepHubService : IRepHubService, IAsyncDisposable
     private readonly Func<bool> _isConnected;
 
     public SignalRRepHubService(
-        HttpClient httpClient, ITokenStore tokenStore, ILogger<SignalRRepHubService> logger)
+        HttpClient httpClient, ITokenStore tokenStore, ILogger<SignalRRepHubService> logger,
+        ILoggerFactory loggerFactory)
     {
         _tokenStore = tokenStore;
         _logger = logger;
         var hubUrl = new Uri(httpClient.BaseAddress!, RepHubPath);
-        _connection = new HubConnectionBuilder()
-            .WithUrl(hubUrl, options => options.AccessTokenProvider = ProvideAccessTokenAsync)
-            .WithAutomaticReconnect()
-            .Build();
+        _connection = BuildConnection(hubUrl, loggerFactory);
         _connectAsync = ct => _connection.StartAsync(ct);
         _delayAsync = Task.Delay;
         _isConnected = () => _connection.State == HubConnectionState.Connected;
@@ -71,6 +70,7 @@ public sealed class SignalRRepHubService : IRepHubService, IAsyncDisposable
         HttpClient httpClient,
         ITokenStore tokenStore,
         ILogger<SignalRRepHubService> logger,
+        ILoggerFactory loggerFactory,
         Func<CancellationToken, Task> connectAsync,
         Func<TimeSpan, CancellationToken, Task> delayAsync,
         Func<bool> isConnected)
@@ -78,14 +78,30 @@ public sealed class SignalRRepHubService : IRepHubService, IAsyncDisposable
         _tokenStore = tokenStore;
         _logger = logger;
         var hubUrl = new Uri(httpClient.BaseAddress!, RepHubPath);
-        _connection = new HubConnectionBuilder()
-            .WithUrl(hubUrl, options => options.AccessTokenProvider = ProvideAccessTokenAsync)
-            .WithAutomaticReconnect()
-            .Build();
+        _connection = BuildConnection(hubUrl, loggerFactory);
         _connectAsync = connectAsync;
         _delayAsync = delayAsync;
         _isConnected = isConnected;
     }
+
+    // Both constructors build the RepHub connection identically (the only difference is the connect/delay/
+    // state seam), so the builder lives here to avoid duplication.
+    //
+    // QUAL-012: route the HubConnection's own internal transport/dispatch logging into the host's
+    // ILoggerFactory (mirroring the FE-003 VehiclePositionHub fix). A client-side SignalR transport failure
+    // is otherwise invisible because a connection built with no logger sends its diagnostics nowhere.
+    // AddSingleton(loggerFactory) makes the connection resolve the host factory instead of its default, so
+    // its logs reach the host log.
+    private HubConnection BuildConnection(Uri hubUri, ILoggerFactory loggerFactory) =>
+        new HubConnectionBuilder()
+            .WithUrl(hubUri, options => options.AccessTokenProvider = ProvideAccessTokenAsync)
+            .WithAutomaticReconnect()
+            .ConfigureLogging(logging =>
+            {
+                logging.SetMinimumLevel(LogLevel.Debug);
+                logging.Services.AddSingleton(loggerFactory);
+            })
+            .Build();
 
     /// <summary>
     /// Supplies the JWT that SignalR appends as <c>?access_token=...</c> when negotiating the RepHub
