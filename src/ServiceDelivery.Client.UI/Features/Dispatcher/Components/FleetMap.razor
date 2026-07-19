@@ -1,0 +1,40 @@
+@using ServiceDelivery.Client.Core.ViewModels
+@using ServiceDelivery.Client.UI.Features.Maps.Components
+@implements IDisposable
+@inject DispatcherFleetViewModel ViewModel
+
+@* FE-003: the dispatcher fleet map panel. Embeds the reusable GoogleMap (FE-024) centred on Iowa, drives
+   its markers from DispatcherFleetViewModel.VisibleVehicles (delta-synced in the code-behind on OnMapReady
+   and on every ViewModel StateChanged), and overlays the MarkerLegend and — when a marker is selected —
+   the RepMarkerPopover. data-fleet-count exposes the visible-vehicle count as an E2E-detectable hook since
+   the google.maps markers are JS-rendered and not DOM-queryable. *@
+
+<div class="sd-fleet-map-panel" data-testid="fleet-map-panel" data-fleet-count="@ViewModel.VisibleVehicles.Count">
+    <GoogleMap @ref="_mapRef" Lat="IowaCentreLat" Lng="IowaCentreLng" Zoom="IowaZoom"
+               OnMapReady="OnMapReadyAsync" OnMarkerClicked="OnMarkerClickedAsync" />
+
+    @* FE-003 (review cycle 10): a visually-hidden, AX-exposed mirror of the visible fleet. The google.maps
+       marker DOM lives inside overlay panes the Maps SDK marks aria-hidden / prunes from the accessibility
+       tree, so neither VoiceOver nor the native mac2/XCTest AX tree can observe a marker however we stamp
+       role/aria-label on its content. This summary sits OUTSIDE the map pane, so each vehicle's text
+       (identity, state, live 4-dp coords) surfaces as accessible static text — giving VoiceOver a real fleet
+       readout and the Desktop E2E gate a native anchor. Hidden with the sr-only clip pattern (NOT
+       display:none / visibility:hidden, which would drop it from the AX tree). It re-renders on the same
+       StateChanged that drives marker sync, so a hub-delivered position update changes an entry's coord text. *@
+    <div class="sd-sr-only" data-testid="fleet-a11y-summary" role="list"
+         aria-label="Fleet vehicles (live positions)">
+        @foreach (var vehicle in ViewModel.VisibleVehicles)
+        {
+            <div role="listitem" data-testid="@($"fleet-a11y-entry-{vehicle.VehicleId}")">
+                @FleetSummaryLine(vehicle)
+            </div>
+        }
+    </div>
+
+    <MarkerLegend />
+
+    @if (ViewModel.SelectedVehicle is not null)
+    {
+        <RepMarkerPopover Entry="ViewModel.SelectedVehicle" OnClose="ViewModel.ClearSelection" />
+    }
+</div>

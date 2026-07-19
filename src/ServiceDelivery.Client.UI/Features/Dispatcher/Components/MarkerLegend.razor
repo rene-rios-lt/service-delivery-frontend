@@ -1,0 +1,30 @@
+@using ServiceDelivery.Client.Core.Models
+
+@* FE-003 AC-6: the fleet map legend (mockup: bottom-left box). Five fixed rows keyed to the rep-state
+   colour system; the dot colour comes from RepStateColour (the single source of truth also used for the
+   markers), so a colour change in one place stays in lock-step with the map. Parameterless — it renders
+   the fixed key, not live data. Offline appears in the legend even though its marker is removed from the
+   map (AC-7), so the dispatcher can still read the colour key. *@
+
+<div class="sd-legend" data-testid="fleet-legend">
+    @foreach (var row in Rows)
+    {
+        <div class="sd-legend__row" data-testid="legend-row-@row.State">
+            <span class="sd-legend__dot" style="background:@RepStateColour.ForState(row.State)"></span>
+            <span class="sd-legend__label">@row.Label</span>
+        </div>
+    }
+</div>
+
+@code {
+    // (state key, display label). The state key feeds RepStateColour.ForState and the row's data-testid;
+    // the label is the human-readable text shown in the mockup.
+    private static readonly (string State, string Label)[] Rows =
+    [
+        ("Available", "Available"),
+        ("EnRoute", "En Route"),
+        ("Within15Miles", "Within 15 mi"),
+        ("OnSite", "On Site"),
+        ("Offline", "Offline"),
+    ];
+}

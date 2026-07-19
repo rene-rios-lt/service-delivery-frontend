@@ -6,11 +6,10 @@
 @code {
     protected override async Task OnInitializedAsync()
     {
+        // ResolveStartRouteAsync always returns a concrete route (persona home for a valid token,
+        // /login otherwise), so "/" always redirects and never renders a blank body (BUG-050).
         var route = await ViewModel.ResolveStartRouteAsync();
 
-        if (route is not null)
-        {
-            Navigation.NavigateTo(route);
-        }
+        Navigation.NavigateTo(route, replace: true);
     }
 }

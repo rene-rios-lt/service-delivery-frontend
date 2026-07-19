@@ -7,6 +7,7 @@ using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.Desktop.Services;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
+using ServiceDelivery.Client.UI.Features.Dispatcher.Services;
 using ServiceDelivery.Client.UI.Features.Maps.Services;
 using ServiceDelivery.Client.UI.Features.Requester.Services;
 using ServiceDelivery.Client.UI.Features.ServiceRep.Services;
@@ -46,7 +47,19 @@ public static class MauiProgram
 		builder.Services.AddScoped<MapsLoader>();
 		builder.Services.AddScoped<IMapsLoader>(sp => sp.GetRequiredService<MapsLoader>());
 
-		builder.Services.AddScoped<ITokenStore, SecureStorageTokenStore>();
+		// Dispatcher fleet map (FE-003). Desktop serves the Dispatcher persona (ADR-0008), so the fleet
+		// snapshot service, the VehiclePositionHub client, and the fleet ViewModel are live here. Both
+		// services are Blazor-generic (HttpClient / HubConnection). Mobile does NOT register these —
+		// Dispatcher is not supported on Mobile.
+		builder.Services.AddScoped<IDispatcherFleetService, HttpDispatcherFleetService>();
+		builder.Services.AddScoped<IVehiclePositionHubService, SignalRVehiclePositionHubService>();
+		builder.Services.AddScoped<DispatcherFleetViewModel>();
+
+		// FE-003 AC-1: back the Desktop token store with MAUI Preferences instead of the Keychain
+		// (SecureStorage). SecureStorage needs a Keychain-access entitlement an unsigned local Mac
+		// Catalyst build lacks, so its GetAsync threw and crashed Dispatcher login before any UI
+		// rendered. Preferences needs no entitlement and works under the unsigned build.
+		builder.Services.AddScoped<ITokenStore, PreferencesTokenStore>();
 		// BlazorPersonaNavigator now depends on IJobOfferStore (FE-008). Desktop does not host the
 		// ServiceRep persona, but the navigator is registered in every host, so the store must be
 		// resolvable here too. A lightweight scoped no-op-by-absence store satisfies the dependency.
@@ -130,6 +143,15 @@ public static class MauiProgram
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
 		builder.Logging.AddDebug();
+#if MACCATALYST
+		// FE-003 (cycle 9) live-gate diagnostic. Under the live Mac2/Appium Desktop gate the app is launched
+		// by XCTest, which swallows stdout — so AddDebug()/console output never surfaces. OsLogLoggerProvider
+		// routes ILogger output (including the SignalR HubConnection's internal transport/dispatch logs, now
+		// fed through ILoggerFactory) to the macOS unified log via NSLog, where `log show`/Console.app can read
+		// it under ANY launcher. MacCatalyst-only (Foundation); paired with AddDebug() for the local (non-Appium)
+		// developer flow.
+		builder.Logging.AddProvider(new OsLogLoggerProvider());
+#endif
 #endif
 
 		return builder.Build();

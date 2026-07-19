@@ -41,8 +41,14 @@ public partial class GoogleMap : IAsyncDisposable
 
     // FE-015 (tap-to-place-pin): when a consumer supplies this callback the component registers a JS click
     // listener on the map so a map tap calls back into .NET (OnMapClickedAsync) carrying the tapped point.
-    // Consumers that don't set it (ActiveJob / JobOffer / Dispatcher) get no listener — backwards-compatible.
+    // Consumers that don't set it (ActiveJob / JobOffer) get no listener — backwards-compatible.
     [Parameter] public EventCallback<GpsPoint> OnMapClicked { get; set; }
+
+    // FE-003 (dispatcher fleet map): when a consumer supplies this callback the component registers a JS
+    // marker-click handler so tapping a marker calls back into .NET (OnMarkerClickedAsync) carrying the
+    // marker's id (the vehicle id). Additive extension — consumers that don't set it (ActiveJob / JobOffer)
+    // get no marker-click handler, so their existing behaviour is unchanged.
+    [Parameter] public EventCallback<string> OnMarkerClicked { get; set; }
 
     private readonly string _containerId = $"sd-map-{Guid.NewGuid():N}";
 
@@ -78,13 +84,23 @@ public partial class GoogleMap : IAsyncDisposable
         _module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", ModulePath);
         await _module.InvokeVoidAsync("initMap", _containerId, Lat, Lng, Zoom, GestureHandling);
 
-        // FE-015: register the map-click listener only when a consumer wants tap-to-place-pin. Done after
-        // initMap so the google.maps.Map exists, and only when OnMapClicked has a delegate so read/track
-        // maps are unaffected.
-        if (OnMapClicked.HasDelegate)
+        // FE-015 / FE-003: register the map-click listener (tap-to-place-pin) and/or the marker-click
+        // handler (dispatcher fleet popover) only when the matching consumer callback is set. Both are done
+        // after initMap so the google.maps.Map exists, and both share one DotNetObjectReference to this
+        // component; read/track maps that set neither callback are unaffected.
+        if (OnMapClicked.HasDelegate || OnMarkerClicked.HasDelegate)
         {
             _selfRef = DotNetObjectReference.Create(this);
+        }
+
+        if (OnMapClicked.HasDelegate)
+        {
             await _module.InvokeVoidAsync("addClickListener", _containerId, _selfRef);
+        }
+
+        if (OnMarkerClicked.HasDelegate)
+        {
+            await _module.InvokeVoidAsync("registerMarkerClickHandler", _containerId, _selfRef);
         }
 
         await OnMapReady.InvokeAsync();
@@ -95,6 +111,12 @@ public partial class GoogleMap : IAsyncDisposable
     [JSInvokable]
     public Task OnMapClickedAsync(double lat, double lng) =>
         OnMapClicked.InvokeAsync(new GpsPoint(lat, lng));
+
+    // FE-003: invoked from googleMap.js when a marker is tapped, carrying the marker's id (the vehicle id).
+    // Raises OnMarkerClicked so the dispatcher fleet map can select that vehicle and open its popover.
+    [JSInvokable]
+    public Task OnMarkerClickedAsync(string markerId) =>
+        OnMarkerClicked.InvokeAsync(markerId);
 
     public Task AddOrUpdateMarkerAsync(string id, double lat, double lng, string colour, string testId) =>
         InvokeMapAsync("addOrUpdateMarker", id, lat, lng, colour, testId);
@@ -125,11 +147,17 @@ public partial class GoogleMap : IAsyncDisposable
             return;
         }
 
-        // FE-015: detach the click listener (if one was registered) before tearing the map down so the JS
-        // event handler does not call back into a disposed .NET reference across navigation.
-        if (_selfRef is not null)
+        // FE-015 / FE-003: detach the click listener and/or marker-click handler (whichever was registered)
+        // before tearing the map down so the JS event handlers do not call back into a disposed .NET
+        // reference across navigation.
+        if (OnMapClicked.HasDelegate)
         {
             await _module.InvokeVoidAsync("removeClickListener", _containerId);
+        }
+
+        if (OnMarkerClicked.HasDelegate)
+        {
+            await _module.InvokeVoidAsync("unregisterMarkerClickHandler", _containerId);
         }
 
         await _module.InvokeVoidAsync("disposeMap", _containerId);

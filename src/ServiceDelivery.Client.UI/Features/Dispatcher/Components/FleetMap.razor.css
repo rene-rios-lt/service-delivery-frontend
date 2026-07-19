@@ -1,0 +1,53 @@
+/* FE-003 dispatcher fleet map panel. The panel fills the map column and gives the embedded GoogleMap a
+   definite height (the shell body has none, so without this the google.maps canvas collapses to 0px — the
+   same failure mode FE-026 fixed for the active-job map). The legend and popover are absolutely positioned
+   overlays inside the panel (::deep reaches into the child MarkerLegend / RepMarkerPopover components). */
+
+.sd-fleet-map-panel {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 60px);
+    min-height: 480px;
+    overflow: hidden;
+}
+
+/* The embedded GoogleMap fills the whole panel. */
+.sd-fleet-map-panel ::deep .sd-google-map {
+    width: 100%;
+    height: 100%;
+}
+
+/* Legend: bottom-left overlay (mockup). */
+.sd-fleet-map-panel ::deep .sd-legend {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 20;
+}
+
+/* Popover: floats over the map (mockup shows it near the selected marker; a fixed top-centre placement is
+   the FE-003 simplification — precise anchoring to a JS-rendered marker is deferred). */
+.sd-fleet-map-panel ::deep .sd-fleet-popover {
+    position: absolute;
+    left: 50%;
+    top: 24px;
+    transform: translateX(-50%);
+    z-index: 30;
+}
+
+/* FE-003 (review cycle 10): screen-reader-only utility for the accessible fleet summary. Keeps the element
+   in the accessibility tree (VoiceOver + native mac2/XCTest AX) while removing it from the visual layout —
+   the standard clip pattern. It MUST NOT use display:none or visibility:hidden, which drop the element (and
+   all descendants) from the AX tree entirely; the whole point is AX exposure with zero visual footprint. */
+.sd-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}

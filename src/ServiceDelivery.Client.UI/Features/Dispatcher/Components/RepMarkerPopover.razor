@@ -1,0 +1,59 @@
+@using ServiceDelivery.Client.Core.Models
+
+@* FE-003 ACs 5 + 8: the rep marker popover (mockup: "J. Tran · En Route" card). Renders the selected
+   vehicle's rep name + state chip, its registration, the active request (DTC title when the backend
+   supplies one, plus the tier badge) when assigned, and a "Human-controlled" label for a human-taken-over
+   rep. Human- and simulator-controlled reps use the SAME state colour on the map (AC-8); the only popover
+   difference is this label. A colour-coded state marker + this metadata card is the dispatcher's read-only
+   detail view — no actions in FE-003 (redirect is FE-004). *@
+
+<div class="sd-popover sd-fleet-popover" data-testid="rep-popover">
+    <div class="sd-fleet-popover__head">
+        <span class="sd-fleet-popover__name" data-testid="popover-rep-name">@Entry.RepName</span>
+        <span class="sd-fleet-popover__chip" data-testid="popover-state-chip">
+            <span class="sd-fleet-popover__dot" style="background:@RepStateColour.ForState(Entry.RepState ?? "Offline")"></span>@StateLabel
+        </span>
+        <button type="button" class="sd-fleet-popover__close" data-testid="popover-close"
+                aria-label="Close" @onclick="OnClose">×</button>
+    </div>
+
+    <div class="sd-fleet-popover__line" data-testid="popover-registration">
+        Vehicle <strong>@Entry.Registration</strong>
+    </div>
+
+    @if (Entry.ActiveRequestTier is not null)
+    {
+        <div class="sd-fleet-popover__request" data-testid="popover-active-request">
+            @if (!string.IsNullOrWhiteSpace(Entry.ActiveRequestTitle))
+            {
+                <span class="sd-fleet-popover__dtc">→ @Entry.ActiveRequestTitle</span>
+            }
+            <span class="sd-badge sd-badge--@Entry.ActiveRequestTier.ToLowerInvariant()"
+                  data-testid="popover-tier-badge">@Entry.ActiveRequestTier</span>
+        </div>
+    }
+
+    @if (Entry.HumanControlled)
+    {
+        <div class="sd-fleet-popover__human" data-testid="popover-human-controlled">Human-controlled</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public FleetVehicleEntry Entry { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    // Maps the rep-state key to the human-readable chip label shown in the mockup, mirroring MarkerLegend
+    // so the chip and the legend stay in lock-step. An unknown/null state reads as Offline.
+    private string StateLabel => Entry.RepState switch
+    {
+        "Available" => "Available",
+        "EnRoute" => "En Route",
+        "Within15Miles" => "Within 15 mi",
+        "OnSite" => "On Site",
+        _ => "Offline",
+    };
+}

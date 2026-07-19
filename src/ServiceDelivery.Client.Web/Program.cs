@@ -8,6 +8,7 @@ using ServiceDelivery.Client.Core.Interfaces;
 using ServiceDelivery.Client.Core.Services;
 using ServiceDelivery.Client.Core.ViewModels;
 using ServiceDelivery.Client.UI.Features.Authentication.Services;
+using ServiceDelivery.Client.UI.Features.Dispatcher.Services;
 using ServiceDelivery.Client.UI.Features.Maps.Services;
 using ServiceDelivery.Client.UI.Features.Requester.Services;
 using ServiceDelivery.Client.UI.Features.ServiceRep.Services;
@@ -76,6 +77,12 @@ builder.Services.AddScoped<IMapsKeyProvider, ConfigurationMapsKeyProvider>();
 // against the concrete, and keep the concrete resolvable for any caller that still depends on it directly.
 builder.Services.AddScoped<MapsLoader>();
 builder.Services.AddScoped<IMapsLoader>(sp => sp.GetRequiredService<MapsLoader>());
+// Dispatcher fleet map (FE-003). Web serves the Dispatcher persona (ADR-0008), so the fleet snapshot
+// service, the VehiclePositionHub client, and the fleet ViewModel are live here (host parity with Desktop).
+// Both services are Blazor-generic (HttpClient / HubConnection).
+builder.Services.AddScoped<IDispatcherFleetService, HttpDispatcherFleetService>();
+builder.Services.AddScoped<IVehiclePositionHubService, SignalRVehiclePositionHubService>();
+builder.Services.AddScoped<DispatcherFleetViewModel>();
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 // Requester submit form (FE-015). Web hosts the Requester persona, so these are live here. The DTC and
 // service-request services are Blazor-generic (HttpClient); the geolocation service is the browser/WASM

@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace ServiceDelivery.Client.Core.Authentication;
 
 /// <summary>
@@ -19,46 +17,18 @@ public static class JwtExpiryReader
 
     private static DateTimeOffset? ReadExpiry(string? token)
     {
-        if (string.IsNullOrWhiteSpace(token))
+        using var document = JwtPayloadReader.TryParsePayload(token);
+        if (document is null)
         {
             return null;
         }
 
-        var segments = token.Split('.');
-        if (segments.Length < 2)
+        if (!document.RootElement.TryGetProperty("exp", out var expElement)
+            || !expElement.TryGetInt64(out var expUnixSeconds))
         {
             return null;
         }
 
-        try
-        {
-            var payloadJson = DecodeBase64Url(segments[1]);
-            using var document = JsonDocument.Parse(payloadJson);
-
-            if (!document.RootElement.TryGetProperty("exp", out var expElement)
-                || !expElement.TryGetInt64(out var expUnixSeconds))
-            {
-                return null;
-            }
-
-            return DateTimeOffset.FromUnixTimeSeconds(expUnixSeconds);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
-    private static string DecodeBase64Url(string segment)
-    {
-        var normalized = segment.Replace('-', '+').Replace('_', '/');
-        var padding = normalized.Length % 4;
-        if (padding > 0)
-        {
-            normalized = normalized.PadRight(normalized.Length + (4 - padding), '=');
-        }
-
-        var bytes = Convert.FromBase64String(normalized);
-        return System.Text.Encoding.UTF8.GetString(bytes);
+        return DateTimeOffset.FromUnixTimeSeconds(expUnixSeconds);
     }
 }

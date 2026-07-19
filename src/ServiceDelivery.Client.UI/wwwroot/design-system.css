@@ -174,3 +174,109 @@
     border-color: #5B4AE2;
     box-shadow: 0 0 0 3px #ECEAFB;
 }
+
+/* FE-003 dispatcher fleet map — marker legend (mockup: bottom-left box). White rounded card listing the
+   five rep-state colours. Positioning (bottom-left over the map) is applied by FleetMap.razor.css; the
+   box/row/dot styling is shared here. */
+.sd-legend {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(27, 29, 41, .12);
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #1C1E26;
+}
+
+.sd-legend__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+}
+
+.sd-legend__dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+
+.sd-legend__label {
+    font-weight: 550;
+}
+
+/* FE-003 dispatcher fleet map — rep marker popover (mockup: "J. Tran · En Route" card). White rounded card
+   with the rep name + state chip, vehicle registration, active-request line + tier badge, and the optional
+   human-controlled label. Positioning over the map is applied by FleetMap.razor.css. */
+.sd-fleet-popover {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 8px 26px rgba(20, 22, 40, .22);
+    padding: 12px 14px;
+    min-width: 220px;
+    font-size: 13.5px;
+    color: #1C1E26;
+}
+
+.sd-fleet-popover__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sd-fleet-popover__name {
+    font-weight: 750;
+}
+
+.sd-fleet-popover__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: #EEF2FF;
+    color: #1E88E5;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.sd-fleet-popover__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.sd-fleet-popover__close {
+    appearance: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    margin-left: auto;
+    font-size: 18px;
+    line-height: 1;
+    color: #8B90A0;
+}
+
+.sd-fleet-popover__line {
+    margin-top: 6px;
+    color: #5A5F6E;
+}
+
+.sd-fleet-popover__request {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.sd-fleet-popover__dtc {
+    color: #1C1E26;
+}
+
+.sd-fleet-popover__human {
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 650;
+    color: #5B4AE2;
+}

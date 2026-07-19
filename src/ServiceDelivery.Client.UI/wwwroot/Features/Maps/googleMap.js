@@ -68,7 +68,51 @@ export async function initMap(containerId, lat, lng, zoom, gestureHandling) {
     disableDefaultUI: false,
   });
 
-  maps.set(containerId, { map, markers: new Map(), polylines: new Map(), clickListener: null });
+  maps.set(containerId, {
+    map,
+    markers: new Map(),
+    polylines: new Map(),
+    clickListener: null,
+    markerClickRef: null,
+  });
+}
+
+// FE-003 (dispatcher fleet map): registers the .NET reference that marker taps are forwarded to, then
+// wires a click listener onto every marker already on the map. Each AdvancedMarkerElement is made
+// gmpClickable and, on 'gmp-click', invokes OnMarkerClickedAsync(markerId) so the GoogleMap component
+// raises its OnMarkerClicked EventCallback (the dispatcher opens the rep popover). Markers added later pick
+// up the listener in addOrUpdateMarker while a ref is registered. Consumers that never call this (ActiveJob
+// / JobOffer) keep non-clickable markers — backwards-compatible.
+export function registerMarkerClickHandler(containerId, dotNetRef) {
+  const entry = maps.get(containerId);
+  if (entry === undefined) {
+    return;
+  }
+
+  entry.markerClickRef = dotNetRef;
+  entry.markers.forEach((marker, id) => attachMarkerClick(entry, marker, id));
+}
+
+// FE-003: stops forwarding marker taps to .NET (called on the component's dispose) so a tap never calls
+// back into a disposed .NET reference across navigation.
+export function unregisterMarkerClickHandler(containerId) {
+  const entry = maps.get(containerId);
+  if (entry === undefined) {
+    return;
+  }
+
+  entry.markerClickRef = null;
+}
+
+// FE-003: makes a marker clickable and forwards its tap (carrying the marker's id) to .NET, guarding on the
+// live ref so a tap after unregister is a no-op. Attached once per marker when a click ref is registered.
+function attachMarkerClick(entry, marker, id) {
+  marker.gmpClickable = true;
+  marker.addListener("gmp-click", () => {
+    if (entry.markerClickRef) {
+      entry.markerClickRef.invokeMethodAsync("OnMarkerClickedAsync", id);
+    }
+  });
 }
 
 // FE-015 (tap-to-place-pin): registers a google.maps 'click' listener on the named map. Each click
@@ -134,20 +178,31 @@ export function addOrUpdateMarker(containerId, id, lat, lng, colour, testId) {
   const existing = entry.markers.get(id);
   if (existing !== undefined) {
     existing.position = position;
-    existing.content = buildMarkerContent(colour, testId);
+    existing.content = buildMarkerContent(colour, testId, lat, lng);
     return;
   }
 
   const marker = new google.maps.marker.AdvancedMarkerElement({
     map: entry.map,
     position,
-    content: buildMarkerContent(colour, testId),
+    content: buildMarkerContent(colour, testId, lat, lng),
   });
   entry.markers.set(id, marker);
+
+  // FE-003: if a marker-click handler is registered (dispatcher fleet map), wire this new marker so a tap
+  // forwards its id to .NET. Existing consumers with no handler leave markers non-clickable.
+  if (entry.markerClickRef) {
+    attachMarkerClick(entry, marker, id);
+  }
 }
 
-// Builds the marker's DOM content: a coloured pin carrying the data-testid attribute (AC-5).
-function buildMarkerContent(colour, testId) {
+// Builds the marker's DOM content: a coloured pin carrying the data-testid attribute (AC-5) plus its live
+// data-lat / data-lng position (FE-003 review-fix). google.maps markers are JS-rendered and not CSS-locatable
+// by coordinate, so the pin stamps its own lat/lng as DOM attributes: this is what lets the Playwright /
+// Mac2Driver real-time scenario CAPTURE a marker's position and bounded-poll for it to CHANGE — the only path
+// that moves a marker after its initial REST-snapshot render is a VehiclePositionHub update, so a value change
+// proves the hub delivered. Rebuilt on every addOrUpdateMarker, so the attributes track each position tick.
+function buildMarkerContent(colour, testId, lat, lng) {
   const pin = document.createElement("div");
   pin.className = "sd-map-marker";
   pin.style.width = "22px";
@@ -158,6 +213,25 @@ function buildMarkerContent(colour, testId) {
   pin.style.border = "2px solid #fff";
   pin.style.boxShadow = "0 2px 6px rgba(20, 22, 40, .3)";
   pin.setAttribute("data-testid", testId);
+  pin.setAttribute("data-lat", String(lat));
+  pin.setAttribute("data-lng", String(lng));
+  // FE-003 review-fix (live Mac2 finding): data-testid / data-lat / data-lng are DOM attributes — invisible
+  // to the appium mac2 driver, which is native-only XCTest automation of the macOS accessibility (AX) tree
+  // (no WebView context). Expose the marker in the AX tree so the Desktop (Mac Catalyst) gate can locate and
+  // count it natively: role="img" surfaces the div as an AX image element, and aria-label becomes that
+  // element's accessible name (the driver reads it as the element label). The label is the caller's testId
+  // plus a live coordinate suffix (see below), so every marker's accessible name begins with its own test id
+  // — the fleet markers begin "fleet-marker-", which the Mac test anchors on via a label-prefix predicate.
+  // display:none content never reaches the AX tree, so this stays inherently visibility-aware.
+  pin.setAttribute("role", "img");
+  // FE-003 review-fix cycle 5 (second live Mac2 finding): stamp the marker's LIVE coordinates into the
+  // aria-label alongside its testId — "fleet-marker-<id> @ <lat>,<lng>" — recomputed on every
+  // addOrUpdateMarker call (i.e. every hub-delivered VehiclePositionUpdated). WebKit's AX tree does not
+  // reliably re-report the FRAME of a JS-repositioned absolutely-positioned div, so polling a marker's
+  // on-screen Location is not a dependable movement signal on the native mac2 gate; the accessible NAME,
+  // however, changes deterministically iff the hub moved the marker. This coordinate suffix is a
+  // machine-readable test hook (like data-testid / data-lat) — acceptable label churn for the POC.
+  pin.setAttribute("aria-label", `${testId} @ ${lat.toFixed(4)},${lng.toFixed(4)}`);
   return pin;
 }
 
