@@ -130,9 +130,10 @@ public static class BackendApiHelper
         var simToken = await LoginAsync(simClient, SimulatorEmail);
         simClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", simToken);
 
-        // Find the EnRoute rep serving the tracked request, then keep its vehicle at the request site so no
-        // proximity edge case can interfere before it marks arrival.
-        var assigned = await WaitForEnRouteRepAtAsync(simClient, latitude, longitude);
+        // Find the rep serving the tracked request (EnRoute, or already Within15Miles — the simulator drives the
+        // truck in and the backend auto-advances the proximity state, so we must accept both), then keep its
+        // vehicle at the request site so no proximity edge case can interfere before it marks arrival.
+        var assigned = await WaitForRepServingRequestAtAsync(simClient, latitude, longitude, "EnRoute", "Within15Miles");
         await PostPositionAsync(simClient, assigned.VehicleId, latitude, longitude);
 
         var repId = assigned.ClaimingRepId!.Value;
@@ -253,7 +254,9 @@ public static class BackendApiHelper
         //    rep (the old FirstOrDefault) could redirect the WRONG rep, sending RepAssigned + RepRedirected to
         //    a different requester and never to the tracked one. fleet-state exposes each rep's
         //    ActiveRequestLocation, so we select the rep whose active request is at the tracked coordinates.
-        var assigned = await WaitForEnRouteRepAtAsync(simClient, trackedLatitude, trackedLongitude);
+        //    EnRoute only: POST /dispatcher/redirect is an EnRoute-only action (a Within15Miles rep is
+        //    proximity-locked), so a broader accept set here would grab a rep the redirect would then reject.
+        var assigned = await WaitForRepServingRequestAtAsync(simClient, trackedLatitude, trackedLongitude, "EnRoute");
 
         // 3. Move ONLY the assigned vehicle far from the tracked requester so the redirect clears the 15-mi
         //    proximity guard, then re-assert every OTHER vehicle at the tracked coordinates. The displaced
@@ -351,16 +354,28 @@ public static class BackendApiHelper
     private const double CoordinateMatchToleranceDegrees = 0.0005; // ~55 m — far tighter than the 15-mi guard.
 
     /// <summary>
-    /// Polls fleet-state (bounded) until an EnRoute rep whose ACTIVE REQUEST is at the tracked coordinates
-    /// appears — i.e. the rep this test's own request was assigned to. Selecting by active-request location
-    /// (not "any EnRoute rep") guarantees the redirect displaces the tracked request, so RepAssigned +
-    /// RepRedirected land on the tracked requester's page. The poll absorbs the match → offer → accept-delay
-    /// chain and the shared-fleet timing (another test's rep may already be EnRoute); it never relies on a
-    /// single snapshot. Throws with a fleet dump if no matching rep appears within the bound so a genuine
-    /// assignment failure surfaces immediately instead of as a downstream UI timeout.
+    /// Polls fleet-state (bounded) until a rep in one of <paramref name="acceptStates"/> whose ACTIVE REQUEST
+    /// is at the tracked coordinates appears — i.e. the rep this test's own request was assigned to. Selecting
+    /// by active-request location (not "any servicing rep") guarantees the caller acts on the rep serving the
+    /// tracked request, so its SignalR events land on the tracked requester's page. The poll absorbs the
+    /// match → offer → accept-delay chain and the shared-fleet timing (another test's rep may already be
+    /// servicing); it never relies on a single snapshot.
+    ///
+    /// <para>
+    /// <b>Why the accepted states differ by caller.</b> The redirect path passes <c>EnRoute</c> only —
+    /// <c>POST /dispatcher/redirect</c> is an EnRoute-only action (a <c>Within15Miles</c> rep is proximity-locked,
+    /// see business-rules.md). The completion path passes <c>EnRoute</c> AND <c>Within15Miles</c>: once a rep
+    /// accepts, the simulator drives its truck toward the requester and the backend auto-transitions
+    /// EnRoute → Within15Miles on each position update, so the rep can (and did — a live flake) race past the
+    /// fleeting EnRoute state before this 500 ms poll catches it. Both are "actively servicing" states from
+    /// which the subsequent pin-position + <c>/rep/arrive</c> (which itself requires Within15Miles) succeeds.
+    /// </para>
+    ///
+    /// Throws with a fleet dump if no matching rep appears within the bound so a genuine assignment failure
+    /// surfaces immediately instead of as a downstream UI timeout.
     /// </summary>
-    private static async Task<FleetEntry> WaitForEnRouteRepAtAsync(
-        HttpClient simClient, double latitude, double longitude)
+    private static async Task<FleetEntry> WaitForRepServingRequestAtAsync(
+        HttpClient simClient, double latitude, double longitude, params string[] acceptStates)
     {
         const int maxAttempts = 60;      // 60 × 500 ms = 30 s — comfortably covers match + 1–5 s accept + delivery.
         const int pollDelayMs = 500;
@@ -372,7 +387,7 @@ public static class BackendApiHelper
 
             var match = fleet.FirstOrDefault(v =>
                 v.ClaimingRepId is not null &&
-                v.RepState == "EnRoute" &&
+                acceptStates.Contains(v.RepState) &&
                 v.ActiveRequestLocation is not null &&
                 Math.Abs(v.ActiveRequestLocation.Lat - latitude) <= CoordinateMatchToleranceDegrees &&
                 Math.Abs(v.ActiveRequestLocation.Lng - longitude) <= CoordinateMatchToleranceDegrees);
@@ -389,9 +404,9 @@ public static class BackendApiHelper
             $"veh={v.VehicleId} rep={v.ClaimingRepId} state={v.RepState} " +
             $"activeReq={(v.ActiveRequestLocation is null ? "none" : $"{v.ActiveRequestLocation.Lat},{v.ActiveRequestLocation.Lng}")}"));
         throw new InvalidOperationException(
-            $"No EnRoute rep whose active request is at ({latitude},{longitude}) appeared within " +
-            $"{maxAttempts * pollDelayMs / 1000}s — the tracked request was never assigned to an EnRoute rep, " +
-            $"so there is nothing to redirect. Fleet: [{dump}]");
+            $"No rep in state [{string.Join("/", acceptStates)}] whose active request is at ({latitude},{longitude}) " +
+            $"appeared within {maxAttempts * pollDelayMs / 1000}s — the tracked request was never assigned to a " +
+            $"servicing rep at those coordinates. Fleet: [{dump}]");
     }
 
     private static async Task PostPositionAsync(HttpClient client, Guid vehicleId, double latitude, double longitude)
