@@ -248,23 +248,26 @@ public static class BackendApiHelper
         //    the displaced job. Claiming distinct vehicles for these spare reps directly sidesteps the race.
         await EnsureSpareRepsClaimedAsync(baseUrl);
 
-        // 2. Find the EnRoute rep assigned to OUR tracked request (its vehicle carries the assignment).
+        // 2. Find the rep assigned to OUR tracked request in EnRoute OR Within15Miles (BUG-055: with
+        //    AutoDeclineRatePercent=0 the rep accepts instantly and the sim can drive it Within15Miles
+        //    before the first poll tick), and keep far-pinning its vehicle on every poll iteration so
+        //    the sim's Navigate driver cannot override our position and re-latch it. Returns the rep
+        //    only once its state is EnRoute (BUG-059 bidirectional recompute un-latches it after a
+        //    far-pin ≥ 17 mi — see ADR-0012). The redirect accept-set stays EnRoute-only; a
+        //    Within15Miles rep is never handed to POST /dispatcher/redirect.
         //    The suite runs multiple requester scenarios against a shared live fleet, so more than one rep can
-        //    be EnRoute at once (e.g. RequesterFindingTests leaves its gold1 rep driving). Picking any EnRoute
-        //    rep (the old FirstOrDefault) could redirect the WRONG rep, sending RepAssigned + RepRedirected to
-        //    a different requester and never to the tracked one. fleet-state exposes each rep's
-        //    ActiveRequestLocation, so we select the rep whose active request is at the tracked coordinates.
-        //    EnRoute only: POST /dispatcher/redirect is an EnRoute-only action (a Within15Miles rep is
-        //    proximity-locked), so a broader accept set here would grab a rep the redirect would then reject.
-        var assigned = await WaitForRepServingRequestAtAsync(simClient, trackedLatitude, trackedLongitude, "EnRoute");
+        //    be EnRoute at once (e.g. RequesterFindingTests leaves its gold1 rep driving); selecting by
+        //    ActiveRequestLocation pins the redirect to the rep serving the TRACKED request, not any EnRoute rep.
+        var assigned = await WaitForEnRouteRepWithFarPinAsync(
+            simClient, trackedLatitude, trackedLongitude, farLatitude, farLongitude);
 
-        // 3. Move ONLY the assigned vehicle far from the tracked requester so the redirect clears the 15-mi
-        //    proximity guard, then re-assert every OTHER vehicle at the tracked coordinates. The displaced
-        //    request is matched exactly ONCE — synchronously inside the redirect handler (step 5) — and nothing
+        // 3. Defensive final far-pin: the helper confirmed EnRoute but the sim Navigate driver posts
+        //    every ~3 s from its own cached position; re-pin here immediately before the redirect.
+        //    Then reposition every OTHER vehicle at the tracked site so an in-range Available rep is
+        //    present for the synchronous re-match inside the redirect handler. The displaced request is
+        //    matched exactly ONCE — synchronously inside the redirect handler (step 5) — and nothing
         //    re-runs matching on a later position update, so a distinct in-range Available rep MUST already be
-        //    positioned at the tracked site at the instant of the redirect. Positioning the spares in range
-        //    only AFTER the redirect (the old step-5-only approach) missed that single matching window and the
-        //    displaced request stayed Pending forever.
+        //    positioned at the tracked site at the instant of the redirect.
         await PostPositionAsync(simClient, assigned.VehicleId, farLatitude, farLongitude);
         await PositionAllExceptAsync(simClient, assigned.VehicleId, trackedLatitude, trackedLongitude);
 
@@ -407,6 +410,88 @@ public static class BackendApiHelper
             $"No rep in state [{string.Join("/", acceptStates)}] whose active request is at ({latitude},{longitude}) " +
             $"appeared within {maxAttempts * pollDelayMs / 1000}s — the tracked request was never assigned to a " +
             $"servicing rep at those coordinates. Fleet: [{dump}]");
+    }
+
+    /// <summary>
+    /// Polls fleet-state until a rep serving the request at the given coordinates is found in
+    /// <c>EnRoute</c> OR <c>Within15Miles</c>, re-pins its vehicle to the far coordinates on every
+    /// iteration so the simulator's Navigate driver (which steps from its own cached position every
+    /// ~3 s — not our externally-posted position) cannot drive it back Within15Miles before BUG-059's
+    /// bidirectional recompute un-latches it, and returns the rep ONLY once its <c>RepState</c> is
+    /// <c>"EnRoute"</c>.
+    ///
+    /// <para>
+    /// Why re-pin every iteration: the sim's <c>VehicleWorker.PostNavigateStepAsync</c> steps from
+    /// <c>_lastLat/_lastLng</c> (its own cached position) toward the active request every ~3 s. A
+    /// single external far-pin is therefore overridden on the next sim tick. Posting at 500 ms cadence
+    /// keeps the backend seeing ≥ 17 mi on each backend tick, triggering the Within15Miles → EnRoute
+    /// reverse transition (ADR-0012: exit threshold = 17 mi) until we observe EnRoute.
+    /// </para>
+    ///
+    /// <para>
+    /// Why return EnRoute-only: <c>POST /dispatcher/redirect</c> requires <c>EnRoute</c>; a
+    /// <c>Within15Miles</c> rep is proximity-locked. Handing a Within15Miles rep to the redirect call
+    /// would produce a deterministic 422 — the wrong failure mode. The caller never sees a
+    /// Within15Miles rep from this helper (AC-1 invariant).
+    /// </para>
+    ///
+    /// Throws with a fleet dump if no EnRoute rep appears within the budget, preserving the AC-3
+    /// no-false-positive guarantee for genuinely-unassigned requests.
+    /// </summary>
+    private static async Task<FleetEntry> WaitForEnRouteRepWithFarPinAsync(
+        HttpClient simClient,
+        double latitude,
+        double longitude,
+        double farLatitude,
+        double farLongitude)
+    {
+        const int maxAttempts = 60;      // 60 × 500 ms = 30 s — same budget as WaitForRepServingRequestAtAsync.
+        const int pollDelayMs = 500;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var fleet = await simClient.GetFromJsonAsync<List<FleetEntry>>("/simulator/fleet-state", JsonOptions)
+                        ?? new List<FleetEntry>();
+
+            // Broad detection (BUG-055): accept EnRoute OR Within15Miles so a rep that crossed the
+            // 15-mi threshold immediately after instant-accept is not missed.
+            var candidate = fleet.FirstOrDefault(v =>
+                v.ClaimingRepId is not null &&
+                (v.RepState == "EnRoute" || v.RepState == "Within15Miles") &&
+                v.ActiveRequestLocation is not null &&
+                Math.Abs(v.ActiveRequestLocation.Lat - latitude) <= CoordinateMatchToleranceDegrees &&
+                Math.Abs(v.ActiveRequestLocation.Lng - longitude) <= CoordinateMatchToleranceDegrees);
+
+            if (candidate is not null)
+            {
+                // Re-pin the candidate's vehicle far on every iteration. BUG-059: the backend recomputes
+                // proximity on every position update for any rep in EnRoute OR Within15Miles; posting
+                // ≥ 17 mi away triggers Within15Miles → EnRoute synchronously (before the 200 returns).
+                await PostPositionAsync(simClient, candidate.VehicleId, farLatitude, farLongitude);
+
+                // Return only once the snapshot fetched at the top of this iteration shows EnRoute,
+                // meaning the PREVIOUS iteration's far-pin already caused the backend to transition back.
+                // (On the very first iteration where the rep is already EnRoute the far-pin is a
+                // no-op state-wise but still needed to satisfy the redirect's proximity guard.)
+                if (candidate.RepState == "EnRoute")
+                    return candidate;
+
+                // Still Within15Miles on this snapshot: the far-pin we just posted will cause the backend
+                // to transition on the NEXT position update. Wait for the next iteration to pick it up.
+            }
+
+            await Task.Delay(pollDelayMs);
+        }
+
+        var finalFleet = await simClient.GetFromJsonAsync<List<FleetEntry>>("/simulator/fleet-state", JsonOptions)
+                         ?? new List<FleetEntry>();
+        var dump = string.Join("; ", finalFleet.Select(v =>
+            $"veh={v.VehicleId} rep={v.ClaimingRepId} state={v.RepState} " +
+            $"activeReq={(v.ActiveRequestLocation is null ? "none" : $"{v.ActiveRequestLocation.Lat},{v.ActiveRequestLocation.Lng}")}"));
+        throw new InvalidOperationException(
+            $"No EnRoute rep whose active request is at ({latitude},{longitude}) appeared within " +
+            $"{maxAttempts * pollDelayMs / 1000}s after repeated far-pinning — the tracked request was never " +
+            $"assigned to a rep that could be un-latched to EnRoute. Fleet: [{dump}]");
     }
 
     private static async Task PostPositionAsync(HttpClient client, Guid vehicleId, double latitude, double longitude)
