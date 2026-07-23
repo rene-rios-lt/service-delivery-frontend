@@ -261,17 +261,15 @@ public static class BackendApiHelper
         var assigned = await WaitForEnRouteRepWithFarPinAsync(
             simClient, trackedLatitude, trackedLongitude, farLatitude, farLongitude);
 
-        // 3. Defensive final far-pin: the helper confirmed EnRoute but the sim Navigate driver posts
-        //    every ~3 s from its own cached position; re-pin here immediately before the redirect.
-        //    Then reposition every OTHER vehicle at the tracked site so an in-range Available rep is
-        //    present for the synchronous re-match inside the redirect handler. The displaced request is
-        //    matched exactly ONCE — synchronously inside the redirect handler (step 5) — and nothing
-        //    re-runs matching on a later position update, so a distinct in-range Available rep MUST already be
-        //    positioned at the tracked site at the instant of the redirect.
-        await PostPositionAsync(simClient, assigned.VehicleId, farLatitude, farLongitude);
+        // 3. Do ALL the slow prep BEFORE the redirect POST so nothing sits between the final far-pin and the
+        //    redirect. The sim's Navigate driver re-posts every ~3 s from its OWN cached (near-requester)
+        //    position — it ignores our far-pin — so any slow work (a login, a submit) between far-pinning and
+        //    the redirect lets the rep re-latch to Within15Miles and the redirect 422s (RepNotEnRoute). We
+        //    therefore (a) position spare reps at the tracked site for the synchronous re-match, (b) submit the
+        //    Gold target, and (c) log the dispatcher in — all up front — and leave only a tight
+        //    far-pin→redirect pair for step 4.
         await PositionAllExceptAsync(simClient, assigned.VehicleId, trackedLatitude, trackedLongitude);
 
-        // 4. Submit a GOLD target request at the far coordinates (strictly-higher/Gold tier clears the guard).
         using var goldClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
         var goldToken = await LoginAsync(goldClient, goldRequesterEmail);
         goldClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", goldToken);
@@ -285,20 +283,35 @@ public static class BackendApiHelper
         var targetBody = await target.Content.ReadFromJsonAsync<SubmitResponse>(JsonOptions)
             ?? throw new InvalidOperationException("POST /service-requests returned no body for the Gold target.");
 
-        // 5. As the dispatcher, redirect the EnRoute rep to the Gold target — this displaces the tracked
-        //    request and immediately re-runs matching, which now finds an in-range Available spare rep (step 3).
         using var dispatcherClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
         var dispatcherToken = await LoginAsync(dispatcherClient, dispatcherEmail);
         dispatcherClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", dispatcherToken);
-        var redirect = await dispatcherClient.PostAsJsonAsync("/dispatcher/redirect", new
-        {
-            repId = assigned.ClaimingRepId!.Value,
-            toRequestId = targetBody.RequestId
-        });
-        await EnsureSuccessAsync(redirect, "POST /dispatcher/redirect");
 
-        // 6. Keep every other vehicle at the tracked site so, should the immediate match miss (timing) and a
+        // 4. Tight far-pin → redirect, retried. Each attempt re-pins the assigned vehicle far (BUG-059
+        //    un-latches Within15Miles → EnRoute on that position update) and IMMEDIATELY POSTs the redirect
+        //    with no slow work in between, so the sim's ~3 s tick has essentially no window to re-latch. A
+        //    422 (RepNotEnRoute or WithinFifteenMiles — both mean the sim slipped a tick in) is transient:
+        //    re-pin and retry. Any other non-success is a real error and surfaces immediately.
+        const int maxRedirectAttempts = 12;
+        HttpResponseMessage? redirect = null;
+        for (var attempt = 0; attempt < maxRedirectAttempts; attempt++)
+        {
+            await PostPositionAsync(simClient, assigned.VehicleId, farLatitude, farLongitude);
+            redirect = await dispatcherClient.PostAsJsonAsync("/dispatcher/redirect", new
+            {
+                repId = assigned.ClaimingRepId!.Value,
+                toRequestId = targetBody.RequestId
+            });
+            if (redirect.IsSuccessStatusCode)
+                break;
+            if ((int)redirect.StatusCode != 422)
+                await EnsureSuccessAsync(redirect, "POST /dispatcher/redirect");
+            await Task.Delay(250);
+        }
+        await EnsureSuccessAsync(redirect!, "POST /dispatcher/redirect (after far-pin retries)");
+
+        // 5. Keep every other vehicle at the tracked site so, should the immediate match miss (timing) and a
         //    later rep transition to Available re-trigger matching, an in-range candidate is still present.
         await PositionAllExceptAsync(simClient, assigned.VehicleId, trackedLatitude, trackedLongitude);
     }
