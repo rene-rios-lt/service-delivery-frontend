@@ -136,9 +136,16 @@ public sealed class RequesterRedirectTests : E2ETestBase
     {
         await LoginAsRequesterAsync();
         await WaitForDtcOptionsAsync();
+
+        // QUAL-030: proactively claim the redirect-dedicated fleet (rep5/6/7 → V-005/006/007) BEFORE submitting,
+        // so only those reps are in range when silver1's request matches. This keeps the whole redirect scenario
+        // off the shared pool (V-001..V-004) that sibling fixtures (Finding/Complete/Tracking) contend, removing
+        // the cross-fixture EnRoute-rep ambiguity that let the wrong rep be far-pinned.
+        BackendApiHelper.EnsureRedirectFleetClaimed(BackendBaseUrl);
+
         await UseDeviceLocationAsync();
 
-        BackendApiHelper.PositionFleetAt(BackendBaseUrl, TestLatitude, TestLongitude);
+        BackendApiHelper.PositionRedirectFleetAt(BackendBaseUrl, TestLatitude, TestLongitude);
 
         await Page.SelectOptionAsync("[data-testid='dtc-select']", new SelectOptionValue { Value = Dtc001Id });
         await Page.ClickAsync("[data-testid='request-service-button']");
@@ -166,7 +173,7 @@ public sealed class RequesterRedirectTests : E2ETestBase
             catch (TimeoutException)
             {
                 // Still Pending — re-assert an in-range candidate for the next matching re-run and retry.
-                BackendApiHelper.PositionFleetAt(BackendBaseUrl, TestLatitude, TestLongitude);
+                BackendApiHelper.PositionRedirectFleetAt(BackendBaseUrl, TestLatitude, TestLongitude);
             }
         }
 
@@ -241,7 +248,7 @@ public sealed class RequesterRedirectTests : E2ETestBase
             catch (TimeoutException)
             {
                 // Displaced request not yet re-accepted — re-assert an in-range candidate and retry.
-                BackendApiHelper.PositionFleetAt(BackendBaseUrl, TestLatitude, TestLongitude);
+                BackendApiHelper.PositionRedirectFleetAt(BackendBaseUrl, TestLatitude, TestLongitude);
             }
         }
 
