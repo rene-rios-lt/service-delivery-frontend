@@ -123,10 +123,11 @@ Never write production code speculatively. If there is no failing test, there is
 | Project | What to test | Tools |
 |---------|-------------|-------|
 | `Client.Tests` | Component behaviour, view model logic, service interface contracts | xUnit, bUnit |
-| `Client.E2E` | Web/Desktop persona flows against a live system (Dispatcher, Requester, ServiceRep-web) | Playwright — run via `scripts/local/test-playwright.sh` (or `test-e2e.sh` for Playwright + Appium) |
+| `Client.E2E` | Web persona flows against a live system (Dispatcher, Requester, ServiceRep-web) | Playwright — run via `scripts/local/test-playwright.sh` (or `test-e2e.sh` for Playwright + iOS Appium + Desktop) |
 | `Client.Appium` | Mobile ServiceRep flows on an iOS simulator against a live system | Appium/XCUITest — run via `scripts/local/test-appium.sh` |
+| `Client.Appium.Mac` | Desktop (Mac Catalyst) Dispatcher flows against a live system, asserting on the native macOS accessibility tree (no WebView) | Appium/Mac2Driver — run via `scripts/local/test-appium-mac.sh`; needs the Appium `mac2` driver + macOS Accessibility grants (see [`docs/testing/desktop-appium-setup.md`](docs/testing/desktop-appium-setup.md)) |
 
-All unit/bUnit tests live in `tests/ServiceDelivery.Client.Tests`. E2E projects (`Client.E2E`, `Client.Appium`) require a running backend (`start.sh`) and, for Appium, a booted iOS simulator. Host projects (Desktop, Mobile, Web) are bootstrapping only — they contain no logic and require no tests.
+All unit/bUnit tests live in `tests/ServiceDelivery.Client.Tests`. E2E projects (`Client.E2E`, `Client.Appium`, `Client.Appium.Mac`) require a running backend (`start.sh`); `Client.Appium` also needs a booted iOS simulator, and `Client.Appium.Mac` needs the Appium `mac2` driver + macOS Accessibility grants (no simulator). Host projects (Desktop, Mobile, Web) are bootstrapping only — they contain no logic and require no tests.
 
 ### Test Naming
 
