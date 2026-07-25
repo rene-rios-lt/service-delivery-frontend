@@ -119,11 +119,12 @@ public sealed class DispatcherFleetMapTests : E2ETestBase
         BackendApiHelper.PositionFleetAt(BackendBaseUrl, IowaLat, IowaLng);
         await LoginAsDispatcherAsync();
 
-        // Act — click the first rendered fleet marker (the JS module stamps data-testid="fleet-marker-{id}"
-        // onto each marker element).
-        var marker = await Page.WaitForSelectorAsync(
-            "[data-testid^='fleet-marker-']", new() { Timeout = 15_000 });
-        await marker!.ClickAsync();
+        // Act — click the first rendered fleet marker using an auto-retrying locator so the click
+        // re-resolves the element on each attempt and rides out the 3 s Maps-SDK marker re-render (BUG-056).
+        // IElementHandle (WaitForSelectorAsync) binds to a single DOM node and throws "Element is not
+        // attached to the DOM" when the node is replaced; Locator re-resolves before every action.
+        await Page.Locator("[data-testid^='fleet-marker-']").First.ClickAsync(
+            new LocatorClickOptions { Timeout = 15_000 });
 
         // Assert — the rep popover opens with the rep name.
         var popover = await Page.WaitForSelectorAsync("[data-testid='rep-popover']", new() { Timeout = 10_000 });
