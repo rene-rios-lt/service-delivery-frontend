@@ -55,6 +55,14 @@ public static class MauiProgram
 		builder.Services.AddScoped<IVehiclePositionHubService, SignalRVehiclePositionHubService>();
 		builder.Services.AddScoped<DispatcherFleetViewModel>();
 
+		// Dispatcher active request queue (FE-004). Desktop serves the Dispatcher persona (ADR-0008), so the
+		// queue snapshot service, the DispatchHub client, and the queue ViewModel are live here (host parity
+		// with Web). Both services are Blazor-generic (HttpClient / HubConnection). Mobile does NOT register
+		// these — Dispatcher is not supported on Mobile.
+		builder.Services.AddScoped<IActiveRequestQueueService, HttpActiveRequestQueueService>();
+		builder.Services.AddScoped<IDispatchHubService, SignalRDispatchHubService>();
+		builder.Services.AddScoped<DispatcherRequestQueueViewModel>();
+
 		// FE-003 AC-1: back the Desktop token store with MAUI Preferences instead of the Keychain
 		// (SecureStorage). SecureStorage needs a Keychain-access entitlement an unsigned local Mac
 		// Catalyst build lacks, so its GetAsync threw and crashed Dispatcher login before any UI

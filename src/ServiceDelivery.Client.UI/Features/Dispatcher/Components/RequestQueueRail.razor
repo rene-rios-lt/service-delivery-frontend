@@ -1,0 +1,52 @@
+@using ServiceDelivery.Client.Core.ViewModels
+@implements IDisposable
+@inject DispatcherRequestQueueViewModel ViewModel
+
+@* FE-004 AC-3: the scrollable card list of the ACTIVE REQUESTS rail (mockup: dispatcher-dashboard). Renders
+   one RequestCard per entry in the ViewModel's already-sorted Queue (Gold → Silver → Bronze, oldest-first
+   within a tier). The DispatcherHome page owns the ViewModel lifecycle (load, hub start/stop); this rail takes
+   no parameters, so a parent re-render alone would NOT re-render it (Blazor skips a parameterless child whose
+   parameters are unchanged). It therefore subscribes to the shared ViewModel's StateChanged directly and
+   re-renders itself when the queue changes — the snapshot load completing after mount (AC-1) and every live
+   DispatchHub update (AC-3/AC-4). Same self-updating composition the FleetMap uses for the fleet ViewModel;
+   an empty queue simply yields zero cards.
+   data-dispatch-hub-connected mirrors the ViewModel's live DispatchHub connection state (flipping to "true"
+   once StartHubAsync's connect resolves and raises StateChanged). It is an E2E-detectable readiness hook — the
+   analogue of FleetMap's data-fleet-count — so a live real-time scenario can wait for the connection to join
+   its dealer group before firing a one-shot ServiceRequestPending/ServiceRequestCompleted (which is lost with
+   no retry if emitted before the subscription is live). *@
+
+<div class="sd-dispatcher-rail__list" data-testid="dispatcher-queue-list"
+     data-dispatch-hub-connected="@(ViewModel.IsHubConnected ? "true" : "false")">
+    @foreach (var entry in ViewModel.Queue)
+    {
+        <RequestCard Entry="entry" @key="entry.RequestId" />
+    }
+    @* Visually-hidden, AX-exposed twin of data-dispatch-hub-connected. The native mac2/XCTest AX tree (the
+       Desktop E2E gate) has NO WebView context, so it cannot read the DOM-only data-* attribute above — it
+       only sees the accessibility tree. This sr-only element mirrors the SAME IsHubConnected signal as
+       accessible static text (the FleetMap a11y-summary pattern) so the Desktop real-time scenarios can wait
+       deterministically for the DispatchHub to join its dealer:{id} group before firing a one-shot
+       ServiceRequestPending/Assigned/Completed event (lost with no retry if emitted before the subscription is
+       live). Hidden with the sr-only clip pattern (NOT display:none / visibility:hidden, which would drop it
+       from the AX tree). It re-renders on the same StateChanged that flips the data attribute. Rendered AFTER
+       the cards so it never displaces the first .sd-reqcard as the list's first child (the web AC-1 E2E selects
+       the top card via .sd-reqcard:first-child); aria-live announces regardless of DOM position. *@
+    <div class="sd-sr-only" data-testid="dispatch-hub-a11y-status" role="status" aria-live="polite">
+        @(ViewModel.IsHubConnected ? "Live request updates connected" : "Connecting to live request updates")
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        ViewModel.StateChanged += OnStateChanged;
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        ViewModel.StateChanged -= OnStateChanged;
+    }
+}

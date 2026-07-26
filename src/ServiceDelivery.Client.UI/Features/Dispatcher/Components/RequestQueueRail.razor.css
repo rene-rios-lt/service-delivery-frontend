@@ -1,0 +1,18 @@
+/* FE-004: screen-reader-only utility for the DispatchHub connection status twin. Keeps the element in the
+   accessibility tree (VoiceOver + native mac2/XCTest AX) while removing it from the visual layout — the
+   standard clip pattern, matching FleetMap.razor.css's sd-sr-only. It MUST NOT use display:none or
+   visibility:hidden, which drop the element (and all descendants) from the AX tree entirely; the whole point
+   is AX exposure with zero visual footprint, so the mac2 Desktop gate can read the hub-connected readiness
+   text the DOM-only data-dispatch-hub-connected attribute cannot surface. */
+.sd-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}

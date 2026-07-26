@@ -109,6 +109,36 @@ public static class BackendApiHelper
         PositionFleetAtAsync(baseUrl, latitude, longitude).GetAwaiter().GetResult();
 
     /// <summary>
+    /// Submits a service request as the given seeded requester at the given coordinates and returns the new
+    /// request id, authenticating via <c>POST /auth/login</c> then <c>POST /service-requests</c>. Seeds the
+    /// active requests the FE-004 dispatcher queue must render. Synchronous wrapper for NUnit test bodies;
+    /// throws <see cref="InvalidOperationException"/> on any login or submit failure.
+    /// </summary>
+    public static Guid SubmitServiceRequest(
+        string baseUrl, string requesterEmail, string dtcId, double latitude, double longitude) =>
+        SubmitServiceRequestAsync(baseUrl, requesterEmail, dtcId, latitude, longitude).GetAwaiter().GetResult();
+
+    private static async Task<Guid> SubmitServiceRequestAsync(
+        string baseUrl, string requesterEmail, string dtcId, double latitude, double longitude)
+    {
+        using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var token = await LoginAsync(client, requesterEmail);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync("/service-requests", new
+        {
+            dtcId = Guid.Parse(dtcId),
+            latitude,
+            longitude
+        });
+        await EnsureSuccessAsync(response, "POST /service-requests");
+
+        var body = await response.Content.ReadFromJsonAsync<SubmitResponse>(JsonOptions)
+            ?? throw new InvalidOperationException("POST /service-requests returned no body.");
+        return body.RequestId;
+    }
+
+    /// <summary>
     /// Proactively claims the redirect-dedicated fleet (rep5/6/7 → V-005/006/007) before the redirect scenario
     /// submits its request, so those reps are the only in-range candidates for silver1's assignment and its
     /// displaced re-match. Call this at the top of the redirect arrange, before positioning the dedicated fleet.

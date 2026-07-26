@@ -10,7 +10,7 @@ namespace ServiceDelivery.Client.Appium.Mac;
 public static class MacDesktopConfig
 {
     /// <summary>Bundle id of the Desktop Mac Catalyst app (from its .csproj ApplicationId).</summary>
-    private const string DesktopBundleId = "com.companyname.servicedelivery.client.desktop";
+    public const string DesktopBundleId = "com.companyname.servicedelivery.client.desktop";
 
     /// <summary>Appium server URL — default <c>http://localhost:4723</c>.</summary>
     public static string ServerUrl =>

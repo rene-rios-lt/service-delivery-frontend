@@ -43,6 +43,21 @@
     margin-bottom: 12px;
 }
 
+/* FE-004: the header row carries the "ACTIVE REQUESTS" label on the left and the live active-request count
+   on the right, matching the mockup's "7 active" chip. */
+.sd-dispatcher-rail__head--split {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sd-queue-count {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    color: #5B4AE2;
+}
+
 /* Narrow Web (< 768px): single column — map full width, rail beneath it (plan responsive breakpoint). */
 @media (max-width: 768px) {
     .sd-dispatcher-layout {
