@@ -237,3 +237,13 @@ This generalises the MudBlazor asset rule above (BUG-020 fixed Web's `index.html
 It does **not** apply to genuinely host-specific code — a native Desktop/Mobile service implementation with no Web equivalent is expected to differ.
 
 **Verification (per runtime).** After a bootstrapping change, confirm all three host project files were updated **and** the behaviour holds in each runtime that the change affects — the browser/WASM path via `scripts/local/smoke-web.sh`, and the MAUI WKWebView path via `scripts/local/smoke-mobile.sh` (the QUAL-008 per-runtime smokes). `story-ai-reviewer` enforces this (Check 11 — Host Parity) for any frontend story whose diff touches host-bootstrapping config.
+
+### Dispatcher Web/Desktop E2E parity
+
+The Dispatcher persona runs on **both Web and Desktop** from the same shared `Client.UI` / `Client.Core` code — for this system the web dispatcher and the desktop dispatcher are **one and the same screen**. Therefore E2E coverage must be **mirrored across both runtimes**: **every Playwright (web) E2E scenario for a Dispatcher surface must have an equivalent Appium Mac2 (Desktop) scenario in `tests/ServiceDelivery.Client.Appium.Mac/`, and *both* must be run green against a live system** — authored-but-unrun does not count (see the QUAL-005 live-green rule).
+
+This extends the Host-parity rule above from *bootstrapping config* to *E2E test authoring and execution*, for the same reason: Desktop is MAUI Blazor Hybrid (a `BlazorWebView` / WKWebView on Mac Catalyst), a genuinely different runtime from browser WASM, so **web-green ≠ WebView-green**. A Playwright pass proves only the web dispatcher; only the Mac2 scenario proves the desktop dispatcher (the same web-fixed/Desktop-still-broken trap as BUG-020 → BUG-022, and the WebView-only boundary of BUG-031). Assertions are AX-tree-observable on Desktop (accessibility identifiers / text) exactly as they are DOM-observable on Web; reuse the same deterministic readiness signals (e.g. a rail's hub-connected marker) so a Desktop arrange never fires a hub event before the client has joined its group.
+
+**Legitimate exception:** an AC that is intrinsically browser-only — responsive reflow at narrower **web** widths (e.g. FE-004 AC-5) has no native-desktop-window analogue — is web-only by design. State the exemption explicitly in `03-implementation.md`; do not skip a Desktop mirror silently.
+
+Run both before declaring a Dispatcher story done: `scripts/local/test-playwright.sh` (web) **and** `scripts/local/test-appium-mac.sh` (Desktop), or `scripts/local/test-e2e.sh` for both. `story-ai-reviewer` enforces this in Check 2, and `story-planner` plans the paired scenarios in Step 4a.
