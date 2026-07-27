@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using OpenQA.Selenium.Appium.Mac;
 
 namespace ServiceDelivery.Client.Appium.Mac;
@@ -113,6 +114,17 @@ public abstract class MacDesktopTestBase
     {
         try
         {
+            // Per-FIXTURE cold-start hygiene. test-appium-mac.sh wipes the Desktop app's persisted Preferences
+            // (the NSUserDefaults JWT written by PreferencesTokenStore) ONCE before the whole run, so the FIRST
+            // fixture cold-starts unauthenticated. But every fixture opens its OWN mac2 session, and a prior
+            // fixture's PASSING login persists that token — so a LATER fixture's app launches straight into the
+            // authenticated dashboard. EnsureLoggedOut would then have to drive the app's own logout, an
+            // AX-fragile path (the persona-avatar initials are not reliably AX-exposed). Wiping here, before the
+            // driver launches the app, generalises the script's per-run wipe to per-fixture: every fixture
+            // cold-starts on the login card and takes EnsureLoggedOut's clean early-return path. Best-effort —
+            // a token-less app simply has nothing to delete.
+            WipePersistedAppState();
+
             // MacDriver is the concrete mac2 AppiumDriver (AppiumDriver itself is abstract); the Driver
             // property stays typed as the AppiumDriver base so the shared helpers are driver-agnostic.
             Driver = new MacDriver(
@@ -207,6 +219,33 @@ public abstract class MacDesktopTestBase
 
         // Assert we are (now) on the login screen — bounded, since a logout routes asynchronously.
         WaitForSignalR(d => d.FindElement(LoginCardAnchor));
+    }
+
+    /// <summary>
+    /// Wipes the Desktop app's persisted Preferences (the bundle's NSUserDefaults, where PreferencesTokenStore
+    /// keeps the JWT) so the next app launch cold-starts unauthenticated. Mirrors the
+    /// <c>defaults delete com.companyname.servicedelivery.client.desktop</c> that test-appium-mac.sh runs once
+    /// before the suite, applied per fixture (each fixture opens its own session; a prior fixture's login would
+    /// otherwise leave a persisted token). Best-effort and non-fatal: a token-less app has nothing to delete
+    /// (non-zero exit), and a missing <c>defaults</c> tool must never break the run.
+    /// </summary>
+    private static void WipePersistedAppState()
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("defaults", $"delete {MacDesktopConfig.DesktopBundleId}")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            using var process = Process.Start(psi);
+            process?.WaitForExit(5000);
+        }
+        catch
+        {
+            // Cold-start hygiene is best-effort — never fail (or mask) a fixture because the wipe could not run.
+        }
     }
 
     /// <summary>The app's two cold-start entry states, as reported by <see cref="WaitForEntryState"/>.</summary>

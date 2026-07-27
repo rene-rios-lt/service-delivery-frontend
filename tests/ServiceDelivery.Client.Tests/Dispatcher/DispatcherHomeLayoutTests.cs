@@ -23,6 +23,8 @@ public class DispatcherHomeLayoutTests : BunitContext
     private readonly Mock<IMapsLoader> _mapsLoader = new();
     private readonly Mock<IDispatcherFleetService> _fleetService = new();
     private readonly Mock<IVehiclePositionHubService> _hub = new();
+    private readonly Mock<IActiveRequestQueueService> _queueService = new();
+    private readonly Mock<IDispatchHubService> _dispatchHub = new();
 
     public DispatcherHomeLayoutTests()
     {
@@ -32,9 +34,11 @@ public class DispatcherHomeLayoutTests : BunitContext
 
         _mapsLoader.Setup(l => l.LoadAsync()).ReturnsAsync(new MapsAvailability(true, null));
         _fleetService.Setup(s => s.GetFleetAsync()).ReturnsAsync(new List<FleetVehicleEntry>());
+        _queueService.Setup(s => s.GetActiveRequestsAsync()).ReturnsAsync(new List<ActiveRequestEntry>());
 
         Services.AddSingleton(_mapsLoader.Object);
         Services.AddSingleton(new DispatcherFleetViewModel(_fleetService.Object, _hub.Object));
+        Services.AddSingleton(new DispatcherRequestQueueViewModel(_queueService.Object, _dispatchHub.Object));
     }
 
     [Fact]

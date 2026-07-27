@@ -83,6 +83,12 @@ builder.Services.AddScoped<IMapsLoader>(sp => sp.GetRequiredService<MapsLoader>(
 builder.Services.AddScoped<IDispatcherFleetService, HttpDispatcherFleetService>();
 builder.Services.AddScoped<IVehiclePositionHubService, SignalRVehiclePositionHubService>();
 builder.Services.AddScoped<DispatcherFleetViewModel>();
+// Dispatcher active request queue (FE-004). The queue snapshot service, the DispatchHub client, and the queue
+// ViewModel are live on every Dispatcher host (host parity with Desktop). Both services are Blazor-generic
+// (HttpClient / HubConnection).
+builder.Services.AddScoped<IActiveRequestQueueService, HttpActiveRequestQueueService>();
+builder.Services.AddScoped<IDispatchHubService, SignalRDispatchHubService>();
+builder.Services.AddScoped<DispatcherRequestQueueViewModel>();
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 // Requester submit form (FE-015). Web hosts the Requester persona, so these are live here. The DTC and
 // service-request services are Blazor-generic (HttpClient); the geolocation service is the browser/WASM

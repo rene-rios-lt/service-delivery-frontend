@@ -3,12 +3,13 @@
 @using ServiceDelivery.Client.UI.Features.Dispatcher.Components
 @implements IDisposable
 @inject DispatcherFleetViewModel ViewModel
+@inject DispatcherRequestQueueViewModel QueueViewModel
 
-@* FE-003 dispatcher fleet command centre (mockup: dispatcher-dashboard). Renders into the shared
-   PersonaShell body (FE-021 supplies the app bar). Two columns: the live FleetMap on the left and a
-   stubbed ACTIVE REQUESTS rail on the right (FE-004 populates it). An empty offline-alert banner slot sits
-   above the layout (FE-006 wires it). The page owns the fleet ViewModel lifecycle: load the snapshot and
-   start the VehiclePositionHub on mount, stop the hub on dispose, and re-render on StateChanged. *@
+@* FE-003/FE-004 dispatcher fleet command centre (mockup: dispatcher-dashboard). Renders into the shared
+   PersonaShell body (FE-021 supplies the app bar). Two columns: the live FleetMap on the left and the ACTIVE
+   REQUESTS queue rail on the right (FE-004). An empty offline-alert banner slot sits above the layout (FE-006
+   wires it). The page owns both ViewModel lifecycles: load the fleet snapshot + queue and start their hubs on
+   mount, stop the hubs on dispose, and re-render on either StateChanged. *@
 
 <div class="sd-dispatcher">
     @* Offline-alert banner slot — empty in FE-003; wired to the rep-offline event in FE-006. *@
@@ -20,9 +21,11 @@
         </div>
 
         <section class="sd-dispatcher-layout__rail" data-testid="dispatcher-queue-rail">
-            <div class="sd-dispatcher-rail__head">ACTIVE REQUESTS</div>
-            @* FE-004 populates the request cards here. *@
-            <div class="sd-dispatcher-rail__list" data-testid="dispatcher-queue-list"></div>
+            <div class="sd-dispatcher-rail__head sd-dispatcher-rail__head--split">
+                <span>ACTIVE REQUESTS</span>
+                <span class="sd-queue-count" data-testid="queue-active-count">@QueueViewModel.Queue.Count active</span>
+            </div>
+            <RequestQueueRail />
         </section>
     </div>
 </div>
@@ -31,8 +34,13 @@
     protected override async Task OnInitializedAsync()
     {
         ViewModel.StateChanged += OnStateChanged;
+        QueueViewModel.StateChanged += OnStateChanged;
+
         await ViewModel.LoadAsync();
         await ViewModel.StartHubAsync();
+
+        await QueueViewModel.LoadAsync();
+        await QueueViewModel.StartHubAsync();
     }
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);
@@ -40,6 +48,8 @@
     public void Dispose()
     {
         ViewModel.StateChanged -= OnStateChanged;
+        QueueViewModel.StateChanged -= OnStateChanged;
         _ = ViewModel.StopHubAsync();
+        _ = QueueViewModel.StopHubAsync();
     }
 }

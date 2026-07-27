@@ -1,0 +1,64 @@
+@using ServiceDelivery.Client.Core.Formatting
+@using ServiceDelivery.Client.Core.Models
+
+@* FE-004 AC-2: one active-request queue card (mockup: dispatcher-dashboard). Presentational only — every
+   field is projected from the injected ActiveRequestEntry. Row 1: requester name + tier badge + status chip;
+   row 2: the DTC title; row 3: the assigned rep (or "Unassigned") and the relative creation time. The card
+   is keyed by request id so the real-time / E2E suites can target a specific card. The Redirect button in the
+   mockup is deferred to FE-005. *@
+
+<div class="sd-reqcard sd-reqcard--@TierKey" data-testid="request-card-@Entry.RequestId">
+    <div class="sd-reqcard__row">
+        <span class="sd-reqcard__name" data-testid="reqcard-name">@Entry.RequesterName</span>
+        <span class="sd-badge sd-badge--@TierKey" data-testid="reqcard-tier-badge">
+            @if (Entry.Tier == ServiceTier.Gold)
+            {
+                <span class="sd-badge__icon" aria-hidden="true">★</span>
+            }
+            @TierLabel
+        </span>
+        <span class="sd-reqcard__spacer"></span>
+        <span class="sd-chip @StatusChipClass" data-testid="status-chip">
+            @if (StatusHasDot)
+            {
+                <span class="sd-chip__dot"></span>
+            }
+            @StatusLabel
+        </span>
+    </div>
+
+    <div class="sd-reqcard__dtc" data-testid="reqcard-dtc">@Entry.DtcTitle</div>
+
+    <div class="sd-reqcard__meta">
+        <span data-testid="reqcard-rep">@(Entry.AssignedRepName ?? "Unassigned")</span>
+        <span> · </span>
+        <span data-testid="reqcard-time">@RelativeTime.Describe(Entry.CreatedAt, DateTimeOffset.UtcNow)</span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ActiveRequestEntry Entry { get; set; } = default!;
+
+    private string TierKey => Entry.Tier.ToString().ToLowerInvariant();
+
+    private string TierLabel => Entry.Tier.ToString().ToUpperInvariant();
+
+    // Maps the raw request-status wire name to the human label shown in the mockup's status chip.
+    private string StatusLabel => Entry.Status switch
+    {
+        "Assigned" => "Assigned",
+        "InProgress" => "In Progress",
+        _ => "Pending",
+    };
+
+    // Chip colour follows the mockup: Pending grey, Assigned blue (en-route), In Progress red (on-site).
+    private string StatusChipClass => Entry.Status switch
+    {
+        "Assigned" => "sd-chip--enroute",
+        "InProgress" => "sd-chip--onsite",
+        _ => "sd-chip--pending",
+    };
+
+    private bool StatusHasDot => Entry.Status is "Assigned" or "InProgress";
+}
