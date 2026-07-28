@@ -15,9 +15,11 @@ public class DispatcherRequestQueueViewModelTests
 {
     private readonly Mock<IActiveRequestQueueService> _queueService = new();
     private readonly Mock<IDispatchHubService> _hub = new();
+    private readonly Mock<IRedirectEligibilityService> _eligibility = new();
+    private readonly Mock<IDispatcherRedirectService> _redirectService = new();
 
     private DispatcherRequestQueueViewModel CreateViewModel() =>
-        new(_queueService.Object, _hub.Object);
+        new(_queueService.Object, _hub.Object, _eligibility.Object, _redirectService.Object);
 
     private void QueueReturns(params ActiveRequestEntry[] entries) =>
         _queueService.Setup(s => s.GetActiveRequestsAsync()).ReturnsAsync(entries.ToList());

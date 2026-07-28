@@ -280,3 +280,107 @@
     font-weight: 650;
     color: #5B4AE2;
 }
+
+/* FE-005 redirect confirmation dialog (mockup: dispatcher-redirect__desktop-1440x900). Full-viewport modal
+   scrim dimming the dashboard, a centred white dialog card, the CURRENT JOB → NEW JOB swap cards, the
+   conditional 5-minute-cooldown warning band, and the Cancel / Confirm foot. Rendered by RequestQueueRail as
+   a cross-component overlay, so these tokens live in the shared stylesheet (not a component-scoped sheet). */
+.sd-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(27, 29, 41, .45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.sd-dialog {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 18px 60px rgba(20, 22, 40, .28);
+    padding: 24px 28px;
+    width: 520px;
+    max-width: 90%;
+}
+
+.sd-dialog__head {
+    font-size: 20px;
+    font-weight: 750;
+    color: #1C1E26;
+    margin-bottom: 4px;
+}
+
+.sd-dialog__body {
+    font-size: 14px;
+    color: #1C1E26;
+}
+
+.sd-dialog__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.sd-swap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 16px 0;
+}
+
+.sd-swap__col {
+    flex: 1;
+    border: 1px solid #E7E9EF;
+    border-radius: 12px;
+    padding: 14px;
+    background: #F7F8FA;
+}
+
+.sd-swap__label {
+    font-size: 11px;
+    font-weight: 750;
+    letter-spacing: .4px;
+    color: #5A5F6E;
+    margin-bottom: 8px;
+}
+
+.sd-swap__title {
+    margin-top: 8px;
+    font-weight: 600;
+    color: #1C1E26;
+}
+
+.sd-swap__arrow {
+    font-size: 20px;
+    color: #8B90A0;
+    flex: 0 0 auto;
+}
+
+.sd-cooldown {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(244, 161, 0, .14);
+    color: #946000;
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.sd-cooldown__icon {
+    flex: 0 0 auto;
+}
+
+.sd-reqcard__actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.sd-reqcard__redirect {
+    padding: 7px 14px;
+    font-size: 13px;
+}

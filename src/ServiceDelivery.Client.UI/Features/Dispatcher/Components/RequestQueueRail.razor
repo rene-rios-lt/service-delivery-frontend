@@ -1,6 +1,7 @@
 @using ServiceDelivery.Client.Core.ViewModels
 @implements IDisposable
 @inject DispatcherRequestQueueViewModel ViewModel
+@inject DispatcherFleetViewModel FleetViewModel
 
 @* FE-004 AC-3: the scrollable card list of the ACTIVE REQUESTS rail (mockup: dispatcher-dashboard). Renders
    one RequestCard per entry in the ViewModel's already-sorted Queue (Gold → Silver → Bronze, oldest-first
@@ -20,7 +21,10 @@
      data-dispatch-hub-connected="@(ViewModel.IsHubConnected ? "true" : "false")">
     @foreach (var entry in ViewModel.Queue)
     {
-        <RequestCard Entry="entry" @key="entry.RequestId" />
+        <RequestCard Entry="entry" @key="entry.RequestId"
+                     Redirect="@ViewModel.GetRedirectInfo(entry.RequestId)"
+                     OnRedirectClicked="@ViewModel.ShowRedirectDialog"
+                     IsRedirecting="@ViewModel.IsRedirecting" />
     }
     @* Visually-hidden, AX-exposed twin of data-dispatch-hub-connected. The native mac2/XCTest AX tree (the
        Desktop E2E gate) has NO WebView context, so it cannot read the DOM-only data-* attribute above — it
@@ -37,16 +41,39 @@
     </div>
 </div>
 
+@* FE-005: the redirect confirmation dialog overlays the whole viewport when a redirect is pending. The rail
+   is the composition bridge between the two independent dispatcher ViewModels — it owns the wiring, neither
+   ViewModel depends on the other (SRP). *@
+@if (ViewModel.ActiveRedirectInfo is not null)
+{
+    <RedirectConfirmDialog ActiveRedirectInfo="@ViewModel.ActiveRedirectInfo"
+                           IsRedirecting="@ViewModel.IsRedirecting"
+                           RedirectError="@ViewModel.RedirectError"
+                           OnCancel="@ViewModel.CancelRedirect"
+                           OnConfirm="@ViewModel.ConfirmRedirectAsync" />
+}
+
 @code {
     protected override void OnInitialized()
     {
         ViewModel.StateChanged += OnStateChanged;
+        FleetViewModel.StateChanged += OnFleetChanged;
+
+        // Seed eligibility from the fleet snapshot already loaded by the page, then keep it live via the
+        // StateChanged subscription above (every VehiclePositionUpdated merge recomputes it).
+        ViewModel.UpdateFleetData(FleetViewModel.VisibleVehicles);
     }
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);
 
+    // A fleet change (position update / rep-state transition) can change which reps are redirectable, so
+    // re-bridge the current fleet snapshot into the queue ViewModel; UpdateFleetData raises StateChanged,
+    // which re-renders the rail through OnStateChanged.
+    private void OnFleetChanged() => InvokeAsync(() => ViewModel.UpdateFleetData(FleetViewModel.VisibleVehicles));
+
     public void Dispose()
     {
         ViewModel.StateChanged -= OnStateChanged;
+        FleetViewModel.StateChanged -= OnFleetChanged;
     }
 }

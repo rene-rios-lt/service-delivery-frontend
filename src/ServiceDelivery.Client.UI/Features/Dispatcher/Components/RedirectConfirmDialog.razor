@@ -1,0 +1,94 @@
+@using ServiceDelivery.Client.Core.Models
+
+@* FE-005 redirect confirmation dialog (mockup: dispatcher-redirect__desktop-1440x900). A modal overlay the
+   rail renders when ViewModel.ActiveRedirectInfo != null. Shows the rep name in the title, the CURRENT JOB →
+   NEW JOB swap cards (tier badge + DTC title each), a conditional 5-minute-cooldown warning (with Gold-tier
+   override note when the new job is Gold), an optional error banner, and Cancel / Confirm redirect buttons.
+   Presentational only — all data comes from ActiveRedirectInfo; the actions delegate to the parent via
+   EventCallbacks. *@
+
+<div class="sd-scrim" data-testid="redirect-scrim">
+    <div class="sd-dialog" data-testid="redirect-dialog">
+        <div class="sd-dialog__head" data-testid="redirect-title">Redirect @ActiveRedirectInfo.RepName?</div>
+
+        <div class="sd-dialog__body">
+            <p class="sd-muted">Reassign this rep from their current job to the higher-priority request.</p>
+
+            <div class="sd-swap">
+                <div class="sd-swap__col" data-testid="redirect-current-job">
+                    <div class="sd-swap__label">CURRENT JOB</div>
+                    <span class="sd-badge sd-badge--@TierKey(ActiveRedirectInfo.CurrentJobTier)">
+                        @TierLabel(ActiveRedirectInfo.CurrentJobTier)
+                    </span>
+                    <div class="sd-swap__title">@ActiveRedirectInfo.CurrentJobTitle</div>
+                </div>
+
+                <div class="sd-swap__arrow" aria-hidden="true">→</div>
+
+                <div class="sd-swap__col" data-testid="redirect-new-job">
+                    <div class="sd-swap__label">NEW JOB</div>
+                    <span class="sd-badge sd-badge--@TierKey(ActiveRedirectInfo.NewJobTier)">
+                        @if (ActiveRedirectInfo.NewJobTier == ServiceTier.Gold)
+                        {
+                            <span class="sd-badge__icon" aria-hidden="true">★</span>
+                        }
+                        @TierLabel(ActiveRedirectInfo.NewJobTier)
+                    </span>
+                    <div class="sd-swap__title">@ActiveRedirectInfo.NewJobTitle</div>
+                </div>
+            </div>
+
+            @if (ActiveRedirectInfo.InCooldown)
+            {
+                <div class="sd-cooldown" data-testid="redirect-cooldown-warning">
+                    <span class="sd-cooldown__icon" aria-hidden="true">&#9201;</span>
+                    Rep is in a 5-min redirect cooldown —
+                    @if (ActiveRedirectInfo.NewJobTier == ServiceTier.Gold)
+                    {
+                        <strong>Gold tier overrides the cooldown.</strong>
+                    }
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(RedirectError))
+            {
+                <div class="sd-banner" data-testid="redirect-error">
+                    <span class="sd-banner__icon" aria-hidden="true">&#9888;</span>
+                    @RedirectError
+                </div>
+            }
+        </div>
+
+        <div class="sd-dialog__foot">
+            <button type="button" class="sd-btn sd-btn--outline" data-testid="redirect-cancel"
+                    @onclick="OnCancel">
+                Cancel
+            </button>
+            <button type="button" class="sd-btn sd-btn--primary" data-testid="redirect-confirm"
+                    disabled="@IsRedirecting" @onclick="OnConfirm">
+                Confirm redirect
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public RedirectInfo ActiveRedirectInfo { get; set; } = default!;
+
+    [Parameter]
+    public bool IsRedirecting { get; set; }
+
+    [Parameter]
+    public string? RedirectError { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    private static string TierKey(ServiceTier tier) => tier.ToString().ToLowerInvariant();
+
+    private static string TierLabel(ServiceTier tier) => tier.ToString().ToUpperInvariant();
+}

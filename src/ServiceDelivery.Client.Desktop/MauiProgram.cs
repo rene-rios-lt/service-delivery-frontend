@@ -62,6 +62,10 @@ public static class MauiProgram
 		builder.Services.AddScoped<IActiveRequestQueueService, HttpActiveRequestQueueService>();
 		builder.Services.AddScoped<IDispatchHubService, SignalRDispatchHubService>();
 		builder.Services.AddScoped<DispatcherRequestQueueViewModel>();
+		// FE-005 redirect: pure eligibility logic + the POST /dispatcher/redirect HTTP adapter (host parity —
+		// same two registrations in Web Program.cs).
+		builder.Services.AddScoped<IRedirectEligibilityService, RedirectEligibilityService>();
+		builder.Services.AddScoped<IDispatcherRedirectService, HttpDispatcherRedirectService>();
 
 		// FE-003 AC-1: back the Desktop token store with MAUI Preferences instead of the Keychain
 		// (SecureStorage). SecureStorage needs a Keychain-access entitlement an unsigned local Mac

@@ -89,6 +89,10 @@ builder.Services.AddScoped<DispatcherFleetViewModel>();
 builder.Services.AddScoped<IActiveRequestQueueService, HttpActiveRequestQueueService>();
 builder.Services.AddScoped<IDispatchHubService, SignalRDispatchHubService>();
 builder.Services.AddScoped<DispatcherRequestQueueViewModel>();
+// FE-005 redirect: pure eligibility logic + the POST /dispatcher/redirect HTTP adapter (host parity — same
+// two registrations in Desktop MauiProgram.cs).
+builder.Services.AddScoped<IRedirectEligibilityService, RedirectEligibilityService>();
+builder.Services.AddScoped<IDispatcherRedirectService, HttpDispatcherRedirectService>();
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 // Requester submit form (FE-015). Web hosts the Requester persona, so these are live here. The DTC and
 // service-request services are Blazor-generic (HttpClient); the geolocation service is the browser/WASM

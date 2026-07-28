@@ -34,11 +34,38 @@
         <span> · </span>
         <span data-testid="reqcard-time">@RelativeTime.Describe(Entry.CreatedAt, DateTimeOffset.UtcNow)</span>
     </div>
+
+    @* FE-005: Redirect action (mockup's per-card Redirect button). Rendered only when an EnRoute rep on a
+       lower-tier job is eligible to be redirected to this request; disabled while a redirect is in flight
+       (optimistic loading, AC-3) or after an error clears the eligibility (AC-4). *@
+    @if (Redirect is not null)
+    {
+        <div class="sd-reqcard__actions">
+            <button type="button" class="sd-btn sd-btn--outline sd-reqcard__redirect"
+                    data-testid="redirect-btn-@Entry.RequestId"
+                    disabled="@IsRedirecting"
+                    @onclick="RaiseRedirectClicked">
+                Redirect
+            </button>
+        </div>
+    }
 </div>
 
 @code {
     [Parameter, EditorRequired]
     public ActiveRequestEntry Entry { get; set; } = default!;
+
+    // FE-005: the deferred Redirect action. Non-null only when an EnRoute rep on a lower-tier job can be
+    // redirected to this request; null hides the button (and, after a failed redirect, disables it again).
+    [Parameter]
+    public RedirectInfo? Redirect { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid> OnRedirectClicked { get; set; }
+
+    // True while a redirect is in flight — the button shows a disabled/loading state (optimistic, AC-3).
+    [Parameter]
+    public bool IsRedirecting { get; set; }
 
     private string TierKey => Entry.Tier.ToString().ToLowerInvariant();
 
@@ -61,4 +88,6 @@
     };
 
     private bool StatusHasDot => Entry.Status is "Assigned" or "InProgress";
+
+    private Task RaiseRedirectClicked() => OnRedirectClicked.InvokeAsync(Entry.RequestId);
 }

@@ -14,6 +14,10 @@ namespace ServiceDelivery.Client.Core.Models;
 /// <see cref="ActiveRequestTitle"/> is sourced from the <c>activeRequestTitle</c> field of the
 /// <c>GET /dispatcher/fleet</c> contract (added by BE-032) — the DTC title of the active request, <c>null</c>
 /// when the rep has no active request; the popover renders the title line only when it is present.
+/// <see cref="RedirectCooldownExpiresAt"/> is sourced from the <c>redirectCooldownExpiresAt</c> field (added
+/// by BE-033) — the UTC instant the rep's 5-minute redirect cooldown ends, <c>null</c> when the rep has never
+/// been redirected; FE-005's eligibility service reads it to flag an in-cooldown redirect. Live position
+/// updates do not carry it, so it defaults to <c>null</c> on that merge path.
 /// </para>
 /// </summary>
 public record FleetVehicleEntry(
@@ -26,4 +30,5 @@ public record FleetVehicleEntry(
     double Longitude,
     string? ActiveRequestTitle,
     string? ActiveRequestTier,
-    bool HumanControlled);
+    bool HumanControlled,
+    DateTimeOffset? RedirectCooldownExpiresAt = null);

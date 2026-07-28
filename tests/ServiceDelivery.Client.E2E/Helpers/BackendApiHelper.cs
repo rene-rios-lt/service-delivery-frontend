@@ -161,6 +161,49 @@ public static class BackendApiHelper
             .GetAwaiter().GetResult();
 
     /// <summary>
+    /// The redirect ARRANGE readiness gate (FE-005): a bounded, deterministic backend poll that confirms a
+    /// redirect-dedicated rep is <c>EnRoute</c> on the lower-tier (<paramref name="silverLatitude"/>/<paramref
+    /// name="silverLongitude"/>) job — the exact precondition the dispatcher UI needs to surface the Redirect
+    /// button — BEFORE the UI test starts waiting on the DOM. It far-pins that rep toward the far
+    /// (<paramref name="farLatitude"/>/<paramref name="farLongitude"/>) target coordinates so the backend
+    /// un-latches the one-way <c>Within15Miles</c> proximity state back to <c>EnRoute</c> (BUG-059 / ADR-0012):
+    /// the running simulator drives an accepted rep toward its request within ~3 s and latches
+    /// <c>Within15Miles</c>, at which point the rep is NOT redirectable and the button never renders, so a raw
+    /// "wait 15 s for the button" is a fleeting-window race. Pinning the rep ~27 mi away leaves the simulator
+    /// several ~3 s Navigate ticks to walk back in, giving the UI a comfortable window to open the dialog.
+    ///
+    /// <para>
+    /// This is the arrange-only hardening for the FE-005 web E2E EnRoute-hold contention — it changes NO product
+    /// code and does not touch the BUG-063 double-offer family. Reuses the same far-pin un-latch poll the real
+    /// redirect trigger uses, scoped to the redirect-dedicated fleet so sibling fixtures cannot ambiguate it.
+    /// Synchronous wrapper for NUnit test bodies; throws <see cref="InvalidOperationException"/> (with a fleet
+    /// dump) if no dedicated EnRoute rep serving the lower-tier site appears within the bound.
+    /// </para>
+    /// </summary>
+    public static void WaitForEligibleEnRouteRep(
+        string baseUrl, double silverLatitude, double silverLongitude, double farLatitude, double farLongitude) =>
+        WaitForEligibleEnRouteRepAsync(baseUrl, silverLatitude, silverLongitude, farLatitude, farLongitude)
+            .GetAwaiter().GetResult();
+
+    private static async Task WaitForEligibleEnRouteRepAsync(
+        string baseUrl, double silverLatitude, double silverLongitude, double farLatitude, double farLongitude)
+    {
+        using var simClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var simToken = await LoginAsync(simClient, SimulatorEmail);
+        simClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", simToken);
+
+        // Bounded far-pin poll: returns only once the rep serving THIS scenario's lower-tier site is confirmed
+        // EnRoute (un-latched from Within15Miles). This is the deterministic precondition gate. It matches by
+        // ActiveRequestLocation (the scenario's own distinct silver coordinates), NOT by a fixed vehicle id: the
+        // running simulator claims/drives vehicles freely, so the rep the matcher actually assigns to this
+        // request is frequently on a vehicle OTHER than the nominally-dedicated V-005/006/007 (a fixed-id filter
+        // wrongly excludes the real serving rep and the gate times out). The per-scenario distinct coordinates
+        // are what keep sibling scenarios from ambiguating this poll.
+        await WaitForEnRouteRepWithFarPinAsync(
+            simClient, silverLatitude, silverLongitude, farLatitude, farLongitude);
+    }
+
+    /// <summary>
     /// Seeded rep accounts keyed by their deterministic seed GUID (SeedConstants.Rep1Id..Rep8Id =
     /// 50000000-…-000N). The assignment picks whichever in-range rep the simulator operates, so to drive that
     /// rep's job to completion (FE-019) we must map its ClaimingRepId back to its login email.
