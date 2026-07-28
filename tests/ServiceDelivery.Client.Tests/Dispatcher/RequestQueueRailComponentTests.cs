@@ -17,11 +17,16 @@ public class RequestQueueRailComponentTests : BunitContext
 {
     private readonly Mock<IActiveRequestQueueService> _queueService = new();
     private readonly Mock<IDispatchHubService> _hub = new();
+    private readonly Mock<IRedirectEligibilityService> _eligibility = new();
+    private readonly Mock<IDispatcherRedirectService> _redirectService = new();
+    private readonly Mock<IDispatcherFleetService> _fleetService = new();
+    private readonly Mock<IVehiclePositionHubService> _positionHub = new();
 
     private async Task<DispatcherRequestQueueViewModel> LoadedViewModel(params ActiveRequestEntry[] entries)
     {
         _queueService.Setup(s => s.GetActiveRequestsAsync()).ReturnsAsync(entries.ToList());
-        var vm = new DispatcherRequestQueueViewModel(_queueService.Object, _hub.Object);
+        var vm = new DispatcherRequestQueueViewModel(
+            _queueService.Object, _hub.Object, _eligibility.Object, _redirectService.Object);
         await vm.LoadAsync();
         return vm;
     }
@@ -32,7 +37,9 @@ public class RequestQueueRailComponentTests : BunitContext
 
     private IRenderedComponent<RequestQueueRail> RenderRail(DispatcherRequestQueueViewModel vm)
     {
+        _fleetService.Setup(s => s.GetFleetAsync()).ReturnsAsync(new List<FleetVehicleEntry>());
         Services.AddSingleton(vm);
+        Services.AddSingleton(new DispatcherFleetViewModel(_fleetService.Object, _positionHub.Object));
         return Render<RequestQueueRail>();
     }
 
@@ -131,6 +138,149 @@ public class RequestQueueRailComponentTests : BunitContext
         // Assert
         var status = cut.Find("[data-testid='dispatch-hub-a11y-status']");
         Assert.NotEqual("Live request updates connected", status.TextContent.Trim());
+    }
+
+    // ---- FE-005: redirect bridge (fleet → eligibility) + dialog render ----------------------------------
+
+    private static readonly Guid GoldRequestId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000009");
+    private static readonly Guid RepId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+
+    private static ActiveRequestEntry GoldEntry() =>
+        new(GoldRequestId, "Marcus Webb", ServiceTier.Gold, "Transmission Control Fault", "Pending", null,
+            DateTimeOffset.UtcNow.AddMinutes(-1));
+
+    private static FleetVehicleEntry EnRouteRepOnSilver() =>
+        new("30000000-0000-0000-0000-000000000007", "IA-4471", "EnRoute", RepId, "J. Tran",
+            41.8781, -93.0977, "Hydraulic Pressure Loss", "Silver", false, null);
+
+    private static RedirectInfo GoldRedirectInfo() =>
+        new(RepId, "J. Tran", ServiceTier.Silver, "Hydraulic Pressure Loss", ServiceTier.Gold,
+            "Transmission Control Fault", false, GoldRequestId);
+
+    private async Task<DispatcherFleetViewModel> LoadedFleet(params FleetVehicleEntry[] fleet)
+    {
+        _fleetService.Setup(s => s.GetFleetAsync()).ReturnsAsync(fleet.ToList());
+        var vm = new DispatcherFleetViewModel(_fleetService.Object, _positionHub.Object);
+        await vm.LoadAsync();
+        return vm;
+    }
+
+    private IRenderedComponent<RequestQueueRail> RenderRail(
+        DispatcherRequestQueueViewModel queueVm, DispatcherFleetViewModel fleetVm)
+    {
+        Services.AddSingleton(queueVm);
+        Services.AddSingleton(fleetVm);
+        return Render<RequestQueueRail>();
+    }
+
+    [Fact]
+    public async Task GivenAnEligibleEntryAndFleetWithAnEnRouteRep_WhenRailRendered_ThenTheCardShowsARedirectButton()
+    {
+        // Arrange — the fleet ViewModel already holds an EnRoute rep on a lower-tier job, and the eligibility
+        // service reports the Gold queue entry is redirectable. The rail must bridge the fleet snapshot into the
+        // queue ViewModel (UpdateFleetData) so the card surfaces its Redirect button.
+        _eligibility.Setup(e => e.FindEligibleRedirect(
+                It.Is<ActiveRequestEntry>(r => r.RequestId == GoldRequestId),
+                It.IsAny<IReadOnlyList<FleetVehicleEntry>>()))
+            .Returns(GoldRedirectInfo());
+        var queueVm = await LoadedViewModel(GoldEntry());
+        var fleetVm = await LoadedFleet(EnRouteRepOnSilver());
+
+        // Act
+        var cut = RenderRail(queueVm, fleetVm);
+
+        // Assert
+        Assert.NotEmpty(cut.FindAll($"[data-testid='redirect-btn-{GoldRequestId}']"));
+    }
+
+    [Fact]
+    public async Task GivenAFleetStateChange_WhenTheFleetViewModelRaisesStateChanged_ThenTheRailRecomputesEligibility()
+    {
+        // Arrange — no rep is EnRoute at render time, so no Redirect button initially. When the fleet later
+        // gains an EnRoute rep and raises StateChanged, the rail must re-bridge and the button appears.
+        _eligibility.Setup(e => e.FindEligibleRedirect(
+                It.IsAny<ActiveRequestEntry>(), It.IsAny<IReadOnlyList<FleetVehicleEntry>>()))
+            .Returns((ActiveRequestEntry _, IReadOnlyList<FleetVehicleEntry> fleet) =>
+                fleet.Any(v => v.RepState == "EnRoute") ? GoldRedirectInfo() : null);
+        var queueVm = await LoadedViewModel(GoldEntry());
+        var fleetVm = await LoadedFleet();
+        var cut = RenderRail(queueVm, fleetVm);
+        Assert.Empty(cut.FindAll($"[data-testid='redirect-btn-{GoldRequestId}']"));
+
+        // Act — a live position update brings a rep EnRoute; the fleet ViewModel raises StateChanged.
+        await cut.InvokeAsync(() => fleetVm.HandleVehiclePositionUpdatedAsync(
+            new VehiclePositionUpdatedPayload(
+                RepId, Guid.Parse("30000000-0000-0000-0000-000000000007"), 41.8781, -93.0977, "EnRoute")));
+
+        // Assert
+        cut.WaitForAssertion(() =>
+            Assert.NotEmpty(cut.FindAll($"[data-testid='redirect-btn-{GoldRequestId}']")));
+    }
+
+    [Fact]
+    public async Task GivenTheQueueViewModelHasAnActiveRedirect_WhenRailRendered_ThenTheConfirmDialogIsShown()
+    {
+        // Arrange — open the redirect dialog on the queue ViewModel, then render the rail.
+        _eligibility.Setup(e => e.FindEligibleRedirect(
+                It.IsAny<ActiveRequestEntry>(), It.IsAny<IReadOnlyList<FleetVehicleEntry>>()))
+            .Returns(GoldRedirectInfo());
+        var queueVm = await LoadedViewModel(GoldEntry());
+        queueVm.UpdateFleetData(new[] { EnRouteRepOnSilver() });
+        queueVm.ShowRedirectDialog(GoldRequestId);
+        var fleetVm = await LoadedFleet(EnRouteRepOnSilver());
+
+        // Act
+        var cut = RenderRail(queueVm, fleetVm);
+
+        // Assert
+        Assert.NotEmpty(cut.FindAll("[data-testid='redirect-dialog']"));
+    }
+
+    [Fact]
+    public async Task GivenNoActiveRedirect_WhenRailRendered_ThenNoConfirmDialogIsShown()
+    {
+        // Arrange
+        var queueVm = await LoadedViewModel(GoldEntry());
+        var fleetVm = await LoadedFleet(EnRouteRepOnSilver());
+
+        // Act
+        var cut = RenderRail(queueVm, fleetVm);
+
+        // Assert
+        Assert.Empty(cut.FindAll("[data-testid='redirect-dialog']"));
+    }
+
+    [Fact]
+    public async Task GivenAConfirmedRedirectThatErrors_WhenTheDialogReappears_ThenTheErrorBannerShowsTheRealMessageThroughTheRailBinding()
+    {
+        // Arrange — drive the WHOLE rail→dialog binding path (not the isolated dialog with a code-set
+        // parameter): eligibility reports the Gold entry is redirectable, the dialog is open, and the redirect
+        // service fails. Confirming re-surfaces the dialog carrying ViewModel.RedirectError, which the rail must
+        // bind as an EXPRESSION (@ViewModel.RedirectError) — a literal-string binding would render the attribute
+        // text "ViewModel.RedirectError" instead of this real message, which is the FE-005 defect this guards.
+        const string realError = "Rep is no longer redirectable.";
+        _eligibility.Setup(e => e.FindEligibleRedirect(
+                It.IsAny<ActiveRequestEntry>(), It.IsAny<IReadOnlyList<FleetVehicleEntry>>()))
+            .Returns(GoldRedirectInfo());
+        _redirectService.Setup(s => s.RedirectAsync(RepId, GoldRequestId))
+            .ThrowsAsync(new InvalidOperationException(realError));
+        var queueVm = await LoadedViewModel(GoldEntry());
+        queueVm.UpdateFleetData(new[] { EnRouteRepOnSilver() });
+        queueVm.ShowRedirectDialog(GoldRequestId);
+        var fleetVm = await LoadedFleet(EnRouteRepOnSilver());
+        var cut = RenderRail(queueVm, fleetVm);
+
+        // Act — confirm the redirect through the rendered dialog button (the real OnConfirm binding).
+        await cut.Find("[data-testid='redirect-confirm']").ClickAsync(new());
+
+        // Assert — the re-surfaced dialog's error banner shows the ACTUAL message, proving the rail bound the
+        // value, not the literal expression text.
+        cut.WaitForAssertion(() =>
+        {
+            var banner = cut.Find("[data-testid='redirect-error']");
+            Assert.Contains(realError, banner.TextContent);
+            Assert.DoesNotContain("ViewModel.RedirectError", banner.TextContent);
+        });
     }
 
     [Fact]

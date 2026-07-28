@@ -25,6 +25,8 @@ public class DispatcherHomeLayoutTests : BunitContext
     private readonly Mock<IVehiclePositionHubService> _hub = new();
     private readonly Mock<IActiveRequestQueueService> _queueService = new();
     private readonly Mock<IDispatchHubService> _dispatchHub = new();
+    private readonly Mock<IRedirectEligibilityService> _eligibility = new();
+    private readonly Mock<IDispatcherRedirectService> _redirectService = new();
 
     public DispatcherHomeLayoutTests()
     {
@@ -38,7 +40,8 @@ public class DispatcherHomeLayoutTests : BunitContext
 
         Services.AddSingleton(_mapsLoader.Object);
         Services.AddSingleton(new DispatcherFleetViewModel(_fleetService.Object, _hub.Object));
-        Services.AddSingleton(new DispatcherRequestQueueViewModel(_queueService.Object, _dispatchHub.Object));
+        Services.AddSingleton(new DispatcherRequestQueueViewModel(
+            _queueService.Object, _dispatchHub.Object, _eligibility.Object, _redirectService.Object));
     }
 
     [Fact]

@@ -36,6 +36,8 @@ public class DispatcherHomeQueueTests : BunitContext
     private readonly Mock<IVehiclePositionHubService> _positionHub = new();
     private readonly Mock<IActiveRequestQueueService> _queueService = new();
     private readonly Mock<IDispatchHubService> _dispatchHub = new();
+    private readonly Mock<IRedirectEligibilityService> _eligibility = new();
+    private readonly Mock<IDispatcherRedirectService> _redirectService = new();
 
     // The queue snapshot load — deliberately left pending so the page's first render commits with an empty
     // queue; the test completes it AFTER the initial render to drive the populate-after-render lifecycle.
@@ -61,7 +63,8 @@ public class DispatcherHomeQueueTests : BunitContext
 
         Services.AddSingleton(_mapsLoader.Object);
         Services.AddSingleton(new DispatcherFleetViewModel(_fleetService.Object, _positionHub.Object));
-        Services.AddSingleton(new DispatcherRequestQueueViewModel(_queueService.Object, _dispatchHub.Object));
+        Services.AddSingleton(new DispatcherRequestQueueViewModel(
+            _queueService.Object, _dispatchHub.Object, _eligibility.Object, _redirectService.Object));
     }
 
     private Task CompleteQueueLoad(IRenderedComponent<DispatcherHome> cut, params ActiveRequestEntry[] entries) =>

@@ -96,6 +96,26 @@ public static class BackendApiHelper
     /// wrapper for NUnit test bodies; throws <see cref="InvalidOperationException"/> on any step failure so a
     /// broken precondition surfaces immediately rather than as a downstream UI timeout.
     /// </summary>
+    /// <summary>
+    /// Claims a vehicle as its rep and positions it — the pre-login precondition that puts the rep into the
+    /// dispatcher's <c>GET /dispatcher/fleet</c> SNAPSHOT with a known <c>RepId</c> and a visible (non-Offline)
+    /// state. This mirrors the real system, where the simulator claims all vehicles at startup BEFORE any
+    /// dispatcher logs in, so a dispatcher's snapshot always carries rep identities; only a rep's active-request
+    /// tier changes live during the session (delivered by the FE-005 real-time overlay). Without this, a
+    /// clean-backend vehicle is unclaimed at snapshot time and the position-update merge preserves its snapshot
+    /// <c>RepId=null</c> (it updates only lat/lng/state), so redirect eligibility — keyed by rep — can never match.
+    /// </summary>
+    public static void ClaimAndPositionVehicle(
+        string baseUrl, string repEmail, string vehicleId, double latitude, double longitude) =>
+        ClaimAndPositionVehicleAsync(baseUrl, repEmail, vehicleId, latitude, longitude).GetAwaiter().GetResult();
+
+    private static async Task ClaimAndPositionVehicleAsync(
+        string baseUrl, string repEmail, string vehicleId, double latitude, double longitude)
+    {
+        await ClaimVehicleAsAsync(baseUrl, repEmail, vehicleId);
+        await PositionVehicleAtAsync(baseUrl, vehicleId, latitude, longitude);
+    }
+
     public static Guid AssignRequestViaRep(
         string baseUrl, string repEmail, string vehicleId,
         string requesterEmail, string dtcId, double latitude, double longitude) =>
@@ -123,17 +143,81 @@ public static class BackendApiHelper
         // 1. Claim the dedicated vehicle as the rep (409 = already held by this rep on a warm backend, tolerated).
         await ClaimVehicleAsAsync(baseUrl, repEmail, vehicleId);
 
-        // 2. Position the vehicle AT the request site (as the Simulator account) so the rep is the nearest
-        //    qualified candidate when matching runs on submit.
-        await PositionVehicleAtAsync(baseUrl, vehicleId, latitude, longitude);
+        // 2. Position the vehicle at the FAR pin (>15 mi from the request — see FarLatitudeOffsetDegrees) — NOT
+        //    at the request site. There is no matching-radius cap, so being the NEAREST Available rep is enough
+        //    to win the offer (every other rep is parked at the distant holding point), and starting far keeps
+        //    the rep clear of the ONE-WAY Within15Miles proximity latch: a rep positioned AT the request (0 mi)
+        //    latches to Within15Miles on accept and can never return to EnRoute (BUG-059), which is
+        //    redirect-INELIGIBLE.
+        await PositionVehicleAtAsync(baseUrl, vehicleId, latitude + FarLatitudeOffsetDegrees, longitude);
 
         // 3. Submit the request as the requester — matching offers it to the nearest available rep (this rep).
         var requestId = await SubmitServiceRequestAsync(baseUrl, requesterEmail, dtcId, latitude, longitude);
 
         // 4. As the rep, wait for the offer to materialise, then accept it → ServiceRequestAssigned is emitted.
+        //    The rep is at the far pin, so acceptance leaves it EnRoute (never Within15Miles-latched).
         await AcceptPendingOfferAsRepAsync(baseUrl, repEmail);
 
+        // 5. Re-broadcast the rep's EnRoute position to the dispatcher fleet. A live dispatcher learns a rep's
+        //    state only from the VehiclePositionUpdated stream, which a real system emits every ~3 s; the login
+        //    snapshot predates this assignment. This backend-only arrange has no such driver, so post one more
+        //    position at the SAME far pin (still >15 mi → stays EnRoute), then gate on the backend actually
+        //    reporting EnRoute. Together with the real-time active-request tier the queue ViewModel derives from
+        //    ServiceRequestAssigned (FE-005 cycle 3), this surfaces the Redirect button with NO snapshot reload.
+        //    Arrange-only — it emulates the position stream a live system always produces.
+        await PositionVehicleAtAsync(baseUrl, vehicleId, latitude + FarLatitudeOffsetDegrees, longitude);
+        await WaitForVehicleEnRouteAsync(baseUrl, vehicleId);
+
         return requestId;
+    }
+
+    // ~34 mi SOUTH of the request. Each scenario's Gold target sits ~0.4° NORTH of its Silver request, so a
+    // far pin to the NORTH would land the rep within ~12 mi of its own Gold site and trip the one-way
+    // Within15Miles proximity latch (BUG-059) relative to that Gold — which is redirect-INELIGIBLE. Pinning
+    // SOUTH keeps the rep >15 mi from BOTH its Silver (assigned) and every Gold site, so it stays EnRoute; the
+    // absent matching-radius cap means it is still the nearest Available rep to its Silver request.
+    private const double FarLatitudeOffsetDegrees = -0.5;
+
+    /// <summary>
+    /// Re-broadcasts the vehicle's EnRoute position at the far pin (<see cref="FarLatitudeOffsetDegrees"/> north
+    /// of the request site — &gt;15 mi, so the rep stays EnRoute, not the redirect-ineligible Within15Miles).
+    /// A live dispatcher learns a rep's state only from the VehiclePositionUpdated stream, which a real system
+    /// emits every ~3 s; a backend-only run has no such driver, so the Desktop redirect arrange calls this on
+    /// each poll lap until the Redirect button surfaces (mirroring the fleet-map fixture's re-POST-each-lap).
+    /// </summary>
+    public static void RebroadcastEnRoutePosition(
+        string baseUrl, string vehicleId, double requestLatitude, double requestLongitude) =>
+        PositionVehicleAtAsync(
+            baseUrl, vehicleId, requestLatitude + FarLatitudeOffsetDegrees, requestLongitude)
+            .GetAwaiter().GetResult();
+
+    // Deterministic readiness gate: poll GET /dispatcher/fleet until the vehicle reports EnRoute, so the UI wait
+    // that follows starts from a confirmed backend precondition rather than racing the position broadcast.
+    private static async Task WaitForVehicleEnRouteAsync(string baseUrl, string vehicleId)
+    {
+        using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var token = await LoginAsync(client, DispatcherEmail);
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var targetId = Guid.Parse(vehicleId);
+        const int maxAttempts = 30;
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var fleet = await client.GetFromJsonAsync<List<DispatcherFleetEntry>>("/dispatcher/fleet", JsonOptions)
+                        ?? new List<DispatcherFleetEntry>();
+            if (fleet.Any(e => e.VehicleId == targetId && e.State == "EnRoute"))
+            {
+                return;
+            }
+
+            await Task.Delay(500);
+        }
+
+        throw new InvalidOperationException(
+            $"Vehicle {vehicleId} did not report EnRoute in GET /dispatcher/fleet within {maxAttempts * 500 / 1000}s " +
+            "after the post-accept far reposition — the redirect precondition (an EnRoute rep on a lower-tier job) " +
+            "could not be established.");
     }
 
     private static async Task CompleteAssignedRequestViaRepAsync(
