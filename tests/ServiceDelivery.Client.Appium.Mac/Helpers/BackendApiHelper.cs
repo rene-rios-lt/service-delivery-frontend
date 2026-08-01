@@ -263,6 +263,31 @@ public static class BackendApiHelper
         }
     }
 
+    /// <summary>
+    /// FE-022 AC-5 error-path arrange: force-releases the given vehicle as the dispatcher via
+    /// <c>POST /vehicles/{id}/force-release</c> BEFORE the UI confirms, revoking it server-side. Synchronous
+    /// wrapper for NUnit test bodies; throws on any non-success so a broken arrange surfaces immediately.
+    /// </summary>
+    public static void ForceReleaseVehicleAs(string baseUrl, string vehicleId, string dispatcherEmail) =>
+        ForceReleaseVehicleAsAsync(baseUrl, vehicleId, dispatcherEmail).GetAwaiter().GetResult();
+
+    private static async Task ForceReleaseVehicleAsAsync(string baseUrl, string vehicleId, string dispatcherEmail)
+    {
+        using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var token = await LoginAsync(client, dispatcherEmail);
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsync($"/vehicles/{vehicleId}/force-release", content: null);
+        if (!response.IsSuccessStatusCode)
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException(
+                $"POST /vehicles/{vehicleId}/force-release failed " +
+                $"({(int)response.StatusCode} {response.StatusCode}): {content}");
+        }
+    }
+
     private static async Task ClaimVehicleAsAsync(string baseUrl, string repEmail, string vehicleId)
     {
         using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };

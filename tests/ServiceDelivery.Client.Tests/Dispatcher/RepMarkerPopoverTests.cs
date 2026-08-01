@@ -18,18 +18,25 @@ public class RepMarkerPopoverTests : BunitContext
         string registration = "IA-4471",
         string? activeRequestTitle = null,
         string? activeRequestTier = null,
-        bool humanControlled = false) =>
-        new("30000000-0000-0000-0000-000000000007", registration, repState, Guid.NewGuid(),
-            repName, 41.60, -93.60, activeRequestTitle, activeRequestTier, humanControlled);
+        bool humanControlled = false,
+        bool claimed = true) =>
+        new("30000000-0000-0000-0000-000000000007", registration, repState,
+            claimed ? Guid.NewGuid() : null, claimed ? repName : null,
+            41.60, -93.60, activeRequestTitle, activeRequestTier, humanControlled);
 
     private IRenderedComponent<RepMarkerPopover> RenderPopover(
-        FleetVehicleEntry entry, EventCallback? onClose = null) =>
+        FleetVehicleEntry entry, EventCallback? onClose = null, EventCallback? onForceRelease = null) =>
         Render<RepMarkerPopover>(p =>
         {
             p.Add(c => c.Entry, entry);
             if (onClose is not null)
             {
                 p.Add(c => c.OnClose, onClose.Value);
+            }
+
+            if (onForceRelease is not null)
+            {
+                p.Add(c => c.OnForceRelease, onForceRelease.Value);
             }
         });
 
@@ -116,5 +123,47 @@ public class RepMarkerPopoverTests : BunitContext
 
         // Assert
         Assert.True(closed);
+    }
+
+    [Fact]
+    public void GivenAFleetEntryWithClaimedVehicle_WhenPopoverRendered_ThenForceReleaseButtonIsVisible()
+    {
+        // Arrange — FE-022 AC-1(b): the FE-003 rep-marker popover is the force-release entry point for a claimed
+        // vehicle. (The FE-006 banner entry point is deferred to FE-006 — scope constraint 1.)
+        var entry = Entry(claimed: true);
+
+        // Act
+        var cut = RenderPopover(entry);
+
+        // Assert
+        Assert.NotNull(cut.Find("[data-testid='popover-force-release']"));
+    }
+
+    [Fact]
+    public void GivenAFleetEntryWithUnclaimedVehicle_WhenPopoverRendered_ThenForceReleaseButtonIsAbsent()
+    {
+        // Arrange — an unclaimed vehicle (RepId null) has no rep session to revoke, so no force-release action.
+        var entry = Entry(claimed: false);
+
+        // Act
+        var cut = RenderPopover(entry);
+
+        // Assert
+        Assert.Empty(cut.FindAll("[data-testid='popover-force-release']"));
+    }
+
+    [Fact]
+    public void GivenAClaimedVehiclePopover_WhenForceReleaseButtonClicked_ThenOnForceReleaseIsRaised()
+    {
+        // Arrange
+        var released = false;
+        var onForceRelease = EventCallback.Factory.Create(this, () => released = true);
+        var cut = RenderPopover(Entry(claimed: true), onForceRelease: onForceRelease);
+
+        // Act
+        cut.Find("[data-testid='popover-force-release']").Click();
+
+        // Assert
+        Assert.True(released);
     }
 }

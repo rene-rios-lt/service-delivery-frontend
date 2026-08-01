@@ -93,6 +93,9 @@ builder.Services.AddScoped<DispatcherRequestQueueViewModel>();
 // two registrations in Desktop MauiProgram.cs).
 builder.Services.AddScoped<IRedirectEligibilityService, RedirectEligibilityService>();
 builder.Services.AddScoped<IDispatcherRedirectService, HttpDispatcherRedirectService>();
+// FE-022 force-release: the POST /vehicles/{id}/force-release HTTP adapter (host parity — the SAME registration
+// is in Desktop MauiProgram.cs; missing one host is the BUG-020->BUG-022 trap).
+builder.Services.AddScoped<IForceReleaseService, HttpForceReleaseService>();
 builder.Services.AddScoped<IPersonaNavigator, BlazorPersonaNavigator>();
 // Requester submit form (FE-015). Web hosts the Requester persona, so these are live here. The DTC and
 // service-request services are Blazor-generic (HttpClient); the geolocation service is the browser/WASM

@@ -665,6 +665,52 @@ public static class BackendApiHelper
             $"assigned to a rep that could be un-latched to EnRoute. Fleet: [{dump}]");
     }
 
+    /// <summary>
+    /// FE-022: claims the given vehicle as its rep and posts an initial position (as the Simulator account), so
+    /// the dispatcher's <c>GET /dispatcher/fleet</c> snapshot carries it CLAIMED (RepId non-null) and visible —
+    /// the precondition for the rep-marker popover's "Force-release vehicle" action. A 409 (the rep already holds
+    /// a vehicle, or the vehicle is already claimed on a warm backend) is tolerated as the desired end state; any
+    /// other non-success surfaces immediately. Synchronous wrapper for NUnit test bodies.
+    /// </summary>
+    public static void ClaimAndPositionVehicle(
+        string baseUrl, string repEmail, string vehicleId, double latitude, double longitude) =>
+        ClaimAndPositionVehicleAsync(baseUrl, repEmail, vehicleId, latitude, longitude).GetAwaiter().GetResult();
+
+    /// <summary>
+    /// FE-022 AC-5 error-path arrange: force-releases the given vehicle as the dispatcher via
+    /// <c>POST /vehicles/{id}/force-release</c> BEFORE the UI confirms, revoking it server-side. Synchronous
+    /// wrapper for NUnit test bodies; throws on any non-success so a broken arrange surfaces immediately.
+    /// </summary>
+    public static void ForceReleaseVehicleAs(string baseUrl, string vehicleId, string dispatcherEmail) =>
+        ForceReleaseVehicleAsAsync(baseUrl, vehicleId, dispatcherEmail).GetAwaiter().GetResult();
+
+    private static async Task ClaimAndPositionVehicleAsync(
+        string baseUrl, string repEmail, string vehicleId, double latitude, double longitude)
+    {
+        using var repClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var repToken = await LoginAsync(repClient, repEmail);
+        repClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", repToken);
+
+        var claim = await repClient.PostAsync($"/vehicles/{vehicleId}/claim", content: null);
+        if (!claim.IsSuccessStatusCode && (int)claim.StatusCode != 409)
+            await EnsureSuccessAsync(claim, $"POST /vehicles/{vehicleId}/claim (force-release fleet)");
+
+        using var simClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var simToken = await LoginAsync(simClient, SimulatorEmail);
+        simClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", simToken);
+        await PostPositionAsync(simClient, Guid.Parse(vehicleId), latitude, longitude);
+    }
+
+    private static async Task ForceReleaseVehicleAsAsync(string baseUrl, string vehicleId, string dispatcherEmail)
+    {
+        using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var token = await LoginAsync(client, dispatcherEmail);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsync($"/vehicles/{vehicleId}/force-release", content: null);
+        await EnsureSuccessAsync(response, $"POST /vehicles/{vehicleId}/force-release");
+    }
+
     private static async Task PostPositionAsync(HttpClient client, Guid vehicleId, double latitude, double longitude)
     {
         var body = new { latitude, longitude, timestamp = DateTime.UtcNow };

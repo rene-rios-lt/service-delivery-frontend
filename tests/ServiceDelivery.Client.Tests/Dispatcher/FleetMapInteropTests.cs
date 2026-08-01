@@ -47,7 +47,7 @@ public class FleetMapInteropTests : BunitContext
     private DispatcherFleetViewModel BuildLoadedViewModel(params FleetVehicleEntry[] entries)
     {
         _fleetService.Setup(s => s.GetFleetAsync()).ReturnsAsync(entries.ToList());
-        var vm = new DispatcherFleetViewModel(_fleetService.Object, _hub.Object);
+        var vm = new DispatcherFleetViewModel(_fleetService.Object, _hub.Object, Mock.Of<IForceReleaseService>());
         vm.LoadAsync().GetAwaiter().GetResult();
         return vm;
     }

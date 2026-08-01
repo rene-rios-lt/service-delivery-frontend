@@ -1,0 +1,93 @@
+@using ServiceDelivery.Client.Core.Models
+
+@* FE-022 force-release confirmation dialog (mockup: dispatcher-force-release__desktop-1440x900). A modal
+   overlay the FleetMap renders when ViewModel.ActiveForceReleaseInfo != null. Shows the rep name in the title,
+   the VEHICLE -> AFTER RELEASE swap cards (state chip + detail each), the request that will be re-queued (when
+   the rep has one), the always-shown amber session-revoke warning, an optional error banner (AC-5), and
+   Cancel / "Force-release vehicle" buttons. Open/Closed: a NEW file — it does not touch RedirectConfirmDialog.
+   Presentational only — all data comes from ActiveForceReleaseInfo; the actions delegate to the parent via
+   EventCallbacks. *@
+
+<div class="sd-scrim" data-testid="force-release-scrim">
+    <div class="sd-dialog" data-testid="force-release-dialog">
+        <div class="sd-dialog__head" data-testid="force-release-title">
+            Force-release @ActiveForceReleaseInfo.RepName's vehicle?
+        </div>
+
+        <div class="sd-dialog__body">
+            <p class="sd-muted">
+                This rep is offline. Force-releasing returns their vehicle to the available pool and keeps their
+                request in the queue for reassignment.
+            </p>
+
+            <div class="sd-swap">
+                <div class="sd-swap__col" data-testid="force-release-vehicle">
+                    <div class="sd-swap__label">VEHICLE</div>
+                    <span class="sd-fr-chip sd-fr-chip--offline" data-testid="force-release-vehicle-chip">
+                        <span class="sd-fr-chip__dot"></span>Offline
+                    </span>
+                    <div class="sd-swap__title" data-testid="force-release-registration">
+                        @ActiveForceReleaseInfo.Registration
+                    </div>
+                </div>
+
+                <div class="sd-swap__arrow" aria-hidden="true">→</div>
+
+                <div class="sd-swap__col" data-testid="force-release-after">
+                    <div class="sd-swap__label">AFTER RELEASE</div>
+                    <span class="sd-fr-chip sd-fr-chip--unclaimed" data-testid="force-release-after-chip">
+                        <span class="sd-fr-chip__dot"></span>Unclaimed
+                    </span>
+                    <div class="sd-swap__note">Request re-queued · Pending</div>
+                    @if (!string.IsNullOrWhiteSpace(ActiveForceReleaseInfo.RequestTitle))
+                    {
+                        <div class="sd-swap__title" data-testid="force-release-request-title">
+                            @ActiveForceReleaseInfo.RequestTitle
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="sd-cooldown" data-testid="force-release-session-warning">
+                <span class="sd-cooldown__icon" aria-hidden="true">&#9888;</span>
+                The rep's session is revoked — if they reconnect they must claim a vehicle again.
+            </div>
+
+            @if (!string.IsNullOrEmpty(ForceReleaseError))
+            {
+                <div class="sd-banner" data-testid="force-release-error">
+                    <span class="sd-banner__icon" aria-hidden="true">&#9888;</span>
+                    @ForceReleaseError
+                </div>
+            }
+        </div>
+
+        <div class="sd-dialog__foot">
+            <button type="button" class="sd-btn sd-btn--outline" data-testid="force-release-cancel"
+                    @onclick="OnCancel">
+                Cancel
+            </button>
+            <button type="button" class="sd-btn sd-btn--danger" data-testid="force-release-confirm"
+                    disabled="@IsForceReleasing" @onclick="OnConfirm">
+                Force-release vehicle
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ForceReleaseInfo ActiveForceReleaseInfo { get; set; } = default!;
+
+    [Parameter]
+    public bool IsForceReleasing { get; set; }
+
+    [Parameter]
+    public string? ForceReleaseError { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+}

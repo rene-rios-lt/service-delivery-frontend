@@ -5,15 +5,18 @@ namespace ServiceDelivery.Client.Core.ViewModels;
 
 /// <summary>
 /// Orchestrates the dispatcher fleet map's situational awareness (FE-003): the initial REST snapshot load,
-/// real-time <c>VehiclePositionUpdated</c> merging, and marker selection. These are cohesive — all three
-/// change for the same reason (keeping the dispatcher's live picture of the fleet correct). Transport
-/// concerns (connection lifecycle, retry/back-off) live behind <see cref="IVehiclePositionHubService"/>;
-/// this ViewModel never touches HttpClient or a HubConnection directly (Dependency Inversion).
+/// real-time <c>VehiclePositionUpdated</c> merging, marker selection, and — for a claimed vehicle — the
+/// force-release action (FE-022). These are cohesive — all change for the same reason (keeping the dispatcher's
+/// live picture of the fleet correct and letting them act on it). Transport concerns (connection lifecycle,
+/// retry/back-off, the force-release POST) live behind <see cref="IVehiclePositionHubService"/> and
+/// <see cref="IForceReleaseService"/>; this ViewModel never touches HttpClient or a HubConnection directly
+/// (Dependency Inversion).
 /// </summary>
 public class DispatcherFleetViewModel
 {
     private readonly IDispatcherFleetService _fleetService;
     private readonly IVehiclePositionHubService _hub;
+    private readonly IForceReleaseService _forceReleaseService;
 
     // Keyed by the string vehicle id (the marker key). Holds every vehicle from the snapshot; VisibleVehicles
     // applies the display filter so an Offline vehicle can be updated in place yet drop off the map.
@@ -21,10 +24,19 @@ public class DispatcherFleetViewModel
 
     private string? _selectedVehicleId;
 
-    public DispatcherFleetViewModel(IDispatcherFleetService fleetService, IVehiclePositionHubService hub)
+    // Force-release confirmation dialog state (FE-022 AC-1/AC-3/AC-5).
+    private ForceReleaseInfo? _activeForceReleaseInfo;
+    private bool _isForceReleasing;
+    private string? _forceReleaseError;
+
+    public DispatcherFleetViewModel(
+        IDispatcherFleetService fleetService,
+        IVehiclePositionHubService hub,
+        IForceReleaseService forceReleaseService)
     {
         _fleetService = fleetService;
         _hub = hub;
+        _forceReleaseService = forceReleaseService;
     }
 
     /// <summary>Raised whenever the fleet, a vehicle position, or the selection changes.</summary>
@@ -94,6 +106,82 @@ public class DispatcherFleetViewModel
     {
         _selectedVehicleId = null;
         RaiseStateChanged();
+    }
+
+    // ---- FE-022: force-release confirmation dialog --------------------------------------------------------
+
+    /// <summary>The force-release action currently shown in the confirmation dialog, or null when closed.</summary>
+    public ForceReleaseInfo? ActiveForceReleaseInfo => _activeForceReleaseInfo;
+
+    /// <summary>True from the moment a force-release is confirmed until the API round-trip resolves.</summary>
+    public bool IsForceReleasing => _isForceReleasing;
+
+    /// <summary>The message from the last failed force-release, or null when the last attempt did not error.</summary>
+    public string? ForceReleaseError => _forceReleaseError;
+
+    /// <summary>
+    /// Opens the force-release confirmation dialog for the given vehicle, building
+    /// <see cref="ActiveForceReleaseInfo"/> from its fleet entry. No-op for an unknown vehicle or an UNCLAIMED
+    /// one (<see cref="FleetVehicleEntry.RepId"/> null) — an unclaimed vehicle has no rep session to revoke, so
+    /// there is nothing to force-release. Returns a completed task (the open itself does no I/O) so the FleetMap
+    /// can wire it as an async EventCallback handler.
+    /// </summary>
+    public Task OpenForceReleaseAsync(string vehicleId)
+    {
+        if (_fleet.TryGetValue(vehicleId, out var entry) && entry.RepId is not null)
+        {
+            _activeForceReleaseInfo = new ForceReleaseInfo(
+                Guid.Parse(entry.VehicleId),
+                entry.RepName ?? string.Empty,
+                entry.Registration,
+                entry.ActiveRequestTitle);
+            _forceReleaseError = null;
+            RaiseStateChanged();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Dismisses the force-release confirmation dialog without releasing.</summary>
+    public void CancelForceRelease()
+    {
+        _activeForceReleaseInfo = null;
+        RaiseStateChanged();
+    }
+
+    /// <summary>
+    /// Confirms the force-release currently in the dialog. The dialog stays open with
+    /// <see cref="IsForceReleasing"/> true for the duration of the <c>POST /vehicles/{id}/force-release</c>
+    /// round-trip (so the confirm button disables and double-submit is prevented). On success the dialog is
+    /// dismissed; on error (AC-5) <see cref="ForceReleaseError"/> carries the message and the dialog REMAINS open
+    /// so the dispatcher sees why the release failed (the rep greying to Unclaimed reaches the map separately via
+    /// the existing VehiclePositionHub Offline update — AC-4).
+    /// </summary>
+    public async Task ConfirmForceReleaseAsync()
+    {
+        if (_activeForceReleaseInfo is not { } info)
+        {
+            return;
+        }
+
+        _isForceReleasing = true;
+        _forceReleaseError = null;
+        RaiseStateChanged();
+
+        try
+        {
+            await _forceReleaseService.ForceReleaseAsync(info.VehicleId);
+            _activeForceReleaseInfo = null;
+        }
+        catch (Exception ex)
+        {
+            _forceReleaseError = ex.Message;
+        }
+        finally
+        {
+            _isForceReleasing = false;
+            RaiseStateChanged();
+        }
     }
 
     private static bool IsVisible(FleetVehicleEntry entry) =>

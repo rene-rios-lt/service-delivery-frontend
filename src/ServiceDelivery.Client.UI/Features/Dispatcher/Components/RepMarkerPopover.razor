@@ -37,6 +37,17 @@
     {
         <div class="sd-fleet-popover__human" data-testid="popover-human-controlled">Human-controlled</div>
     }
+
+    @* FE-022 AC-1(b): the force-release action, offered only for a CLAIMED vehicle (RepId not null) — an
+       unclaimed vehicle has no rep session to revoke. Clicking delegates to the parent (FleetMap opens the
+       ForceReleaseConfirmDialog via the ViewModel); the popover stays presentational. *@
+    @if (Entry.RepId is not null)
+    {
+        <button type="button" class="sd-btn sd-btn--danger sd-fleet-popover__release"
+                data-testid="popover-force-release" @onclick="OnForceRelease">
+            Force-release vehicle
+        </button>
+    }
 </div>
 
 @code {
@@ -45,6 +56,9 @@
 
     [Parameter]
     public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback OnForceRelease { get; set; }
 
     // Maps the rep-state key to the human-readable chip label shown in the mockup, mirroring MarkerLegend
     // so the chip and the legend stay in lock-step. An unknown/null state reads as Offline.

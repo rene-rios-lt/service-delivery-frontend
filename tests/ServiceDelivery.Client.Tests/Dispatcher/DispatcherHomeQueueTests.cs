@@ -62,7 +62,7 @@ public class DispatcherHomeQueueTests : BunitContext
         _queueService.Setup(s => s.GetActiveRequestsAsync()).Returns(_queueLoad.Task);
 
         Services.AddSingleton(_mapsLoader.Object);
-        Services.AddSingleton(new DispatcherFleetViewModel(_fleetService.Object, _positionHub.Object));
+        Services.AddSingleton(new DispatcherFleetViewModel(_fleetService.Object, _positionHub.Object, Mock.Of<IForceReleaseService>()));
         Services.AddSingleton(new DispatcherRequestQueueViewModel(
             _queueService.Object, _dispatchHub.Object, _eligibility.Object, _redirectService.Object));
     }
