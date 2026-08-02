@@ -39,7 +39,7 @@ public class RequestQueueRailComponentTests : BunitContext
     {
         _fleetService.Setup(s => s.GetFleetAsync()).ReturnsAsync(new List<FleetVehicleEntry>());
         Services.AddSingleton(vm);
-        Services.AddSingleton(new DispatcherFleetViewModel(_fleetService.Object, _positionHub.Object));
+        Services.AddSingleton(new DispatcherFleetViewModel(_fleetService.Object, _positionHub.Object, Mock.Of<IForceReleaseService>()));
         return Render<RequestQueueRail>();
     }
 
@@ -160,7 +160,7 @@ public class RequestQueueRailComponentTests : BunitContext
     private async Task<DispatcherFleetViewModel> LoadedFleet(params FleetVehicleEntry[] fleet)
     {
         _fleetService.Setup(s => s.GetFleetAsync()).ReturnsAsync(fleet.ToList());
-        var vm = new DispatcherFleetViewModel(_fleetService.Object, _positionHub.Object);
+        var vm = new DispatcherFleetViewModel(_fleetService.Object, _positionHub.Object, Mock.Of<IForceReleaseService>());
         await vm.LoadAsync();
         return vm;
     }

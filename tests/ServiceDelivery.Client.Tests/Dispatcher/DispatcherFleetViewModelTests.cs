@@ -17,9 +17,10 @@ public class DispatcherFleetViewModelTests
 
     private readonly Mock<IDispatcherFleetService> _fleetService = new();
     private readonly Mock<IVehiclePositionHubService> _hub = new();
+    private readonly Mock<IForceReleaseService> _forceReleaseService = new();
 
     private DispatcherFleetViewModel CreateViewModel() =>
-        new(_fleetService.Object, _hub.Object);
+        new(_fleetService.Object, _hub.Object, _forceReleaseService.Object);
 
     private void FleetReturns(params FleetVehicleEntry[] entries) =>
         _fleetService.Setup(s => s.GetFleetAsync()).ReturnsAsync(entries.ToList());

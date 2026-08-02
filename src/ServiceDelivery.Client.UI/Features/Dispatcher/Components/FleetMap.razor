@@ -35,6 +35,19 @@
 
     @if (ViewModel.SelectedVehicle is not null)
     {
-        <RepMarkerPopover Entry="ViewModel.SelectedVehicle" OnClose="ViewModel.ClearSelection" />
+        <RepMarkerPopover Entry="ViewModel.SelectedVehicle"
+                          OnClose="ViewModel.ClearSelection"
+                          OnForceRelease="() => ViewModel.OpenForceReleaseAsync(ViewModel.SelectedVehicle!.VehicleId)" />
+    }
+
+    @* FE-022: the force-release confirmation dialog overlays the map panel when a force-release is pending.
+       Presentational — all data + actions delegate to DispatcherFleetViewModel (the popover opened it). *@
+    @if (ViewModel.ActiveForceReleaseInfo is not null)
+    {
+        <ForceReleaseConfirmDialog ActiveForceReleaseInfo="ViewModel.ActiveForceReleaseInfo"
+                                   IsForceReleasing="ViewModel.IsForceReleasing"
+                                   ForceReleaseError="ViewModel.ForceReleaseError"
+                                   OnCancel="ViewModel.CancelForceRelease"
+                                   OnConfirm="ViewModel.ConfirmForceReleaseAsync" />
     }
 </div>

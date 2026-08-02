@@ -35,6 +35,14 @@
     z-index: 30;
 }
 
+/* FE-022: the force-release action sits below the popover's read-only detail, full-width so the destructive
+   button reads as the popover's primary action. */
+.sd-fleet-map-panel ::deep .sd-fleet-popover__release {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+}
+
 /* FE-003 (review cycle 10): screen-reader-only utility for the accessible fleet summary. Keeps the element
    in the accessibility tree (VoiceOver + native mac2/XCTest AX) while removing it from the visual layout —
    the standard clip pattern. It MUST NOT use display:none or visibility:hidden, which drop the element (and

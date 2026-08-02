@@ -66,6 +66,9 @@ public static class MauiProgram
 		// same two registrations in Web Program.cs).
 		builder.Services.AddScoped<IRedirectEligibilityService, RedirectEligibilityService>();
 		builder.Services.AddScoped<IDispatcherRedirectService, HttpDispatcherRedirectService>();
+		// FE-022 force-release: the POST /vehicles/{id}/force-release HTTP adapter (host parity — the SAME
+		// registration is in Web Program.cs; missing one host is the BUG-020->BUG-022 trap).
+		builder.Services.AddScoped<IForceReleaseService, HttpForceReleaseService>();
 
 		// FE-003 AC-1: back the Desktop token store with MAUI Preferences instead of the Keychain
 		// (SecureStorage). SecureStorage needs a Keychain-access entitlement an unsigned local Mac

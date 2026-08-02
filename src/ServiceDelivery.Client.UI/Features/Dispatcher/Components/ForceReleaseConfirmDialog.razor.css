@@ -1,0 +1,30 @@
+/* FE-022 force-release dialog — state chips inside the VEHICLE / AFTER RELEASE swap cards. The global
+   design-system.css has the dialog/swap/cooldown/banner/button structure but no chip class, so these small
+   pills (matching the mockup's grey "Offline" and "Unclaimed" chips) are scoped to this component (OCP: a new
+   file, no edit to shared CSS). Both use the offline-grey token (var value inlined) since a released vehicle
+   is Offline then Unclaimed. */
+
+.sd-fr-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(154, 160, 174, .18);
+    color: #6C7280;
+}
+
+.sd-fr-chip__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #9AA0AE;
+}
+
+.sd-swap__note {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #5A5F6E;
+}
